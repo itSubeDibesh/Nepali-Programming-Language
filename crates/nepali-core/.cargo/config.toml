@@ -1,0 +1,8 @@
+# Pins pyo3 to a Python version it actually supports on this dev machine
+# (pyo3 0.22 tops out at 3.13; Homebrew's default python3 here is 3.14,
+# which fails pyo3-ffi's build script with no useful error otherwise).
+# Only affects local `cargo build`/`cargo test` on macOS - the Docker
+# image (Debian bookworm's system python3 is 3.11) doesn't need this and
+# doesn't read it.
+[env]
+PYO3_PYTHON = { value = "/opt/homebrew/bin/python3.13", force = false }

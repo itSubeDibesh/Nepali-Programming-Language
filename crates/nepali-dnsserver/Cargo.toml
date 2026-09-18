@@ -1,0 +1,17 @@
+[package]
+name = "nepali-dnsserver"
+version = "0.1.0"
+edition = "2021"
+description = "A real authoritative DNS server for NepaliOS, on hickory-server - see CLAUDE.md's services roadmap."
+license = "MIT"
+
+[[bin]]
+name = "nepali-dnsserver"
+path = "src/main.rs"
+
+[dependencies]
+# A real, proven, audited DNS protocol implementation (real wire-format
+# parsing, real UDP server loop) - not a hand-rolled one. See CLAUDE.md's
+# non-goals about reimplementing a DNS server from scratch.
+hickory-server = "0.24"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "macros"] }

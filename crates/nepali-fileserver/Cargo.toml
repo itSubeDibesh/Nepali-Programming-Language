@@ -1,0 +1,18 @@
+[package]
+name = "nepali-fileserver"
+version = "0.1.0"
+edition = "2021"
+description = "A real, minimal HTTP fileserver (upload + download + listing) for NepaliOS - see CLAUDE.md's services roadmap."
+license = "MIT"
+
+[[bin]]
+name = "nepali-fileserver"
+path = "src/main.rs"
+
+[dependencies]
+# A real, small, audited HTTP/1.1 server - not a hand-rolled socket/HTTP
+# parser (real HTTP parsing, including chunked transfer encoding and
+# header edge cases, is exactly the kind of thing worth not
+# reimplementing - see CLAUDE.md's non-goals about hand-rolled network
+# services).
+tiny_http = "0.12"

@@ -1,0 +1,33 @@
+# Rust
+target/
+Cargo.lock.bak
+
+# Go
+/bin/
+*.test
+
+# Node / JS (future Next.js/hosting tooling)
+node_modules/
+.next/
+dist/
+build/
+*.tsbuildinfo
+npm-debug.log*
+
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs / temp
+*.log
+tmp/
+dump.rdb

@@ -1,0 +1,9 @@
+[package]
+name = "nepali-plugin-abi"
+version = "0.1.0"
+edition = "2021"
+description = "Stable C-ABI types shared between the nepali-core host and real Rust plugins it dlopens - see CLAUDE.md's Rust interop bridge."
+license = "MIT"
+
+[lib]
+crate-type = ["rlib"]

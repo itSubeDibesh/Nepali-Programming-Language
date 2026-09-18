@@ -1,0 +1,11 @@
+// A small "module": just a .nep file with function declarations, imported
+// by path from another file. No namespacing yet - it shares the importer's
+// global scope, same as the interpreter's single Environment always did.
+
+काम square(n) {
+  पठाउँ n * n।
+}
+
+काम cube(n) {
+  पठाउँ n * n * n।
+}

@@ -1,0 +1,15 @@
+# Real fix for the disk-space exhaustion that kept recurring all
+# session: with no .dockerignore, every `docker build` sent every
+# crate's local target/ (gigabytes of host build artifacts - debug
+# builds, incremental compilation caches) as build context, and COPY
+# instructions that copy a whole crate directory (see the Dockerfiles)
+# copied them straight into the image/build layers too. None of this
+# was ever needed - every Dockerfile does its own `cargo build` inside
+# the container from source.
+target/
+**/target/
+.git/
+os-image/binaries/
+os-image/output/
+os-image/cache/
+**/*.iso

@@ -1,0 +1,5 @@
+# go build -buildmode=c-shared output - a real build artifact (the
+# actual .so/.dylib plus its auto-generated C header), not source.
+*.so
+*.dylib
+*.h

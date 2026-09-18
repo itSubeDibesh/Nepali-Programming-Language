@@ -1,0 +1,118 @@
+[package]
+name = "nepali-core"
+version = "0.1.0"
+edition = "2021"
+description = "Nepali programming language core: lexer, parser, AST, interpreter"
+license = "MIT"
+
+[lib]
+# rlib only: this is a no_std + alloc library, consumed by a host binary
+# (CLI, kernel, or a future wasm-bindgen shim) that supplies the
+# allocator/panic runtime a standalone "cdylib" artifact would need itself.
+crate-type = ["rlib"]
+
+# Not under src/bin/: the repo's root .gitignore has an unanchored "bin/"
+# rule (for the Go build output) that would also swallow src/bin/ here.
+[[bin]]
+name = "nepali-core-cli"
+path = "src/cli/main.rs"
+
+[dependencies]
+# unicode-normalization was never actually used (dead dependency, flagged
+# by cargo) and doesn't build for a real no_std/freestanding target - it
+# assumes std's prelude unconditionally. Removing it is what makes this
+# crate buildable as a kernel dependency, not just no_std-labeled.
+
+# Only used by the std-based `nepali-core-cli` bin target's HostDb
+# implementation (src/cli/host_linux.rs) - the no_std lib itself never
+# references it. A real, audited SQLite binding (bundled, statically
+# linked C SQLite) rather than a hand-rolled database engine - see
+# CLAUDE.md's non-goals.
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# Real embedded CPython (via the system's real libpython, found at build
+# time) - the first of four planned real-interop bridges (Python, then
+# Rust plugins, then JS/TS, then Go - see CLAUDE.md). Not a subprocess
+# shim: this links the real interpreter into the process and shares
+# values directly. `optional`: gated behind the `python-interop` feature
+# (on by default, matching existing behavior) so a build that needs zero
+# libpython dependency - real portability, not just static-linking the
+# other three bridges already have - is one flag away:
+# `cargo build --no-default-features --features rust-interop,js-interop`.
+pyo3 = { version = "0.22", features = ["auto-initialize"], optional = true }
+
+# Second of four planned real-interop bridges: real, separately-compiled
+# Rust plugins, dlopen'd at runtime through libloading rather than linked
+# at compile time. nepali-plugin-abi defines the stable C-ABI struct both
+# the host (src/cli/host_rust.rs) and every plugin (see
+# crates/nepali-example-plugin) depend on. `optional`: gated behind
+# `rust-interop` (on by default) - see the `python-interop` comment above
+# for why every bridge is independently optional now.
+libloading = { version = "0.8", optional = true }
+nepali-plugin-abi = { path = "../nepali-plugin-abi", version = "0.1.0", optional = true }
+
+# Third of four planned real-interop bridges: a real embedded QuickJS
+# engine (bundled C sources, statically compiled - notably more
+# self-contained already than pyo3's dynamic libpython link) for real
+# JavaScript execution. `optional`: gated behind `js-interop` (on by
+# default).
+rquickjs = { version = "0.6", features = ["full"], optional = true }
+
+# Real TS->JS transpilation for the same bridge (टिएस_चलाउनुहोस्) - a
+# real, proven compiler (parses real TS syntax, strips type-only
+# constructs structurally), not a hand-rolled type-annotation stripper.
+# Part of `js-interop` too - TS transpilation without the JS engine to
+# run the result in makes no sense as a separate feature.
+swc_core = { version = "79", features = [
+    "common",
+    "ecma_ast",
+    "ecma_parser",
+    "ecma_codegen",
+    "ecma_transforms_typescript",
+    "ecma_visit",
+], optional = true }
+
+# Services roadmap item 2 (fileserver done first - see CLAUDE.md): a
+# real, widely-used Redis client crate talking to a real redis-server
+# process, not an in-process HashMap pretending to be a cache.
+# `optional`: gated behind `cache` (on by default).
+redis = { version = "0.27", optional = true }
+
+# Real local AI: candle is a pure-Rust ML runtime (Hugging Face's own),
+# not a C++/CUDA binding like llama.cpp - keeps the same "no extra native
+# toolchain" portability story as the other bridges (see CLAUDE.md's
+# static-binary work). Runs a real quantized GGUF LLM for
+# एआई_सोध्नुहोस् and a real Whisper model for एआई_सुन्नुहोस्.
+# `optional`: gated behind `ai-interop`. NOT in `default` - model weights
+# are multi-GB downloads, unlike every other bridge's dependency, so
+# opting in is a deliberate, separate choice.
+candle-core = { version = "0.8", optional = true }
+candle-nn = { version = "0.8", optional = true }
+candle-transformers = { version = "0.8", optional = true }
+tokenizers = { version = "0.20", optional = true }
+# Real WAV file parsing for एआई_सुन्नुहोस् (speech-to-text input) - a
+# real, small, widely-used crate rather than a hand-rolled RIFF parser.
+hound = { version = "3.5", optional = true }
+# Parses a real Whisper config.json (candle_transformers::models::whisper::Config
+# already derives serde::Deserialize with matching field names).
+serde_json = { version = "1", optional = true }
+
+[features]
+# Every bridge above HostDb (always-on: rusqlite is bundled/statically
+# compiled already, zero portability cost) is independently optional, so
+# a genuinely minimal, dependency-free build is one flag away - real
+# portability, not just "the other three bridges happen to be
+# statically linked already." Defaults to everything, matching this
+# crate's behavior before this feature-gating existed - existing
+# Dockerfile/os-image builds need no changes.
+default = ["python-interop", "rust-interop", "js-interop", "cache"]
+python-interop = ["dep:pyo3"]
+rust-interop = ["dep:libloading", "dep:nepali-plugin-abi"]
+js-interop = ["dep:rquickjs", "dep:swc_core"]
+cache = ["dep:redis"]
+ai-interop = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers", "dep:hound", "dep:serde_json", "dep:pyo3"]
+wasm = ["wasm-bindgen"]
+
+[dependencies.wasm-bindgen]
+version = "0.2"
+optional = true

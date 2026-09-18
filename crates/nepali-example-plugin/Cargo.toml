@@ -1,0 +1,12 @@
+[package]
+name = "nepali-example-plugin"
+version = "0.1.0"
+edition = "2021"
+description = "A real, minimal example plugin for nepali-core's Rust interop bridge - exists to verify the ABI, not as a real feature."
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+nepali-plugin-abi = { path = "../nepali-plugin-abi" }

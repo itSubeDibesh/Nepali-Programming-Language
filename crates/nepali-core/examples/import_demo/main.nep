@@ -1,0 +1,4 @@
+आयात "mathlib.nep"।
+
+भनौँ("square(4) =", square(4))।
+भनौँ("cube(3) =", cube(3))।

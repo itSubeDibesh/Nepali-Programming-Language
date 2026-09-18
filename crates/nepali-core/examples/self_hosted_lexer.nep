@@ -1,0 +1,67 @@
+// A lexer written IN nepali, for a tiny subset of nepali's own syntax -
+// a real first step toward roadmap lang step 5 (self-hosting), not the
+// full compiler yet. Classifies each character of the input as a digit
+// run or a standalone symbol, using only लम्बाइ/अक्षर/संकेत - this exact
+// kind of char-by-char scan was impossible before those existed, since
+// there was no way to index into a string at all.
+
+काम हो_अङ्क(संकेत_मान) {
+	// ASCII '0'..'9' is code points 48..57
+	यदि संकेत_मान >= 48 {
+		यदि संकेत_मान <= 57 {
+			पठाउँ सहि।
+		}
+	}
+	पठाउँ गलत।
+}
+
+काम हो_खाली(संकेत_मान) {
+	// space (32), tab (9), newline (10)
+	यदि संकेत_मान == 32 {
+		पठाउँ सहि।
+	}
+	यदि संकेत_मान == 9 {
+		पठाउँ सहि।
+	}
+	यदि संकेत_मान == 10 {
+		पठाउँ सहि।
+	}
+	पठाउँ गलत।
+}
+
+// The language has no `break`, so scanning a digit run uses an explicit
+// continue-flag loop instead - the same pattern any nepali program would
+// need for early loop exit today.
+काम टोकन_देखाउ(श्रोत) {
+	राखौँ i = 0।
+	राखौँ n = लम्बाइ(श्रोत)।
+	भएसम्म i < n {
+		राखौँ code = संकेत(अक्षर(श्रोत, i))।
+
+		यदि हो_खाली(code) {
+			i = i + 1।
+		} नत्र {
+			यदि हो_अङ्क(code) {
+				राखौँ सुरु = i।
+				राखौँ जारी = सहि।
+				भएसम्म जारी {
+					यदि i < n {
+						यदि हो_अङ्क(संकेत(अक्षर(श्रोत, i))) {
+							i = i + 1।
+						} नत्र {
+							जारी = गलत।
+						}
+					} नत्र {
+						जारी = गलत।
+					}
+				}
+				भनौँ("NUMBER", सुरु, "..", i)।
+			} नत्र {
+				भनौँ("SYMBOL", अक्षर(श्रोत, i))।
+				i = i + 1।
+			}
+		}
+	}
+}
+
+टोकन_देखाउ("42 + 7")।

@@ -1,0 +1,5 @@
+# Real build artifacts and extracted binaries - large, reproducible from
+# the repo root Dockerfile + build.sh, not something to commit.
+binaries/
+output/
+cache/
