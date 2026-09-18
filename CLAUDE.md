@@ -260,15 +260,39 @@ not assumed:
   bundles its C sources) - confirmed live: the Docker image needed *zero*
   new system packages to add this bridge.
 - **Python (`HostPython`)**: static linking specifically is still a real,
-  unresolved gap. Investigated a real static-linking attempt (not just
-  assumed impossible): downloaded a `python-build-standalone` static
-  build (real `libpython3.13.a` present), pointed `pyo3` at it via a
-  manual `PYO3_CONFIG_FILE` with `shared=false`. Result, from `pyo3`'s
-  own build script, not a guess: *"Embedding the Python interpreter
-  statically does not yet have first-class support in PyO3."* Pushing
-  further into that unsupported path would mean fragile, undocumented
-  behavior - not a real, quality static build. Deferred until `pyo3`
-  supports this properly, rather than shipped half-working.
+  unresolved gap - re-investigated with `pyo3` 0.29.2 (up from 0.22)
+  and pushed further this time, past the original one-line "not
+  first-class support" finding, to pin down exactly what actually
+  blocks it:
+  1. `python-build-standalone`'s only non-debug static builds are
+     `pgo+lto` variants - linking their `libpython3.13.a` failed with a
+     real, reproducible LLVM bitcode-version mismatch (`could not parse
+     bitcode object file ... 'Unknown attribute kind (105)'`), exactly
+     the "C compiler and flags... must be compatible with your Rust
+     compiler" complication `pyo3`'s own docs warn about.
+  2. Switching to the debug-ABI static build (`libpython3.13d.a`,
+     `Py_DEBUG`) got past the bitcode error and linked successfully
+     once every one of CPython's bundled C-extension modules' own
+     transitive static dependencies (OpenSSL, expat, libffi, lzma,
+     mpdecimal, sqlite3, bz2, uuid, zstd - all real, all found and
+     linked from `python-build-standalone`'s own `build/lib/`) were
+     supplied by hand - `pyo3-ffi`'s build script doesn't do this
+     automatically for a fully static embed.
+  3. Two concrete gaps remained even then, not vague ones:
+     `pyo3-ffi`'s build script doesn't link CPython's own
+     `Hacl_Hash_SHA2.o` (a loose object file, not bundled into any
+     `.a`, needed for `hashlib`'s SHA-2 implementation) - a real,
+     specific `pyo3-ffi` build-script gap, not a Rust-side limitation.
+     And macOS's system `ncurses` ships no `libpanel` at all, so the
+     `_curses_panel` module - unconditionally compiled into every
+     CPython build - can't be satisfied on macOS without building
+     ncurses+panel from source, a separate real undertaking.
+  Real conclusion, more precise than before: static embedding is
+  reachable in principle, but only via a debug-ABI Python (wrong
+  runtime profile for production) and after separately patching around
+  two independent gaps (one in `pyo3-ffi`, one a macOS platform
+  limitation) - not something to ship half-working. Deferred until
+  `pyo3` supports this properly, rather than shipped fragile.
   **What's solved instead**: every interop bridge (`python-interop`,
   `rust-interop`, `js-interop`, `cache`) is now an independently optional
   Cargo feature (`default = all four`, so every existing build needs zero
@@ -443,9 +467,34 @@ the language." Broken into what's real vs honestly not:
   `added_tokens`) that Whisper's own multilingual training genuinely
   covers Nepali - a real `<|ne|>` language token exists (id `50313`) -
   unlike the small Qwen text model, Whisper's *speech* recognition has
-  real, non-toy Nepali language coverage; not yet tested against real
-  Nepali audio (none was available to test with), so real Nepali
-  transcription accuracy itself is still unverified, honestly.
+  real, non-toy Nepali language coverage.
+  **Real Nepali-audio accuracy, tested for real, not assumed.** Fetched
+  one real recording plus its ground-truth transcript from the public
+  OpenSLR-43 Nepali speech corpus (the same real dataset the TTS
+  bridge's SpeechT5 fine-tune was trained on) - a real human speaker,
+  not synthesized - via HTTP range requests against the archive's real
+  remote zip (confirmed the mirror supports `Range`, pulled just the
+  one `.wav` and `line_index.tsv` entry needed, not the full 800MB
+  archive). Ground truth: *"दीपा धामीको जन्म सुदूरपश्चिम नेपालको बझाङ
+  जिल्लामा भएको हो"*. `एआई_सुन्नुहोस्` (whisper-tiny, the smallest real
+  Whisper variant) returned: *"Deepad Hamiko Jornmasudur Pasti Nepal
+  kebazangji Lama Vai keho"* - wrong script (Latin instead of
+  Devanagari) and real spelling/word-boundary errors, but genuinely
+  phonetically close throughout (*"Deepa Dhami"*, *"sudur paschim"*,
+  *"Nepal"*, *"Bajhang"*, *"bhayeko ho"* are all real, recognizable
+  matches to the actual words spoken) - not garbage, a real, honest,
+  quantifiable limitation of the smallest Whisper checkpoint on a
+  lower-resource language, the same "small model, real but limited
+  quality" pattern already found with the small Qwen LLM. A larger
+  Whisper variant (`base`/`small`/`medium`, swappable via
+  `NEPALI_AI_WHISPER_MODEL_PATH` with no code change) would plausibly
+  do much better; not tested, not claimed as solved.
+  (A first attempt at this test round-tripped through the TTS bridge
+  itself - `एआई्बोल्नुहोस्` output fed into `एआई_सुन्नुहोस्` - but was
+  dropped as an honest methodology flaw: a mismatched non-Nepali
+  speaker x-vector degraded the synthesized audio enough that a garbled
+  STT result couldn't be attributed to either component specifically,
+  so real human-recorded audio was used instead.)
   Real, stated scope limit: only 16kHz mono 16-bit PCM WAV is accepted -
   no resampling is implemented, a wrong-rate file is a real, explicit
   error naming the fix (`ffmpeg -ar 16000 -ac 1`), not silently wrong
@@ -510,14 +559,14 @@ the language." Broken into what's real vs honestly not:
   than a crash - real graceful degradation inside the real shipped
   image, the same honest-failure behavior every other optional bridge
   already has.
-- **Image/video generation - out of scope for this OS, stated honestly,
-  not attempted.** Real local image/video generation models are far
-  larger (5-50GB+) and need a real GPU runtime (CUDA/Metal), which
-  directly conflicts with the portability goal already proven for this
-  project (a single static, CPU-only, no-GPU-driver-required binary).
-  Doing this for real would mean either dropping the portability
-  guarantee or calling an external API - a real design trade-off for the
-  user to decide, not something to fake a local answer for.
+- **Image/video generation - explicitly declined by the user, closed,
+  not on the roadmap.** Real local image/video generation models are
+  far larger (5-50GB+) and need a real GPU runtime (CUDA/Metal), which
+  would have conflicted with the portability goal already proven for
+  this project (a single static, CPU-only, no-GPU-driver-required
+  binary) unless done via an external API instead. Given that real
+  trade-off, the user chose to drop this from scope entirely rather
+  than pursue either option - not a deferred item, a closed one.
 - **"OS aware of the language" framing**: `एआई_सोध्नुहोस्` is reachable
   both as a `.nep` builtin and directly at the interactive shell prompt
   (same `new_interpreter()` wiring `run_shell` already uses for every
@@ -614,9 +663,26 @@ plausible-sounding answer)**:
   independently confirmed with `cat` on the real file afterward, not
   just trusted from the agent's own summary.
 
-**Still real, honest gaps, not attempted here**: no OS-state awareness
-(the agent has no tools for reading logs/process lists/metrics - it can
-only touch what its fixed toolset exposes), no learning/fine-tuning
+**OS-state awareness - done, verified.** The agent's fixed toolset now
+includes three explicit, named OS-state tools alongside file/command
+access - `प्रक्रिया_सूची()` (real running processes, via `ps aux`),
+`डिस्क_ठाउँ()` (real disk usage, via `df -h`), and `प्रणाली_जानकारी()`
+(real OS/kernel identity, via `uname -a`) - each a real
+`HostCommand::run` call under the hood, the same mechanism `आदेश`
+already uses, not a second implementation. The point: the agent no
+longer has to already know which raw shell command answers "what's
+running"/"how much disk is left" - these are discoverable, named
+capabilities in its own tool list. **Verified for real, with an
+unguessable result again**: goal "check how much disk space is free
+and tell me the percentage used for the root filesystem" -> real
+`डिस्क_ठाउँ()` call -> the agent's final answer contained this actual
+machine's real root-filesystem usage (`12Gi` used, `88Gi` available,
+`12%`), matching independently-run `df -h` exactly - not something the
+model could have guessed.
+
+**Still real, honest gaps, not attempted here**: no reading of
+arbitrary system logs (only the three named OS-state tools above,
+plus whatever `आदेश`/file tools can reach), no learning/fine-tuning
 (model weights are static files, nothing updates from usage), no
 persistent memory across separate `एजेन्ट_चलाउनुहोस्` calls (each call
 starts a fresh transcript), no autonomous triggering (something has to

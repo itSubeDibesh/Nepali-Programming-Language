@@ -981,7 +981,10 @@ impl Interpreter {
              - फाइल_पढ्नुहोस्(path) - reads a real file\n\
              - फाइल_लेख्नुहोस्(path, contents) - writes a real file\n\
              - सूची(path) - lists a real directory\n\
-             - आदेश(program, arg1, arg2, ...) - runs a real command, returns its exit code and output\n\n\
+             - आदेश(program, arg1, arg2, ...) - runs a real command, returns its exit code and output\n\
+             - प्रक्रिया_सूची() - lists real running processes on this OS\n\
+             - डिस्क_ठाउँ() - real disk space usage on this OS\n\
+             - प्रणाली_जानकारी() - real OS/kernel identification (uname -a)\n\n\
              Example:\n\
              Goal: read /tmp/x.txt and tell me what it says\n\
              कार्य: फाइल_पढ्नुहोस्(/tmp/x.txt)\n\
@@ -1131,6 +1134,45 @@ impl Interpreter {
                 match host.run(program, &cmd_args) {
                     Ok((code, stdout, stderr)) => {
                         format!("exit={code}\nstdout: {stdout}\nstderr: {stderr}")
+                    }
+                    Err(e) => format!("त्रुटि: {e}"),
+                }
+            }
+            // Real OS-state awareness: named, discoverable tools rather
+            // than relying on the model to already know which raw shell
+            // command answers "what's running"/"how much disk is left"/
+            // "what OS is this" - each is a real `HostCommand::run` call
+            // under the hood (the exact same mechanism `आदेश` uses), not
+            // a separate, second way of running commands.
+            "प्रक्रिया_सूची" => {
+                let Some(host) = self.host_command.clone() else {
+                    return "त्रुटि: कुनै वास्तविक आदेश-चालक उपलब्ध छैन".to_string();
+                };
+                match host.run("ps", &["aux".to_string()]) {
+                    Ok((code, stdout, stderr)) => {
+                        format!("exit={code}\n{stdout}{stderr}")
+                    }
+                    Err(e) => format!("त्रुटि: {e}"),
+                }
+            }
+            "डिस्क_ठाउँ" => {
+                let Some(host) = self.host_command.clone() else {
+                    return "त्रुटि: कुनै वास्तविक आदेश-चालक उपलब्ध छैन".to_string();
+                };
+                match host.run("df", &["-h".to_string()]) {
+                    Ok((code, stdout, stderr)) => {
+                        format!("exit={code}\n{stdout}{stderr}")
+                    }
+                    Err(e) => format!("त्रुटि: {e}"),
+                }
+            }
+            "प्रणाली_जानकारी" => {
+                let Some(host) = self.host_command.clone() else {
+                    return "त्रुटि: कुनै वास्तविक आदेश-चालक उपलब्ध छैन".to_string();
+                };
+                match host.run("uname", &["-a".to_string()]) {
+                    Ok((code, stdout, stderr)) => {
+                        format!("exit={code}\n{stdout}{stderr}")
                     }
                     Err(e) => format!("त्रुटि: {e}"),
                 }
