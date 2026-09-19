@@ -246,9 +246,24 @@ impl Default for LocalAi {
     }
 }
 
+const DEFAULT_SYSTEM: &str = "You are a helpful assistant.";
+
+// Without this a small Qwen drifts into Hindi/Marathi for Devanagari questions.
+const NEPALI_SYSTEM: &str = "You are a helpful assistant for Nepali speakers. The user writes in Nepali. \
+Reply only in Nepali (नेपाली) using Devanagari script. Never reply in Hindi or Marathi. \
+Use words Nepali speakers use, keep the answer short and factual, and if you are not sure, say तपाईंको प्रश्न मैले राम्ररी बुझिनँ।";
+
+fn system_for(prompt: &str) -> &'static str {
+    if prompt.chars().any(|c| ('\u{0900}'..='\u{097F}').contains(&c)) {
+        NEPALI_SYSTEM
+    } else {
+        DEFAULT_SYSTEM
+    }
+}
+
 impl HostAi for LocalAi {
     fn ask(&self, prompt: &str) -> Result<String, String> {
-        self.ask_with_system("You are a helpful assistant.", prompt)
+        self.ask_with_system(system_for(prompt), prompt)
     }
 
     fn ask_with_system(&self, system: &str, prompt: &str) -> Result<String, String> {
@@ -286,7 +301,7 @@ impl HostAi for LocalAi {
         let temperature: f64 = env::var("NEPALI_AI_TEMPERATURE")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(if system == "You are a helpful assistant." { 0.7 } else { 0.2 });
+            .unwrap_or(if system == DEFAULT_SYSTEM { 0.7 } else { 0.2 });
         let mut logits_processor = LogitsProcessor::new(299792458, Some(temperature), Some(0.9));
 
         let mut generated: Vec<u32> = Vec::new();

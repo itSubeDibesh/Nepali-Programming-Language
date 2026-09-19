@@ -905,7 +905,7 @@ impl Interpreter {
             "एआई_सोध्नुहोस्" => {
                 let prompt = expect_string(name, args, 0)?;
                 let response = host.ask(&prompt)?;
-                Ok(Value::Str(response))
+                Ok(Value::Str(cut_repeated_sentences(&cut_repetition(&response))))
             }
             "सहायक_सोध्नुहोस्" => {
                 let prompt = expect_string(name, args, 0)?;
@@ -1768,6 +1768,28 @@ fn cut_repetition(answer: &str) -> String {
     out.join("\n").trim_end().to_string()
 }
 
+/// Cuts an answer at the first sentence (ended by `।`, `.`, `?` or `!`) that repeats an
+/// earlier one, so a model stuck in a loop stops after its first pass.
+fn cut_repeated_sentences(answer: &str) -> String {
+    let mut seen: Vec<&str> = Vec::new();
+    let mut end = answer.len();
+    let mut start = 0;
+    for (i, c) in answer.char_indices() {
+        if matches!(c, '।' | '.' | '?' | '!' | '\n') {
+            let sent = answer[start..i].trim();
+            if sent.chars().count() > 12 && seen.contains(&sent) {
+                end = start;
+                break;
+            }
+            if !sent.is_empty() {
+                seen.push(sent);
+            }
+            start = i + c.len_utf8();
+        }
+    }
+    answer[..end].trim_end().to_string()
+}
+
 fn is_host_ai_builtin(name: &str) -> bool {
     matches!(
         name,
@@ -1959,5 +1981,22 @@ mod agent_safety_tests {
         assert!(system_path_write_reason("/home/nepali/notes.txt").is_none());
         assert!(system_path_write_reason("/tmp/scratch.txt").is_none());
         assert!(system_path_write_reason("relative/path.txt").is_none());
+    }
+}
+
+#[cfg(test)]
+mod repeated_sentence_tests {
+    use super::cut_repeated_sentences;
+
+    #[test]
+    fn stops_at_the_first_repeated_sentence() {
+        let looped = "पहिलो वाक्य यहाँ छ। दोस्रो वाक्य पनि यहाँ छ। पहिलो वाक्य यहाँ छ। दोस्रो वाक्य पनि यहाँ छ।";
+        assert_eq!(cut_repeated_sentences(looped), "पहिलो वाक्य यहाँ छ। दोस्रो वाक्य पनि यहाँ छ।");
+    }
+
+    #[test]
+    fn leaves_normal_text_and_short_repeats_alone() {
+        let t = "हो। हो। यो एउटा साधारण उत्तर हो।";
+        assert_eq!(cut_repeated_sentences(t), t);
     }
 }

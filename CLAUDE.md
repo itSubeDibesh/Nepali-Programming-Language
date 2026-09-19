@@ -1220,6 +1220,19 @@ typing in the browser was only checked at the function level, not clicked throug
 The next work order (run modes so the language alone cannot run OS commands, releases that need
 no Rust, a Studio with no browser or Python) is in `PROGRESS.md`.
 
+## AI language: Devanagari questions get a Nepali instruction
+
+Reported by the user: `एआई_सोध्नुहोस्` answered a Nepali question in Hindi. Cause: plain `ask` sent only
+"You are a helpful assistant." (temperature 0.7) with no language instruction. Now a prompt that
+contains Devanagari gets a system prompt asking for Nepali only (`host_ai.rs`, `NEPALI_SYSTEM`,
+temperature 0.2), and the answer is cut at the first repeated sentence (`cut_repeated_sentences`).
+Measured with the real Qwen2.5-1.5B on 4 questions: replies are now Nepali instead of Hindi, and
+the "उमेर २५" question is answered correctly, but **facts are still wrong** (it did not know the
+capital of Nepal in Nepali; the English question is correct) and longer answers drift and mix in
+Marathi/Hindi words. A repetition penalty was tried and made the drift worse (Devanagari is split
+into byte-level tokens), so it was removed. A small model cannot be fixed by prompting; a larger
+model (Qwen2.5 3B/7B GGUF via `NEPALI_AI_MODEL_PATH`) is the real fix and has not been tried.
+
 ## ARM64 ISO (UEFI/GRUB, native on Apple Silicon)
 
 The x86_64 ISO is emulated on an M-series Mac, so the AI was unusably slow there.
