@@ -3,7 +3,7 @@
 //! bare-metal kernel had, just real `std::fs` and a real SQLite database
 //! (via `rusqlite`, bundled/statically-linked C SQLite - a real, audited
 //! engine, not a hand-rolled one; see CLAUDE.md's non-goals).
-use nepali_core::{HostCommand, HostFs, Value};
+use nepali_core::{days_to_ymd, parse_date_str, HostClock, HostCommand, HostFs, HostInput, Value};
 #[cfg(feature = "db")]
 use nepali_core::HostDb;
 use std::cell::RefCell;
@@ -12,6 +12,48 @@ use std::process::Command;
 use std::rc::Rc;
 #[cfg(feature = "db")]
 use std::sync::Mutex;
+
+pub struct LinuxClock;
+
+impl HostClock for LinuxClock {
+    fn today(&self) -> Result<(i32, u32, u32), String> {
+        if let Ok(env_date) = std::env::var("NEPALI_TODAY") {
+            let env_date = env_date.trim();
+            if !env_date.is_empty() {
+                return parse_date_str(env_date);
+            }
+        }
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let dur = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| format!("system clock before UNIX epoch: {e}"))?;
+        let days = (dur.as_secs() / 86400) as i64;
+        Ok(days_to_ymd(days))
+    }
+}
+
+pub struct LinuxInput;
+
+impl HostInput for LinuxInput {
+    fn read_line(&self, prompt: &str) -> Result<String, String> {
+        use std::io::{self, Write};
+        if !prompt.is_empty() {
+            print!("{prompt}");
+            let _ = io::stdout().flush();
+        }
+        let mut line = String::new();
+        io::stdin()
+            .read_line(&mut line)
+            .map_err(|e| format!("stdin error: {e}"))?;
+        if line.ends_with('\n') {
+            line.pop();
+            if line.ends_with('\r') {
+                line.pop();
+            }
+        }
+        Ok(line)
+    }
+}
 
 pub struct LinuxFs;
 

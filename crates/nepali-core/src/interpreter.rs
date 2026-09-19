@@ -364,6 +364,16 @@ pub trait HostAi {
     fn speak(&self, text: &str) -> Result<String, String>;
 }
 
+pub trait HostClock {
+    /// Returns current date as `(year, month, day)` in Gregorian calendar.
+    fn today(&self) -> Result<(i32, u32, u32), String>;
+}
+
+pub trait HostInput {
+    /// Reads a single line from the user, with an optional prompt.
+    fn read_line(&self, prompt: &str) -> Result<String, String>;
+}
+
 pub struct Interpreter {
     pub output: Vec<String>,
     globals: Env,
@@ -378,6 +388,8 @@ pub struct Interpreter {
     host_cache: Option<Rc<dyn HostCache>>,
     host_ai: Option<Rc<dyn HostAi>>,
     host_command: Option<Rc<dyn HostCommand>>,
+    host_clock: Option<Rc<dyn HostClock>>,
+    host_input: Option<Rc<dyn HostInput>>,
     fuel: Option<u64>,
     call_depth: u32,
     max_call_depth: Option<u32>,
@@ -399,6 +411,8 @@ impl Interpreter {
             host_cache: None,
             host_ai: None,
             host_command: None,
+            host_clock: None,
+            host_input: None,
             fuel: None,
             call_depth: 0,
             max_call_depth: None,
@@ -486,6 +500,16 @@ impl Interpreter {
     /// Same optionality as every other `set_host_*`.
     pub fn set_host_command(&mut self, host_command: Rc<dyn HostCommand>) {
         self.host_command = Some(host_command);
+    }
+
+    /// Gives this interpreter a host clock to read current date from.
+    pub fn set_host_clock(&mut self, host_clock: Rc<dyn HostClock>) {
+        self.host_clock = Some(host_clock);
+    }
+
+    /// Gives this interpreter a host input reader for `इनपुट` builtin.
+    pub fn set_host_input(&mut self, host_input: Rc<dyn HostInput>) {
+        self.host_input = Some(host_input);
     }
 
     pub fn run(&mut self, program: &[Stmt]) -> EvalResult<()> {
@@ -728,7 +752,91 @@ impl Interpreter {
         if is_agent_builtin(name) {
             return self.call_agent_builtin(name, args);
         }
+        if is_date_builtin(name) {
+            return self.call_date_builtin(name, args);
+        }
+        if is_input_builtin(name) {
+            return self.call_input_builtin(name, args);
+        }
         call_builtin(name, args)
+    }
+
+    fn get_current_date(&self) -> Result<(i32, u32, u32), String> {
+        if let Some(clock) = &self.host_clock {
+            clock.today()
+        } else {
+            default_today()
+        }
+    }
+
+    fn call_date_builtin(&mut self, name: &str, args: &[Value]) -> EvalResult<Value> {
+        match name {
+            "आज" => {
+                if !args.is_empty() {
+                    return Err(format!("'{}' expects 0 arguments, got {}", name, args.len()));
+                }
+                let (y, m, d) = self.get_current_date()?;
+                Ok(date_to_value(y, m, d))
+            }
+            "मिति_बनाउनुहोस्" => {
+                let y = expect_number(name, args, 0)? as i32;
+                let m = expect_number(name, args, 1)? as u32;
+                let d = expect_number(name, args, 2)? as u32;
+                if !is_valid_date(y, m, d) {
+                    return Err(format!("'{}' got invalid date {}-{:02}-{:02}", name, y, m, d));
+                }
+                Ok(date_to_value(y, m, d))
+            }
+            "मिति_पढ्नुहोस्" => {
+                let s = expect_string(name, args, 0)?;
+                let (y, m, d) = parse_date_str(&s).map_err(|e| format!("'{}' {}", name, e))?;
+                Ok(date_to_value(y, m, d))
+            }
+            "दिन_फरक" => {
+                let v1 = args.get(0).ok_or_else(|| format!("'{}' expects an argument at position 1", name))?;
+                let v2 = args.get(1).ok_or_else(|| format!("'{}' expects an argument at position 2", name))?;
+                let d1 = extract_date_value(v1, name)?;
+                let d2 = extract_date_value(v2, name)?;
+                let days1 = ymd_to_days(d1.0, d1.1, d1.2);
+                let days2 = ymd_to_days(d2.0, d2.1, d2.2);
+                Ok(Value::Number((days1 - days2) as f64))
+            }
+            "उमेर" => {
+                let v = args.get(0).ok_or_else(|| format!("'{}' expects an argument at position 1", name))?;
+                let birth = extract_date_value(v, name)?;
+                let today = self.get_current_date()?;
+                let mut age = today.0 - birth.0;
+                if today.1 < birth.1 || (today.1 == birth.1 && today.2 < birth.2) {
+                    age -= 1;
+                }
+                Ok(Value::Number(age as f64))
+            }
+            "हप्ताको_दिन" => {
+                let date = if args.is_empty() {
+                    self.get_current_date()?
+                } else {
+                    extract_date_value(&args[0], name)?
+                };
+                Ok(Value::Str(day_of_week_name(date.0, date.1, date.2).to_string()))
+            }
+            _ => unreachable!("is_date_builtin only admits the names handled above"),
+        }
+    }
+
+    fn call_input_builtin(&mut self, name: &str, args: &[Value]) -> EvalResult<Value> {
+        let prompt = match args.first() {
+            Some(Value::Str(s)) => s.as_str(),
+            Some(other) => {
+                return Err(format!("'{}' expects a string prompt, got {}", name, other.display()))
+            }
+            None => "",
+        };
+        let line = if let Some(input) = &self.host_input {
+            input.read_line(prompt)?
+        } else {
+            default_read_line(prompt)?
+        };
+        Ok(Value::Str(line))
     }
 
     fn call_host_fs_builtin(&mut self, name: &str, args: &[Value]) -> EvalResult<Value> {
@@ -1720,6 +1828,13 @@ pub const BUILTINS: &[&str] = &[
     "अक्षर",
     "संकेत",
     "थप्नुहोस्",
+    "आज",
+    "मिति_बनाउनुहोस्",
+    "मिति_पढ्नुहोस्",
+    "दिन_फरक",
+    "उमेर",
+    "हप्ताको_दिन",
+    "इनपुट",
     "ओएस_लेख्नुहोस्",
     "ओएस_पढ्नुहोस्",
     "ओएस_सूची",
@@ -1748,6 +1863,17 @@ pub const BUILTINS: &[&str] = &[
 
 pub fn is_builtin(name: &str) -> bool {
     BUILTINS.contains(&name)
+}
+
+fn is_date_builtin(name: &str) -> bool {
+    matches!(
+        name,
+        "आज" | "मिति_बनाउनुहोस्" | "मिति_पढ्नुहोस्" | "दिन_फरक" | "उमेर" | "हप्ताको_दिन"
+    )
+}
+
+fn is_input_builtin(name: &str) -> bool {
+    matches!(name, "इनपुट")
 }
 
 fn is_host_fs_builtin(name: &str) -> bool {
@@ -1898,7 +2024,268 @@ pub fn call_builtin(name: &str, args: &[Value]) -> EvalResult<Value> {
                 )),
             }
         }
+        "आज" => {
+            if !args.is_empty() {
+                return Err(format!("'{}' expects 0 arguments, got {}", name, args.len()));
+            }
+            let (y, m, d) = default_today()?;
+            Ok(date_to_value(y, m, d))
+        }
+        "मिति_बनाउनुहोस्" => {
+            let y = expect_number(name, args, 0)? as i32;
+            let m = expect_number(name, args, 1)? as u32;
+            let d = expect_number(name, args, 2)? as u32;
+            if !is_valid_date(y, m, d) {
+                return Err(format!("'{}' got invalid date {}-{:02}-{:02}", name, y, m, d));
+            }
+            Ok(date_to_value(y, m, d))
+        }
+        "मिति_पढ्नुहोस्" => {
+            let s = expect_string(name, args, 0)?;
+            let (y, m, d) = parse_date_str(&s).map_err(|e| format!("'{}' {}", name, e))?;
+            Ok(date_to_value(y, m, d))
+        }
+        "दिन_फरक" => {
+            let v1 = args.get(0).ok_or_else(|| format!("'{}' expects an argument at position 1", name))?;
+            let v2 = args.get(1).ok_or_else(|| format!("'{}' expects an argument at position 2", name))?;
+            let d1 = extract_date_value(v1, name)?;
+            let d2 = extract_date_value(v2, name)?;
+            let days1 = ymd_to_days(d1.0, d1.1, d1.2);
+            let days2 = ymd_to_days(d2.0, d2.1, d2.2);
+            Ok(Value::Number((days1 - days2) as f64))
+        }
+        "उमेर" => {
+            let v = args.get(0).ok_or_else(|| format!("'{}' expects an argument at position 1", name))?;
+            let birth = extract_date_value(v, name)?;
+            let today = default_today()?;
+            let mut age = today.0 - birth.0;
+            if today.1 < birth.1 || (today.1 == birth.1 && today.2 < birth.2) {
+                age -= 1;
+            }
+            Ok(Value::Number(age as f64))
+        }
+        "हप्ताको_दिन" => {
+            let date = if args.is_empty() {
+                default_today()?
+            } else {
+                extract_date_value(&args[0], name)?
+            };
+            Ok(Value::Str(day_of_week_name(date.0, date.1, date.2).to_string()))
+        }
+        "इनपुट" => {
+            let prompt = match args.first() {
+                Some(Value::Str(s)) => s.as_str(),
+                Some(other) => {
+                    return Err(format!("'{}' expects a string prompt, got {}", name, other.display()))
+                }
+                None => "",
+            };
+            let line = default_read_line(prompt)?;
+            Ok(Value::Str(line))
+        }
         other => Err(format!("unknown builtin '{}'", other)),
+    }
+}
+
+pub fn is_leap_year(y: i32) -> bool {
+    y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)
+}
+
+pub fn days_in_month(y: i32, m: u32) -> u32 {
+    match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => if is_leap_year(y) { 29 } else { 28 },
+        _ => 0,
+    }
+}
+
+pub fn is_valid_date(y: i32, m: u32, d: u32) -> bool {
+    m >= 1 && m <= 12 && d >= 1 && d <= days_in_month(y, m)
+}
+
+pub fn ymd_to_days(mut y: i32, m: u32, d: u32) -> i64 {
+    if m <= 2 {
+        y -= 1;
+    }
+    let era = if y >= 0 { y / 400 } else { (y - 399) / 400 };
+    let yoe = y - era * 400;
+    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 } as i64) + 2) / 5 + d as i64 - 1;
+    let doe = yoe as i64 * 365 + (yoe as i64 / 4) - (yoe as i64 / 100) + doy;
+    era as i64 * 146097 + doe - 719468
+}
+
+pub fn days_to_ymd(days: i64) -> (i32, u32, u32) {
+    let z = days + 719468;
+    let era = if z >= 0 { z / 146097 } else { (z - 146096) / 146097 };
+    let doe = (z - era * 146097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let mut y = (yoe as i64 + era * 400) as i32;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;
+    if m <= 2 {
+        y += 1;
+    }
+    (y, m, d)
+}
+
+pub fn devanagari_to_ascii_digits(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '०' => '0',
+            '१' => '1',
+            '२' => '2',
+            '३' => '3',
+            '४' => '4',
+            '५' => '5',
+            '६' => '6',
+            '७' => '7',
+            '८' => '8',
+            '९' => '9',
+            other => other,
+        })
+        .collect()
+}
+
+pub fn parse_date_str(s: &str) -> Result<(i32, u32, u32), String> {
+    let ascii_s = devanagari_to_ascii_digits(s.trim());
+    let parts: Vec<&str> = ascii_s
+        .split(|c| c == '-' || c == '/' || c == '.')
+        .map(|p| p.trim())
+        .collect();
+    if parts.len() != 3 {
+        return Err(format!("expected 'YYYY-MM-DD', got '{s}'"));
+    }
+    let y: i32 = parts[0]
+        .parse()
+        .map_err(|_| format!("invalid year in '{s}'"))?;
+    let m: u32 = parts[1]
+        .parse()
+        .map_err(|_| format!("invalid month in '{s}'"))?;
+    let d: u32 = parts[2]
+        .parse()
+        .map_err(|_| format!("invalid day in '{s}'"))?;
+    if !is_valid_date(y, m, d) {
+        return Err(format!("invalid date '{s}'"));
+    }
+    Ok((y, m, d))
+}
+
+fn extract_date_value(val: &Value, fn_name: &str) -> EvalResult<(i32, u32, u32)> {
+    match val {
+        Value::Str(s) => parse_date_str(s).map_err(|e| format!("'{}' {}", fn_name, e)),
+        Value::Array(arr) => {
+            let borrowed = arr.borrow();
+            if borrowed.len() != 3 {
+                return Err(format!(
+                    "'{}' expects [year, month, day] array, got array with {} elements",
+                    fn_name,
+                    borrowed.len()
+                ));
+            }
+            let y = match borrowed[0] {
+                Value::Number(n) => n as i32,
+                ref other => {
+                    return Err(format!(
+                        "'{}' expects number for year, got {}",
+                        fn_name,
+                        other.display()
+                    ))
+                }
+            };
+            let m = match borrowed[1] {
+                Value::Number(n) => n as u32,
+                ref other => {
+                    return Err(format!(
+                        "'{}' expects number for month, got {}",
+                        fn_name,
+                        other.display()
+                    ))
+                }
+            };
+            let d = match borrowed[2] {
+                Value::Number(n) => n as u32,
+                ref other => {
+                    return Err(format!(
+                        "'{}' expects number for day, got {}",
+                        fn_name,
+                        other.display()
+                    ))
+                }
+            };
+            if !is_valid_date(y, m, d) {
+                return Err(format!(
+                    "'{}' got invalid date array [{y}, {m}, {d}]",
+                    fn_name
+                ));
+            }
+            Ok((y, m, d))
+        }
+        other => Err(format!(
+            "'{}' expects date string or [year, month, day] array, got {}",
+            fn_name,
+            other.display()
+        )),
+    }
+}
+
+pub fn date_to_value(y: i32, m: u32, d: u32) -> Value {
+    Value::Array(Rc::new(RefCell::new(alloc::vec![
+        Value::Number(y as f64),
+        Value::Number(m as f64),
+        Value::Number(d as f64),
+    ])))
+}
+
+pub fn day_of_week_name(y: i32, m: u32, d: u32) -> &'static str {
+    let days = ymd_to_days(y, m, d);
+    let dow = (days + 4).rem_euclid(7);
+    match dow {
+        0 => "आइतबार",
+        1 => "सोमबार",
+        2 => "मंगलबार",
+        3 => "बुधबार",
+        4 => "बिहीबार",
+        5 => "शुक्रबार",
+        6 => "शनिबार",
+        _ => unreachable!(),
+    }
+}
+
+pub fn default_today() -> Result<(i32, u32, u32), String> {
+    #[cfg(test)]
+    {
+        if let Ok(env_date) = std::env::var("NEPALI_TODAY") {
+            let env_date = env_date.trim();
+            if !env_date.is_empty() {
+                return parse_date_str(env_date);
+            }
+        }
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let dur = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| alloc::format!("system clock before UNIX epoch: {e}"))?;
+        let days = (dur.as_secs() / 86400) as i64;
+        Ok(days_to_ymd(days))
+    }
+    #[cfg(not(test))]
+    {
+        Err("'आज' requires HostClock to be configured on the interpreter".to_string())
+    }
+}
+
+pub fn default_read_line(prompt: &str) -> Result<String, String> {
+    #[cfg(test)]
+    {
+        let _ = prompt;
+        Ok(String::new())
+    }
+    #[cfg(not(test))]
+    {
+        let _ = prompt;
+        Err("'इनपुट' requires HostInput to be configured on the interpreter".to_string())
     }
 }
 

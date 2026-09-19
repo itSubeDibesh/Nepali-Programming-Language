@@ -5,6 +5,8 @@ const KEYWORDS = {
   bhayesamma: "भएसम्म", pathau: "पठाउँ", bhana: "भनौँ", sahi: "सहि",
   galat: "गलत", kehichaina: "केहीछैन", aayat: "आयात", ra: "र", wa: "वा", hoina: "होइन",
   lambai: "लम्बाइ", akshar: "अक्षर", sanket: "संकेत", thapnuhos: "थप्नुहोस्",
+  aaja: "आज", miti_banaunuhos: "मिति_बनाउनुहोस्", miti_padhnuhos: "मिति_पढ्नुहोस्",
+  din_farak: "दिन_फरक", umer: "उमेर", haptako_din: "हप्ताको_दिन", input: "इनपुट",
   os_lekhnuhos: "ओएस_लेख्नुहोस्", os_padhnuhos: "ओएस_पढ्नुहोस्", os_suchi: "ओएस_सूची",
   naya_prakriya: "नयाँ_प्रक्रिया", prakriya_suchi: "प्रक्रिया_सूची",
   naya_channel: "नयाँ_च्यानल", channel_pathaunuhos: "च्यानल_पठाउनुहोस्",

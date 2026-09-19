@@ -333,3 +333,24 @@ getting a useless AI answer.
   including inside strings like `"127.0.0.1"`.
 - Unverified: UTM, SPICE clipboard, real hardware, Whisper/TTS on the ISO, UEFI on the
   patched x86_64 ISO, Windows in any form, WASM in any form.
+
+
+
+### 2026-09-19: Standard Library Builtins & Next.js Studio Overhaul Completed
+
+- **WP9 Date & Input Builtins (Complete):**
+  - Host traits added: `HostClock` and `HostInput` with default tests and Linux standard implementations.
+  - Builtin functions added to `interpreter.rs`: `आज()`, `मिति_बनाउनुहोस्(वर्ष, महिना, दिन)`, `मिति_पढ्नुहोस्(पाठ)`, `दिन_फरक(क, ख)`, `उमेर(जन्ममिति)`, `हप्ताको_दिन(मिति)`, `इनपुट(प्रश्न)`.
+  - Devanagari digit string parsing `२०००-०५-१४` and ISO-8601 validation added (impossible dates error out cleanly).
+  - Deterministic date testing override supported via `NEPALI_TODAY`.
+  - Roman aliases added across lexer, translit engine, and translit test suites.
+  - Grounding recipes added for dates, ages, and input.
+  - Test suite `crates/nepali-core/tests/date_input_builtins.rs` passes 100% (173 total test suites passing in `nepali-core`).
+
+- **Next.js Studio Overhaul (Complete):**
+  - Transformed `studio/` into a standard Next.js 14 + TypeScript App Router application with Tailwind CSS.
+  - Comprehensive design system implemented in `design-system/nepali-studio/MASTER.md` & `studio/src/design-system/tokens.ts` based on `ui-ux-pro-max` guidelines (Dark Slate #060911 theme, Emerald accents, IBM Plex Sans Devanagari & JetBrains Mono typography).
+  - Interactive multi-tab editor with live word-level transliteration and F2 shortcut.
+  - Built-in interactive input modal for programs invoking `इनपुट()`.
+  - Live AST/bytecode inspector, categorized Nepali examples drawer, and AI Assistant pane.
+  - Zero-error compilation verified via `npm run build`.

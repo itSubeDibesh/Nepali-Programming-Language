@@ -19,8 +19,11 @@ pub use ast::{BinOp, Expr, Stmt};
 pub use bytecode::Compiler;
 pub use formatter::format;
 pub use interpreter::{
-    HostAi, HostCache, HostChannel, HostCommand, HostDb, HostFs, HostJs, HostProcess, HostPython,
-    HostRust, Interpreter, Mode, Value,
+    call_builtin, date_to_value, day_of_week_name, days_in_month, days_to_ymd, default_read_line,
+    default_today, devanagari_to_ascii_digits, is_builtin, is_leap_year, is_valid_date,
+    parse_date_str, ymd_to_days, BUILTINS, HostAi, HostCache, HostChannel, HostClock,
+    HostCommand, HostDb, HostFs, HostInput, HostJs, HostProcess, HostPython, HostRust,
+    Interpreter, Mode, Value,
 };
 pub use lexer::Lexer;
 pub use parser::Parser;

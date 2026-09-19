@@ -26,6 +26,18 @@ pub struct Recipe {
 /// few of these (see `relevant_recipes`).
 pub const RECIPES: &[Recipe] = &[
     Recipe {
+        title: "date difference and today",
+        keywords: &["date", "today", "difference", "days", "मिति", "आज", "दिन_फरक", "दिन"],
+        code: "राखौँ मिति1 = \"2026-01-01\"।\nराखौँ मिति2 = \"2026-01-11\"।\nभनौँ(दिन_फरक(मिति2, मिति1))।",
+        prints: Some("10"),
+    },
+    Recipe {
+        title: "calculate age from birthdate",
+        keywords: &["age", "birth", "birthday", "born", "उमेर", "जन्ममिति", "वर्ष"],
+        code: "काम उमेर_पत्ता_लगाउनुहोस्(जन्ममिति) {\n  पठाउँ उमेर(जन्ममिति)।\n}\nराखौँ मिति = \"2000-01-01\"।\nयदि दिन_फरक(आज(), मिति) > 0 {\n  भनौँ(\"सहि\")।\n}",
+        prints: Some("सहि"),
+    },
+    Recipe {
         title: "print hello",
         keywords: &["print", "hello", "namaste", "say", "display", "show", "छाप", "नमस्ते"],
         code: "भनौँ(\"नमस्ते संसार\")।",

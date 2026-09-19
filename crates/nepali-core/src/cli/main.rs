@@ -43,7 +43,7 @@ use host_ai::LocalAi;
 use host_cache::RedisCache;
 #[cfg(feature = "js-interop")]
 use host_js::QuickJsHost;
-use host_linux::{LinuxFs, RealCommand};
+use host_linux::{LinuxClock, LinuxFs, LinuxInput, RealCommand};
 #[cfg(feature = "db")]
 use host_linux::SqliteDb;
 #[cfg(feature = "python-interop")]
@@ -526,6 +526,8 @@ fn new_interpreter(mode: Mode) -> Interpreter {
     interp.set_mode(mode);
     interp.set_host_fs(Rc::new(LinuxFs));
     interp.set_host_command(Rc::new(RealCommand));
+    interp.set_host_clock(Rc::new(LinuxClock));
+    interp.set_host_input(Rc::new(LinuxInput));
     if let Some(db) = open_host_db() {
         interp.set_host_db(db);
     }
