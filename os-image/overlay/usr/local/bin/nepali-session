@@ -1,0 +1,15 @@
+#!/bin/sh
+# Runs as root inside the X server started by nepali-desktop.service.
+# Caches that package post-install scripts would normally build (the overlay
+# is unpacked, not installed).
+ldconfig >/dev/null 2>&1
+glib-compile-schemas /usr/share/glib-2.0/schemas >/dev/null 2>&1
+P=$(find /usr/lib -name gdk-pixbuf-query-loaders -type f 2>/dev/null | head -1)
+[ -n "$P" ] && "$P" --update-cache >/dev/null 2>&1
+fc-cache -f >/dev/null 2>&1
+
+xset s off -dpms s noblank >/dev/null 2>&1
+xsetroot -solid '#0a0e1e'
+setxkbmap us
+xhost +si:localuser:nepali >/dev/null
+exec runuser -u nepali -- /usr/local/bin/nepali-terminal

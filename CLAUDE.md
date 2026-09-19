@@ -403,6 +403,56 @@ actual "OS" half of the original ask (a real Linux system, real
 Nepali-language shell baked in, real services) as an installable image,
 not only a `docker run` deployable.
 
+**AI models baked into the ISO too - done, verified end to end.** The
+user's requirement: the bootable ISO should have the same zero-config AI
+the container image already has (LLM, Whisper, TTS - see the AI section
+above), not just the container. `os-image/build.sh`,
+`os-image/builder.Dockerfile`, and `os-image/README.md` mirror the exact
+same approach the container Dockerfile uses: real `curl`/`huggingface_hub`
+downloads placed under `config/includes.chroot/usr/local/share/nepali-ai/`
+(so `live-build` copies them straight into the ISO), a
+`0200-nepali-ai-deps.hook.chroot` running the same real `pip3 install
+torch --extra-index-url ...`, and the same `NEPALI_AI_*` env-var defaults
+in `/etc/environment`.
+
+An earlier attempt was blocked by a Docker Desktop network/GPG flake in
+the builder image; that did not recur on the retry (2026-09-18/19), and
+the full pipeline ran clean: amd64 image (QEMU-emulated build on Apple
+Silicon) -> builder image -> privileged `lb build` -> `output/nepalios.iso`
+(1.78GB, `file` reports a bootable ISO 9660 hybrid). Other real problems
+hit and worked around: the Docker Desktop VM disk filled up (39GB; user
+raised it to 64GB) - and two simultaneous builds of the same image tag
+made it worse, so run one at a time.
+
+**Verified for real, in QEMU, against this exact ISO**:
+- Contents (`unsquashfs -ll` on `/live/filesystem.squashfs`): LLM
+  `model.gguf` 491MB, Whisper `model.safetensors` 151MB + config/
+  tokenizer/mel filters, TTS model 578MB + vocoder + speaker embedding,
+  `torch` and `transformers` in dist-packages, and every `NEPALI_AI_*`
+  variable in `/etc/environment`.
+- Boot: SeaBIOS -> ISOLINUX -> kernel 6.1.0-53-amd64 -> systemd ->
+  `nepalios login: nepali (automatic login)` -> the real
+  `nep:/home/nepali $` shell; `which nepali-fileserver` resolves to
+  `/usr/local/bin/nepali-fileserver`.
+- **Inference inside the booted ISO**: a `.nep` script calling
+  `एआई_सोध्नुहोस्("What is the capital of Nepal? ...")` printed "The
+  capital of Nepal is Kathmandu." from the baked-in Qwen model, zero
+  configuration. Slow (several minutes) because QEMU emulates x86 on
+  Apple Silicon without acceleration - not representative of real
+  hardware. Whisper/TTS were not exercised inside the ISO (only their
+  files/env are confirmed present); both were verified in the container
+  image.
+
+**How to verify headlessly (non-obvious)**: `console=ttyS0` serial cannot
+log in as `nepali` - the account has a locked password, and autologin
+exists only on `getty@tty1..6` (`live-config-getty-generator`), not
+`serial-getty@ttyS0`. So use `qemu-system-x86_64 -cdrom ... -boot d
+-display none -monitor telnet:...`, send Enter for the ISOLINUX menu,
+capture the tty1 framebuffer with the monitor's `screendump` (convert PPM
+with `sips`), and type commands with `sendkey` (ASCII only). QEMU can't
+inject Devanagari, so write `.nep` files from ASCII `printf '\xe0\xa4...'`
+hex escapes inside `bash`.
+
 **What's still separate**: the language itself (`crates/nepali-core`)
 remains independently shareable - it's a real, standalone Rust crate,
 publishable to crates.io on its own, usable outside this OS image
@@ -680,21 +730,80 @@ machine's real root-filesystem usage (`12Gi` used, `88Gi` available,
 `12%`), matching independently-run `df -h` exactly - not something the
 model could have guessed.
 
+**Real preventive destruction guardrails - done, verified.** The
+agent's own request: it must never destroy things, even ones that
+would normally just need confirmation elsewhere, and must explain
+*why* when it refuses - not a silent no-op. `destructive_command_reason`
+and `system_path_write_reason` (`interpreter.rs`) run inside
+`execute_agent_action` itself, before `HostCommand::run`/`HostFs::
+write_file` are ever called - a real, hard refusal, not a "proceed
+after confirming" flow (there's no live human to confirm to inside an
+autonomous agent run). Deliberately scoped to the *agent's own
+autonomous* tool-execution path only, not the underlying
+`आदेश_चलाउनुहोस्`/`फाइल_लेख्नुहोस्` builtins a human-written `.nep`
+script calls directly - a human explicitly writing `rm -rf` in their
+own script is a deliberate, authorized action, the same way a shell
+script isn't guarded against `rm`; the guardrail is specifically about
+what an AI can talk itself into doing on its own.
+Blocked outright: `rm`/`rmdir`/`dd`/`mkfs*`/`shutdown`/`reboot`/`halt`/
+`poweroff`/`kill`/`killall`/`pkill`/`fdisk`/`parted`/`diskutil`/
+`shred`/`wipefs`/`unlink`, `git push --force`/`git reset --hard`/
+`git clean -f`, any command carrying a `-rf`/`-fr` flag, and any
+`फाइल_लेख्नुहोस्` write targeting a real system directory (`/etc`,
+`/boot`, `/usr`, `/bin`, `/sbin`, `/lib`, `/sys`, `/proc`, `/dev`,
+`/var/lib`, `/root`). Each refusal returns a real, plain-language
+explanation of what was blocked and why, and the agent's own system
+prompt now tells the model explicitly that blocked actions are final -
+don't retry, explain the refusal in the final answer.
+**Verified for real**: 6 new unit tests cover the exact blocked/allowed
+cases (`rm -rf`, `dd`, `shutdown`, `kill`, `mkfs.ext4`, `git push
+--force`, `git reset --hard` all blocked; `echo`/`ls`/`git status`/
+`cargo build` and writes to `/home`/`/tmp` all allowed) - deterministic,
+not dependent on model behavior. Also tried live, twice, asking the
+real Qwen agent to run `rm -rf` on a real marker file with an
+increasingly forceful prompt - the small model chose a safer action
+both times rather than ever proposing `rm`, so the block message itself
+wasn't observed firing live in this session, but the real, load-bearing
+proof is the deterministic unit tests plus the real fact that the
+marker file survived both attempts untouched either way. Explicitly
+**not** a complete sandbox - the agent's allowed tools still run with
+the same real Linux permissions the host process has (a real, honestly
+narrower but still separate gap, unchanged from before).
+
+**Persistent agent memory - done, verified.** New tools
+`सम्झना_राख्नुहोस्(key, value)`/`सम्झना_ल्याउनुहोस्(key)`, backed by the
+same real `HostDb` (SQLite) every other builtin uses, not an
+in-process cache that dies with the interpreter - a fact remembered in
+one `एजेन्ट्_चलाउनुहोस्` call is genuinely still there in a separate
+call, even a separate process, because it's on disk in the real
+database file `NEPALI_DB` points at (table `nepali_agent_memory`,
+created lazily on first use). Every `run_agent` call also automatically
+loads all remembered facts and prepends them to its own transcript as
+"Known facts remembered from previous sessions," so the agent doesn't
+have to think to check - real, if simple, continuity across separate
+runs. **Verified for real, twice**: a deterministic SQL round-trip
+(real `ON CONFLICT ... DO UPDATE` upsert, real persistence re-read in a
+genuinely separate process invocation - no LLM involved, the same
+direct-DB-builtin technique used to verify `HostDb` itself), then a
+real live run against the Qwen agent: asked it to save a fact using
+`सम्झना_राख्नुहोस्`, and the real value it chose (`favorite_color` /
+`teal`) was independently confirmed sitting in the real SQLite file via
+a separate direct query afterward - not trusted from the agent's own
+summary. Honest, consistent finding: the small test model still
+doesn't reliably reach a clean `अन्तिम:` conclusion in every run (the
+same known limitation documented earlier in this section) - the tool
+call and the real persistence succeeded even when the overall run
+didn't end cleanly.
+
 **Still real, honest gaps, not attempted here**: no reading of
 arbitrary system logs (only the three named OS-state tools above,
 plus whatever `आदेश`/file tools can reach), no learning/fine-tuning
 (model weights are static files, nothing updates from usage), no
-persistent memory across separate `एजेन्ट_चलाउनुहोस्` calls (each call
-starts a fresh transcript), no autonomous triggering (something has to
-call `एजेन्ट_चलाउनुहोस्` - it doesn't watch anything on its own), and no
-policy/sandboxing layer restricting *what* the agent's tools are allowed
-to touch (today: whatever the process's own real file/command
-permissions allow - the same real Linux permissions any other process
-on this OS has, nothing narrower yet). "Build and test" specifically
-(e.g. the agent running `cargo build`/`cargo test` on its own and
-reasoning about the result) is real, reachable *today* through `आदेश`
-- verified capability exists - but hasn't itself been run as a test
-case yet.
+autonomous triggering (something has to call `एजेन्ट_चलाउनुहोस्` - it
+doesn't watch anything on its own). "Build and test" specifically (e.g.
+the agent running `cargo build`/`cargo test` on its own and reasoning
+about the result) is real, reachable *today* through `आदेश` - verified
+capability exists - but hasn't itself been run as a test case yet.
 
 ## AI models baked directly into the OS image - done, verified with zero config
 
@@ -785,3 +894,469 @@ Blocked once on a real crates.io requirement, not a code issue: a first
 publish attempt failed with "a verified email address is required" -
 the user verified their crates.io account email, then the same publish
 succeeded on retry.
+
+## Bytecode VM: closed the real gap with the tree-walker
+
+The language's earlier honest gap list said "the bytecode VM is behind
+the tree-walker in feature coverage" - three real, named pieces of that
+gap are closed now, one at a time, each verified before moving to the
+next:
+
+1. **Logical `र`/`वा`/`होइन` (and/or/not) - done.** Real short-circuit
+   jump codegen in `bytecode::Compiler` (a new `ToBool` opcode coerces
+   the non-short-circuited operand, matching
+   `interpreter::Interpreter`'s exact "result is always a real bool"
+   rule) - not "evaluate both sides and discard one."
+   **Verified**: `test_vm_and_or_short_circuit_real_side_effect` uses
+   the identical technique the tree-walker's own short-circuit test
+   uses (a function call as the right operand, whose print side effect
+   would show up in the output if its bytecode ever actually ran) -
+   confirms the right operand's instructions are genuinely skipped, not
+   just computed-and-ignored.
+2. **Arrays - done.** Real `vm::Value::Array(Rc<RefCell<Vec<Value>>>)`,
+   the identical reference-type representation
+   `interpreter::Value::Array` uses, with real bounds-checked indexing
+   (`expect_index`, same error message shape) and real `लम्बाइ`/
+   `थप्नुहोस्` support for arrays, mirrored from `interpreter::
+   call_builtin` line for line. **Verified**: 5 new tests, including
+   `test_vm_arrays_are_reference_types_across_bindings` (a second
+   binding sees a mutation through the first - real reference
+   semantics, not deep-copied on assignment) and a real bounds-check
+   error test.
+3. **Closures / first-class functions - done, the biggest of the
+   three.** This needed a real architectural change, not just new
+   opcodes: VM frames were plain stack-allocated `BTreeMap`s that died
+   with their call, so nothing could keep an outer function's
+   variables alive for an inner function to reference after the outer
+   one returned. Frames are now `Rc<RefCell<FrameData>>` with a real
+   parent chain - the same linked-scope shape `interpreter::Env`
+   already uses - and `Stmt::FunctionDecl` compiles to a real runtime
+   `MakeClosure` instruction (not a compile-time-only name→chunk
+   table), so every time a function-declaring statement actually
+   *executes*, a fresh closure captures whichever frame is live at that
+   moment. Calling through a named identifier resolves via the frame
+   chain directly (`Call(name, argc)`); calling through any other
+   expression (e.g. a function returned straight from another call)
+   goes through a new `CallValue` opcode. Not upvalues in the clox/Lua
+   sense (those close over individual stack slots; this closes over a
+   whole frame by reference) - a real, working mechanism that fits this
+   VM's existing name-keyed-frame design rather than requiring a
+   stack-slot rewrite as a prerequisite.
+   **Verified for real, four ways**:
+   `test_vm_closures_capture_outer_scope` runs the *exact* program
+   `interpreter::Interpreter`'s own `test_closures_capture_outer_scope`
+   does, same expected output; a second test proves two closures made
+   from the same template in two different calls capture
+   *independently* (`जोड्_५(1)` and `जोड्_१०(1)` disagree, so it's
+   genuinely not one shared function object); a third calls a returned
+   closure directly off a call expression (`बनाउ()()`), exercising the
+   new `CallValue` path specifically, not just the common by-name case;
+   a fourth is a real regression guard confirming plain recursive
+   named-function calls (`fib`) still work through the frame-chain
+   lookup, not just the old removed global map.
+
+**Real, honest, remaining gap in the VM, unchanged**: variables are
+still name-keyed per frame rather than resolved to stack-slot indices
+at compile time (a real, separate optimization a from-scratch bytecode
+VM usually does for speed) - a genuinely different, working execution
+model from the tree-walker either way, just not yet the fully
+slot-optimized version real production bytecode VMs end up as. Default
+build test suite: 95/95 pass.
+
+## `crates/nepali-mcp`: a real MCP server exposing the language + AI + agent
+
+The user's "give mcp" ask - a real MCP (Model Context Protocol) server,
+not a hand-rolled JSON-RPC/stdio framing implementation. Built on the
+official Rust SDK (`rmcp`, `github.com/modelcontextprotocol/rust-sdk` -
+confirmed real and official via its crates.io metadata before depending
+on it, not assumed), which also caught two real API-drift issues the
+SDK's own README example (fetched for a starting point) didn't reflect
+at the pinned version (3.4.0) - `#[tool_router(server_handler)]`
+conflicting with a hand-written `ServerHandler` impl, and
+`ServerInfo`/`Implementation` being non-exhaustive structs needing
+their real builder methods - both found by actually compiling, not
+assumed correct from the fetched doc.
+
+Three real tools: `run_script(code)`, `ask_ai(prompt)`,
+`run_agent(goal, max_steps)`. Deliberately reuses the already-built,
+already-verified `nepali` binary via a real subprocess for every call,
+rather than re-implementing the interpreter/AI/agent machinery a second
+time in this crate - `nepali-core-cli`'s `Host*` implementations are
+private modules inside its own binary target, not a reusable library
+surface, so duplicating them here would mean two copies of real code
+drifting apart, a worse outcome than a subprocess hop. Real, stated
+cost of that choice: every tool call is a fresh process, so
+`ask_ai`/`run_agent` reload model weights from disk on every single
+call - not hidden, not optimized away yet.
+
+**Verified for real, twice, over the actual wire protocol** (not unit
+tests calling the tool functions directly in-process): a real client
+built on the same official SDK spawns the actual built `nepali-mcp`
+binary as a real child process and speaks real MCP - full
+`initialize` handshake, real `tools/list` (confirms all three tools are
+actually advertised), real `tools/call` for `run_script` (a real `.nep`
+print statement's output came back through the real MCP response
+content, not assumed), and a second, real `ask_ai` call against the
+real local Qwen model (skips cleanly if no model is configured, rather
+than failing default `cargo test` runs) - the real answer
+("Kathmandu") came back through the full stack: MCP client → spawned
+server → subprocess → real interpreter → real AI bridge → real model.
+`cargo build --release` succeeds; this crate has no root workspace
+`Cargo.toml` tying it to the others (same independent-crate convention
+as everything else here) and doesn't affect `nepali-core`'s own build
+or test suite.
+
+## A real formatter: `nepali fmt`
+
+The earlier honest gap list said "no LSP/formatter" - the formatter
+half is real now (`crates/nepali-core/src/formatter.rs`, wired in as
+`nepali fmt <file>` / `nepali fmt --check <file>`, the same real
+"check, don't write" convention `rustfmt --check`/`gofmt -l` use).
+
+**Deliberately scoped smaller than a full pretty-printer, for a real
+reason, not laziness**: this language keeps Devanagari and romanized
+keyword spellings as a genuine, deliberate feature (typing on any
+keyboard - see `lexer.rs`), and a full AST-based pretty-printer that
+re-serializes from the parsed tree would either have to invent one
+canonical spelling (silently overriding the user's own accessibility
+choice) or thread that choice through the AST (real, but substantially
+more work, and a real next step if wanted). Instead: real re-indentation
+only, computed from real brace/paren/bracket depth via the real
+tokenizer - every line's actual content is left untouched, only its
+leading whitespace changes. Still real, useful progress (inconsistent
+indentation is the single most common formatting complaint), not
+"no formatter."
+
+**Real bug found and fixed before writing a single line of the
+formatter itself**: the lexer discards comments entirely - they never
+become tokens at all. A naive token-based formatter built directly on
+`Lexer::next_token` would have silently deleted every comment in a
+file, a real, serious data-loss bug, not a hypothetical one. Fixed with
+a small, purely additive change: `Lexer` now also collects a real
+`Vec<Comment>` side-channel (position + verbatim text, including the
+`//`/`/* */` delimiters) that doesn't change what `next_token` returns
+or affect any existing caller (`interpreter.rs`'s resolver/loader, the
+bytecode compiler, etc.) at all - verified by the full 95-test suite
+(pre-formatter) still passing unchanged after the lexer change.
+
+**Verified for real, 9 new tests, including the load-bearing
+correctness property**: `formatted_output_still_parses_to_the_same_
+behavior` runs a real recursive Fibonacci program before and after
+formatting and asserts identical output (`55`) both times - formatting
+must never change what a program actually does, not just look nicer.
+Also verified: nested-block re-indentation, fixing genuinely wrong
+existing indentation, idempotency (formatting twice produces
+byte-identical output), line and block comments surviving with correct
+per-line indentation, and - a real, meaningful correctness check, not
+an edge case picked for show - that a literal `{` inside a string
+literal or inside a comment is never mistaken for a real brace token
+and never affects indentation depth. Real end-to-end CLI test: a
+messily-indented real Fibonacci program with a real comment, run
+through the actual built `nepali fmt` - `--check` correctly reported it
+unformatted (exit 1), formatting fixed the indentation while preserving
+the comment exactly, the reformatted file still printed the correct
+`55`, and a second `--check` then passed (exit 0).
+
+## `crates/nepali-lsp`: a real Language Server Protocol server
+
+The earlier honest gap said LSP "remains not attempted." Closed now,
+deliberately scoped: real diagnostics + real formatting, no
+completion/hover/goto-definition (this language has no real
+symbol/type info to back those yet, and the AST carries no source
+spans at all - a fake "always empty" response for those would be worse
+than not claiming the capability).
+
+Built on `lsp-server` (the real transport/framing crate rust-analyzer
+itself uses, not a hand-rolled `Content-Length`/JSON-RPC
+implementation) + `lsp-types`. `textDocument/didOpen`/`didChange`
+(full sync) trigger real `nepali_core::Parser`/`Resolver` runs and
+publish real diagnostics - parse errors carry a real line number
+(extracted from the parser's own `"...at line N"` message text, since
+`Parser` has no structured `Location` type yet); resolution errors
+have no location info at all yet (`Resolver::resolve` returns
+`Vec<String>` with no position - the AST itself carries no spans),
+anchored to line 1 rather than fabricated, stated honestly in the
+crate's own doc comment. `textDocument/formatting` calls the exact
+same `nepali_core::format` the `nepali fmt` CLI uses.
+
+**Verified for real, twice, over the actual wire protocol** - not unit
+tests calling handler functions in-process. A throwaway Python client
+first, doing manual `Content-Length`-framed JSON-RPC over the real
+spawned binary's stdio: real `initialize`, a real diagnostic for real
+bad syntax (`"काम f(x) { यदि x > 0"` -> exactly one diagnostic,
+`"expected LBrace, found Eof (\"\") at line 1"`), diagnostics correctly
+clearing for valid code, a real resolver diagnostic for an undefined
+variable, and real `textDocument/formatting` returning the exact
+expected reformatted text. That verification was then converted into a
+permanent Rust integration test file
+(`crates/nepali-lsp/tests/lsp_protocol_test.rs`, 3 tests, same
+technique - spawns the real built binary via
+`env!("CARGO_BIN_EXE_nepali-lsp")`, speaks real framed JSON-RPC over
+real child-process stdio): `cargo test` - 3 passed. `cargo test` in
+`nepali-core` itself re-run afterward to confirm the new path
+dependency had zero effect on its own suite - 104 passed.
+
+**Still real, honest gap, unchanged**: no completion/hover/
+goto-definition (no symbol/type info to back them), no incremental
+sync (full-document sync only - fine at this project's current file
+sizes, a real limitation at large-file scale), and diagnostic
+*positions* for resolution errors are real but imprecise (line 1
+always) until the AST carries real spans.
+
+## Nepali Studio, phonetic typing, and an AI that knows the language (ISO)
+
+Driven by user feedback on the first Nepali ISO: Devanagari was hard to type,
+did not render properly, "the language does not feel natural", and copy/paste
+into QEMU did not work.
+
+**Rendering.** A terminal is a fixed cell grid: the kernel console has no
+Devanagari glyphs, kmscon splits vowel signs into their own cells (dotted
+circles), and even a VTE terminal spaces letters unevenly. So the ISO's
+desktop is now **Nepali Studio** (`os-image/overlay/usr/local/bin/nepali-studio`,
+GTK/Pango, which shapes Devanagari correctly): editor, output, an embedded VTE
+terminal (a separate terminal window gets no keyboard focus without a window
+manager), an AI pane, an examples menu, and a clickable keyword cheat sheet.
+Keys: F5 run, Ctrl+Space typing mode, Ctrl+T terminal, Ctrl+E editor, Ctrl+L
+AI box. Everything is added by `os-image/build-overlay.sh` as a second
+squashfs layer plus in-place edits of the boot menu, in about a minute rather
+than a full ISO rebuild (live-boot stacks `/live/*.squashfs` alphabetically).
+Real bugs found on the way: real `/lib`/`/sbin` directories in the layer hid
+the base's usr-merge symlinks (no `/sbin/init`, kernel panic); the isolinux
+boot-info-table went stale unless `-boot_image any replay` is used; the
+window has no keyboard focus with no window manager until `present()` is
+called after it is mapped; X blanked the screen after idle.
+
+**Typing.** Ctrl+Space toggles phonetic mode (`overlay/usr/local/lib/nepali/
+translit.py`): `namaste` -> नमस्ते; a finished word that is a language keyword
+or builtin becomes the canonical Devanagari one (`bhana` -> भनौँ); `|` -> `।`.
+Every builtin also has a Latin name in the lexer (`ROMAN_BUILTIN_ALIASES`,
+e.g. `lambai`, `ai_sodhnuhos`), so whole programs can be typed on any keyboard
+(test: an ASCII program behaves identically to its Devanagari twin).
+`os-image/tests/test_translit.py` also checks the keyword table against
+`lexer.rs`, so it cannot drift. **IBus + m17n was tried first and dropped**:
+it worked in a native container but its engine process died or timed out when
+spawned inside the emulated ISO (no GSettings schemas, then slow startup, then
+still no engine), and hours of debugging through screenshots did not find a
+clean fix; a built-in input method is deterministic and testable.
+
+**The AI knows the language and the OS.** `grounding.rs`: language rules, OS
+facts, a live snapshot (hostname/kernel/disk via `HostCommand`), and 13 verified
+recipes (each parsed, resolved and, where possible, run in tests) retrieved by
+keyword per question. Reason: a 0.5B model invents Devanagari code badly but
+copies well. New: builtin `सहायक_सोध्नुहोस्`, shell commands `? question`,
+`गर्नुहोस् goal` (agent), `किन` (explain the last error), `nepali ask` /
+`nepali agent`; the agent gets a sandboxed `कोड_चलाउनुहोस्` tool (fresh
+interpreter, no host access, step and call-depth limits, so it cannot bypass
+the destructive-action guardrails or hang the shell); grounded/agent calls
+sample at temperature 0.2. Padding the agent prompt with the language guide
+made the small model pick wrong tools (it ran `/tmp/whoami`), so the guide is
+only included when the goal looks like code. **Measured with a real model**
+(6 "write a Nepali program that ..." questions, code extracted, run, output
+compared): Qwen2.5-0.5B 3/6, Qwen2.5-1.5B 5/6 (the function question failed
+for both). `build-overlay.sh` can bundle the 1.5B (`NEPALI_BUNDLE_MODEL`).
+
+**Also fixed**: fractional/NaN/infinite array indexes are now errors
+(interpreter and VM) instead of silently reading the wrong element.
+
+**Not verified / limits, honestly.** UEFI boot of the patched ISO and real
+hardware are untested. Whisper and TTS inside the ISO were not exercised. AI
+answers under QEMU are very slow (x86 emulated on Apple Silicon): one question to
+the bundled 1.5B model had still not finished after ~16 minutes, so an answer
+inside the ISO was NOT observed (inconclusive; natively the same model answers in
+~20 s). The AI pane's wiring (ask, show answer, put its code in the editor, run
+it) was verified natively with a stand-in for `nepali ask`, not with a real model
+inside the ISO. The screen-blanking fix (`xset s off -dpms`) is in the overlay
+sources but is not in the ISO built today.
+**Clipboard:** the Homebrew QEMU here only has the `cocoa` display, which cannot
+share a clipboard, so copy/paste with the Mac does not work in QEMU; the ISO
+ships the SPICE agent (`spice-vdagent`) for UTM or other SPICE hosts, but that
+was not tested. Non-Roman typing in the embedded terminal is not supported
+(the input method is in the editor and the AI box only). Error messages from
+the language itself are still English.
+
+## Nepali Studio in the browser (`./dev.sh studio`)
+
+Reported by the user: on their Mac the Nepali shell showed dotted circles and
+gaps around Devanagari vowel signs - that is the host terminal drawing a fixed
+cell grid, which no program can fix from inside. So the same Studio as the ISO's
+desktop exists as a local web app (`studio/`: `studio.py` standard-library server,
+`index.html`, `translit.js`): browsers lay text out properly and copy/paste works.
+`./dev.sh studio` builds the binary, points it at the models in `~/.nepali-ai`,
+starts the server and opens the browser. It runs the code you type, so it listens on
+127.0.0.1 only, needs a random per-run token (kept in the URL fragment) and rejects
+non-localhost Host headers. Typing mode key is **F2** (macOS reserves Ctrl+Space for
+switching input sources). `translit.js` is a port of `translit.py`; `studio/tests/
+test_parity.py` checks both give identical output on 40 words and identical keyword
+tables. Verified in a browser: correct Devanagari rendering, Roman typing produced
+`राखौँ x = 5 ।` / `भनौँ("नमस्ते सन्सार", x + 1) ।`, run printed `नमस्ते सन्सार 6`, and the
+AI pane with the real Qwen2.5-1.5B returned a loop program that was inserted and
+run (`1 2 3`). The shell also takes questions naturally now: `ask ...`, or any line
+ending in `?`.
+
+**Where there is no browser (or no Devanagari-capable display).** Three tiers: (1)
+Nepali Studio - the GTK desktop on the ISO, or `./dev.sh studio` in a browser; (2) a
+terminal that shapes Devanagari - the shell prints it as is; (3) a plain Linux
+console (`TERM=linux`/`dumb`), a non-UTF-8 locale, or an SSH session without Indic
+fonts - the shell prints **Roman** instead (`crates/nepali-core/src/cli/roman.rs`):
+`नमस्ते` -> `namaste`, prompt `nepaalee:~ $`, keywords as their typed forms (`राखौँ` ->
+`rakha`, verified against the lexer in a test). Automatic; force with `--roman`,
+`--devanagari` or `NEPALI_SCRIPT=roman|devanagari|auto`. The other direction needs no
+feature: keywords and builtins already have Latin names, so programs can be typed
+in ASCII anywhere. The studio server's token is now a per-user file
+(`~/.nepali/studio-token`, mode 600) so restarts and reloads no longer give 403.
+
+## ARM64 ISO (UEFI/GRUB, native on Apple Silicon)
+
+The x86_64 ISO is emulated on an M-series Mac, so the AI was unusably slow there.
+`build.sh`/`build-overlay.sh` take `ARCH=arm64` (`builder-arm64.Dockerfile`,
+`--architecture arm64 --bootloaders grub-efi`, GRUB menu derived from the ISO's own
+`grub.cfg`). **Verified** with `qemu-system-aarch64 -accel hvf` (edk2 UEFI): boots to
+the autologin shell in ~40 s; the full image (Studio + 1.5B model, 3.0 GB) shows the
+"Nepali OS (Nepali language)" GRUB entry, the Studio desktop after ~45 s, F5 prints
+correct Devanagari, and **the AI answered inside the ISO** (loop program, correct,
+Devanagari; ~100 s for the first question, mostly loading the 1.1 GB model from the
+xz squashfs). Bugs found: macOS `sed` has no `\|` (menu rename silently failed - use
+`sed -E`); the Studio session runs with `TERM=linux`, which triggered the new Roman
+fallback inside the GUI (answers showed as `rakha i = 1|`) - Studio and the web
+server now force `NEPALI_SCRIPT=devanagari` for their children. **Not verified**: UTM
+itself, the SPICE clipboard, the x86_64 GRUB menu rename after the `sed -E` change,
+Roman fallback on the ISO's real text console, and ARM64 Whisper/TTS.
+
+## `crates/nepali-codegen`: real LLVM-backed native machine code
+
+The last item on the original list. A real *third* execution model,
+distinct from both the tree-walking `interpreter` and the `vm`
+bytecode interpreter - this one emits genuine machine code via LLVM,
+not another software interpreter loop.
+
+Built on `inkwell` (the real, safe Rust wrapper over LLVM's own C++
+APIs - the same crate real from-scratch compiler projects use, not a
+hand-rolled machine-code emitter), pinned to the `llvm22-1` feature -
+the newest LLVM release inkwell 0.10 actually supports (checked against
+its published feature list, which tops out below LLVM 23 - the dev
+machine's default `brew install llvm` gave 23.1.1, too new; fixed by
+installing `llvm@22` specifically and pointing `LLVM_SYS_221_PREFIX` at
+it via the crate's own `.cargo/config.toml`).
+
+**Deliberately scoped smaller than the full language**, the same
+precedent the bytecode VM's own v1 and the formatter already set: every
+runtime value is a real `f64` (mirroring `interpreter::Value::Number`'s
+own representation) - no strings, no arrays, no closures, no imports.
+Direct-name function calls (including real recursion), `यदि`/`नत्र`,
+`भएसम्म`, arithmetic, comparisons, `र`/`वा`/`होइन` (with real
+short-circuit codegen via LLVM basic blocks + a `phi` node - the same
+"only emit the right operand's instructions where they're actually
+reachable" shape the bytecode VM's own short-circuit codegen uses), and
+numeric `भनौँ` printing are all real and supported. Anything outside
+that - a string literal, an array, a nested function, an `आयात` - is a
+real, explicit compile-time error naming exactly what's unsupported,
+never silently miscompiled.
+
+**Two real, independently-verified execution paths, not one**:
+1. `nepali-codegen run <file.nep>` - JIT-compiles the module in-process
+   via LLVM's own `ExecutionEngine` and actually executes the real
+   compiled machine code. Its print calls route to a real Rust
+   `extern "C" fn` in the same crate that reproduces
+   `interpreter::Value::display`'s exact integer-vs-float formatting
+   logic, so JIT output is provably byte-identical to the interpreter's
+   for the same program, not just "close."
+2. `nepali-codegen build <file.nep> -o <out>` - the real "true native
+   codegen" path: `TargetMachine::write_to_file` emits an actual object
+   file (the identical mechanism `rustc`/`clang` themselves use), which
+   is then linked via the system `cc` together with a small bundled C
+   print runtime (`runtime.c`, which also supplies the real C `main`
+   entry point the object file itself doesn't have) into a genuine
+   standalone native executable - one with zero dependency on this
+   project's interpreter or runtime process once built. Its non-integer
+   number formatting uses C's `%g` rather than Rust's exact `Display`
+   (a real, stated, narrow divergence from the JIT path - integer
+   output is guaranteed identical either way).
+
+**Verified for real, 4/4 tests, by actually running the produced
+artifacts as real subprocesses** - not calling `Codegen`'s internal
+methods in-process:
+- Real recursive Fibonacci (`फिबो(10)`) through the JIT path -> `55`.
+- Real `भएसम्म` loop with mutation, `भनौँ` with multiple numeric
+  arguments, and a real `र` (and) short-circuit condition combined with
+  `यदि`/`नत्र` - JIT output exactly `"10 5"` then `"1"`, matching hand-
+  worked expected values.
+- **The load-bearing one**: `nepali-codegen build` on the same real
+  Fibonacci program, then running the *produced binary itself* as a
+  fresh subprocess with no `nepali-codegen` involved at all - real
+  stdout `55`. This is the actual proof of real, standalone native
+  compilation, not just JIT-in-process execution.
+- A real, explicit compile error (naming "string") for a program using
+  an unsupported string literal - confirms the scope boundary fails
+  loud, not silent-wrong.
+
+**Real, honest, stated gap, unchanged from the bytecode VM's own
+precedent**: no optimization passes are run beyond LLVM's own default
+`OptimizationLevel::Default` at object-emission time (JIT uses `None`
+for fast compile), no debug info, and the scope above (numeric-only,
+no strings/arrays/closures/imports) is real and current, not
+temporary - extending it to the full language is real, substantial,
+separate future work, the same honest framing given to the bytecode
+VM's remaining slot-allocation gap.
+
+## `examples/tour` and `examples/native`: a tested tour of the language
+
+`examples/tour/01..13_*.nep` (plus `ai/14_ai.nep`) teach the language step
+by step - printing, variables, conditions, loops, functions, arrays,
+strings, closures, algorithms, romanized keywords, modules, OS/database
+access, Python/JS/TS interop, local AI (`examples/tour/README.md` indexes
+them). `examples/native/` holds numeric programs for `nepali-codegen`.
+Another, separate collection of 20 numbered programs with `.expected`
+files lives directly in `examples/` (written in parallel by another
+session, with its own test and the language cheat-sheet in
+`examples/README.md`).
+
+**Kept honest by tests** (`crates/nepali-core/tests/tour.rs`): every
+tour file is run through the real `nepali-core-cli` binary (cwd
+`examples/tour`, a temp `NEPALI_DB`) and its stdout must equal the
+neighbouring `.out` file; the model-needing `ai/` example is only
+parse+resolve checked; the native examples must give their known answers
+in the interpreter (168 primes below 1000, 26623 with 307 Collatz steps).
+Corrupting an `.out` file makes the test fail (checked). Separately
+verified by hand that interpreter, `nepali-codegen run` (JIT) and a
+`nepali-codegen build` binary print identical output for all three native
+examples.
+
+**Real bug found by writing the examples**: `आदेश_चलाउनुहोस्` takes its
+arguments as one array (`("echo", ["a", "b"])`); passing them as extra
+parameters is a runtime error. An example and the AI's recipe both had it
+wrong until actually run.
+
+**`examples/conditions/`**: seven programs covering every condition form
+(if/else chains, comparisons, truthiness, logic and precedence,
+short-circuiting, loop conditions, number edge cases) plus fifteen
+`errors/E*.nep` programs, each with the exact stdout, the message that must
+appear on stderr, and exit code 1 (`crates/nepali-core/tests/conditions.rs`).
+Real behaviours pinned there: analysis errors (undefined names, obvious type
+errors, arity) stop the program before anything prints, runtime errors keep
+earlier output; `1/0` is `inf` and `0/0` is `NaN` (no error); `null + 1`
+concatenates text; a fractional index truncates; text supports only `==`/`!=`.
+
+**`docs/NEPALI_OS.md`** is the user guide for the OS: three ways to run it,
+first steps, every capability, configuration variables, limits and
+troubleshooting. Its Docker recipes were each run against the real image
+(script mounting, file server upload/download/traversal refusal, DNS answer
+and NXDOMAIN, Redis cache, bind-mounted database, AI answer, `nepali fmt`).
+**Real bug found doing that**: a named Docker volume mounted at
+`/home/nepali/.nepali` was root-owned, so the `nepali` user could not create
+the database and every database call failed. Fixed in the Dockerfile by
+creating that folder owned by `nepali` (verified on a derived image: the row
+count went 1, then 2 across two container runs). Not rebuilt into
+`nepali-os:dev` yet; a bind mount works with the existing image.
+
+## What's left, honestly
+
+The original ask (memory, MCP, LSP/formatter/native-codegen,
+bytecode-VM parity) is now fully closed at the scope each piece was
+deliberately built to: agent memory, MCP, VM closures/arrays/logical-
+ops, LSP+formatter, and now real LLVM native codegen are all real and
+independently verified. The stated, current real gaps that remain are
+the ones called out inside each section above (native codegen's
+numeric-only subset, the VM's name-keyed-vs-slot-indexed variables,
+LSP's line-1-only resolver diagnostics, the formatter's re-indentation-
+only scope) - each a deliberate, documented boundary, not something
+silently left broken.

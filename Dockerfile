@@ -151,6 +151,12 @@ COPY --from=builder /build/crates/nepali-dnsserver/target/release/nepali-dnsserv
 # VM/bare-metal install later, not only `docker run`.
 RUN echo /usr/local/bin/nepali >> /etc/shells && \
     useradd -m -s /usr/local/bin/nepali nepali
+# The data folder must already exist and belong to `nepali`: Docker copies
+# an image folder's ownership into a fresh named volume mounted over it, so
+# `-v nepali-data:/home/nepali/.nepali` keeps the database across runs. Without
+# this the volume is root-owned and the database silently cannot be created.
+RUN mkdir -p /home/nepali/.nepali/files /home/nepali/.nepali/tts-output && \
+    chown -R nepali:nepali /home/nepali/.nepali
 
 ENV NEPALI_DB=/home/nepali/.nepali/os.db
 ENV NEPALI_FILES_DIR=/home/nepali/.nepali/files

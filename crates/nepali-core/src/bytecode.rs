@@ -1,5 +1,4 @@
 use crate::ast::{BinOp, Expr, Stmt};
-use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -30,6 +29,16 @@ pub enum OpCode {
     Lte,
     Gte,
     Pop,
+    /// Real logical negation - pops one value, pushes its boolean
+    /// negation (truthiness-aware, same rule `Value::is_truthy` already
+    /// uses everywhere else in this VM).
+    Not,
+    /// Pops one value, pushes `Bool(v.is_truthy())` - the coercion
+    /// `र`/`वा` (and/or) codegen needs for their non-short-circuited
+    /// operand, matching `interpreter::Interpreter`'s exact rule that
+    /// the *result* of `and`/`or` is always a real bool, not whichever
+    /// operand value happened to decide it.
+    ToBool,
     Print(usize),
     GetVar(String),
     SetVar(String),
@@ -39,6 +48,39 @@ pub enum OpCode {
     Jump(usize),
     Call(String, usize),
     Return,
+    /// Pops the top `n` stack values (in source order) and pushes one
+    /// real array value built from them - `[१, २, ३]` compiles to
+    /// pushing each element then one `MakeArray(3)`, matching how every
+    /// other multi-value construct here (`Print(n)`, `Call(name, n)`)
+    /// already encodes its arity inline in the opcode.
+    MakeArray(usize),
+    /// Pops an index then an array, pushes the real element at that
+    /// index - a real, explicit bounds-checked runtime error (matching
+    /// `interpreter::Interpreter`'s `expect_index`), not a panic.
+    Index,
+    /// Pops a value, an index, then an array; mutates the array in
+    /// place (arrays are reference types here, same as the
+    /// tree-walker's `Value::Array(Rc<RefCell<...>>)`) and pushes the
+    /// assigned value back - matches `Expr::IndexAssign` evaluating to
+    /// the value that was assigned.
+    IndexAssign,
+    /// Instantiates a real closure from function template `idx` (see
+    /// `Compiler::templates`), capturing whichever frame is executing
+    /// *right now* as its lexical parent, and pushes the resulting
+    /// function value - the real mechanism that makes
+    /// `काम बनाउ(x) { काम थप्नु(y) { पठाउँ x + y। } पठाउँ थप्नु। }` work:
+    /// every time `बनाउ` runs, a *fresh* `थप्नु` closure is made,
+    /// capturing that specific call's `x`, not a single global function
+    /// sharing one static binding.
+    MakeClosure(usize),
+    /// Pops `argc` arguments then one callee value off the stack and
+    /// calls through it, whatever expression produced it - the general
+    /// path `OpCode::Call(name, argc)` doesn't cover (calling through a
+    /// non-identifier expression, e.g. a function returned directly
+    /// from another call). Plain by-name calls still use `Call` - most
+    /// calls are that shape, and it can look the callee up directly in
+    /// the frame chain without a separate `GetVar` instruction first.
+    CallValue(usize),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -46,30 +88,43 @@ pub struct Chunk {
     pub code: Vec<OpCode>,
 }
 
+/// One compiled function body, shared (via `Rc`) across every closure
+/// instance `OpCode::MakeClosure` creates from it - the bytecode itself
+/// never changes between calls, only the captured frame does. Looked up
+/// by index (`MakeClosure(usize)`) rather than by name, since nested
+/// function declarations can shadow/re-declare the same name across
+/// different calls, and each occurrence needs its own real template.
 #[derive(Debug)]
-pub struct FunctionChunk {
+pub struct FunctionTemplate {
+    pub name: String,
     pub params: Vec<String>,
-    pub chunk: Chunk,
+    pub chunk: Rc<Chunk>,
 }
 
-/// Compiles a program into a top-level `Chunk` plus one `FunctionChunk`
-/// per declared function, called by name via `OpCode::Call`.
+/// Compiles a program into a top-level `Chunk` plus every function
+/// template declared anywhere in it (including nested inside other
+/// functions) - `Stmt::FunctionDecl` compiles to real runtime
+/// instructions (`MakeClosure` + `DefineVar`), not a separate
+/// compile-time-only registration table, so declaring a function is a
+/// real closure-creating *action* each time it runs, matching
+/// `interpreter::Interpreter::exec_stmt`'s `Stmt::FunctionDecl` case
+/// exactly (`Value::Function(Rc::new(FunctionValue { closure: env.clone(), .. }))`).
 pub struct Compiler {
-    pub functions: BTreeMap<String, Rc<FunctionChunk>>,
+    pub templates: Vec<Rc<FunctionTemplate>>,
 }
 
 impl Compiler {
     pub fn new() -> Self {
         Compiler {
-            functions: BTreeMap::new(),
+            templates: Vec::new(),
         }
     }
 
-    pub fn compile(program: &[Stmt]) -> (Chunk, BTreeMap<String, Rc<FunctionChunk>>) {
+    pub fn compile(program: &[Stmt]) -> (Chunk, Vec<Rc<FunctionTemplate>>) {
         let mut compiler = Compiler::new();
         let mut chunk = Chunk::default();
         compiler.compile_stmts(program, &mut chunk);
-        (chunk, compiler.functions)
+        (chunk, compiler.templates)
     }
 
     fn compile_stmts(&mut self, stmts: &[Stmt], chunk: &mut Chunk) {
@@ -131,13 +186,19 @@ impl Compiler {
                 // case in `call`.
                 fn_chunk.code.push(OpCode::ConstNull);
                 fn_chunk.code.push(OpCode::Return);
-                self.functions.insert(
-                    name.clone(),
-                    Rc::new(FunctionChunk {
-                        params: params.clone(),
-                        chunk: fn_chunk,
-                    }),
-                );
+                let idx = self.templates.len();
+                self.templates.push(Rc::new(FunctionTemplate {
+                    name: name.clone(),
+                    params: params.clone(),
+                    chunk: Rc::new(fn_chunk),
+                }));
+                // A real runtime action, not a compile-time-only
+                // registration: every time this statement executes, a
+                // fresh closure is made (capturing whatever frame is
+                // live right now) and bound to `name` in it - exactly
+                // `interpreter::Interpreter`'s `Stmt::FunctionDecl` case.
+                chunk.code.push(OpCode::MakeClosure(idx));
+                chunk.code.push(OpCode::DefineVar(name.clone()));
             }
             Stmt::Return(expr) => {
                 match expr {
@@ -164,19 +225,49 @@ impl Compiler {
                 self.compile_expr(inner, chunk);
                 chunk.code.push(OpCode::Neg);
             }
-            Expr::Not(_) => {
-                panic!("bytecode compiler: होइन/'not' is not supported yet (tree-walking Interpreter supports it - see ROADMAP.md)");
+            Expr::Not(inner) => {
+                self.compile_expr(inner, chunk);
+                chunk.code.push(OpCode::Not);
             }
             Expr::Assign(name, value) => {
                 self.compile_expr(value, chunk);
                 chunk.code.push(OpCode::SetVar(name.clone()));
             }
-            Expr::Binary(BinOp::And, _, _) | Expr::Binary(BinOp::Or, _, _) => {
-                // Short-circuiting needs real jump codegen (evaluate
-                // left, branch around right entirely) - same kind of gap
-                // as arrays and closures-through-value calls: explicit,
-                // not silently wrong. See ROADMAP.md.
-                panic!("bytecode compiler: र/वा ('and'/'or') are not supported yet (tree-walking Interpreter supports them - see ROADMAP.md)");
+            // Real short-circuiting, matching interpreter::Interpreter's
+            // exact semantics: AND never evaluates the right operand's
+            // bytecode at all if the left is already falsy (jumps clean
+            // over it, not "computes both and discards one"), and the
+            // overall result is always a real bool, never whichever
+            // operand's raw value happened to decide it - `ToBool`
+            // performs that final coercion on the non-short-circuited
+            // side, same as `Value::is_truthy` does in the tree-walker.
+            Expr::Binary(BinOp::And, left, right) => {
+                self.compile_expr(left, chunk);
+                let jump_if_false_idx = chunk.code.len();
+                chunk.code.push(OpCode::JumpIfFalse(usize::MAX));
+                self.compile_expr(right, chunk);
+                chunk.code.push(OpCode::ToBool);
+                let jump_over_false_idx = chunk.code.len();
+                chunk.code.push(OpCode::Jump(usize::MAX));
+                let false_branch = chunk.code.len();
+                chunk.code[jump_if_false_idx] = OpCode::JumpIfFalse(false_branch);
+                chunk.code.push(OpCode::ConstBool(false));
+                let after = chunk.code.len();
+                chunk.code[jump_over_false_idx] = OpCode::Jump(after);
+            }
+            Expr::Binary(BinOp::Or, left, right) => {
+                self.compile_expr(left, chunk);
+                let jump_if_false_idx = chunk.code.len();
+                chunk.code.push(OpCode::JumpIfFalse(usize::MAX));
+                chunk.code.push(OpCode::ConstBool(true));
+                let jump_over_right_idx = chunk.code.len();
+                chunk.code.push(OpCode::Jump(usize::MAX));
+                let right_branch = chunk.code.len();
+                chunk.code[jump_if_false_idx] = OpCode::JumpIfFalse(right_branch);
+                self.compile_expr(right, chunk);
+                chunk.code.push(OpCode::ToBool);
+                let after = chunk.code.len();
+                chunk.code[jump_over_right_idx] = OpCode::Jump(after);
             }
             Expr::Binary(op, left, right) => {
                 self.compile_expr(left, chunk);
@@ -196,24 +287,43 @@ impl Compiler {
                     BinOp::And | BinOp::Or => unreachable!("handled above"),
                 });
             }
-            Expr::ArrayLit(_) | Expr::Index(_, _) | Expr::IndexAssign(_, _, _) => {
-                // Not supported by this bytecode VM yet - same kind of
-                // explicit, deliberate gap as calling through a non-name
-                // expression below (closures), not a silent
-                // miscompilation. See ROADMAP.md.
-                panic!("bytecode compiler: arrays are not supported yet (tree-walking Interpreter supports them - see ROADMAP.md)");
+            Expr::ArrayLit(elements) => {
+                for e in elements {
+                    self.compile_expr(e, chunk);
+                }
+                chunk.code.push(OpCode::MakeArray(elements.len()));
+            }
+            Expr::Index(object, index) => {
+                self.compile_expr(object, chunk);
+                self.compile_expr(index, chunk);
+                chunk.code.push(OpCode::Index);
+            }
+            Expr::IndexAssign(object, index, value) => {
+                self.compile_expr(object, chunk);
+                self.compile_expr(index, chunk);
+                self.compile_expr(value, chunk);
+                chunk.code.push(OpCode::IndexAssign);
             }
             Expr::Call(callee, args) => {
-                for arg in args {
-                    self.compile_expr(arg, chunk);
-                }
-                // Only calls to a plain name compile - see the VM module
-                // doc for why calling through a value (closures) isn't
-                // supported by this bytecode compiler yet.
+                // A plain-name callee (the overwhelming common case, and
+                // the only shape a real closure call needs - see the
+                // closure test) resolves directly in the VM's frame
+                // chain via `Call(name, argc)`, without needing a
+                // separate `GetVar` first. Any other callee expression
+                // (e.g. calling a function value returned directly from
+                // another call) compiles the callee generically and
+                // calls through the resulting value with `CallValue`.
                 if let Expr::Ident(name) = callee.as_ref() {
+                    for arg in args {
+                        self.compile_expr(arg, chunk);
+                    }
                     chunk.code.push(OpCode::Call(name.clone(), args.len()));
                 } else {
-                    panic!("bytecode compiler: calling a non-identifier expression is not supported yet (no closures in the VM - see ROADMAP.md)");
+                    self.compile_expr(callee, chunk);
+                    for arg in args {
+                        self.compile_expr(arg, chunk);
+                    }
+                    chunk.code.push(OpCode::CallValue(args.len()));
                 }
             }
         }

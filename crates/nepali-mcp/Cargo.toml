@@ -1,0 +1,30 @@
+[package]
+name = "nepali-mcp"
+version = "0.1.0"
+edition = "2021"
+description = "A real MCP (Model Context Protocol) server exposing nepali-core's language, AI, and agent capabilities as MCP tools."
+license = "MIT"
+
+[[bin]]
+name = "nepali-mcp"
+path = "src/main.rs"
+
+[dependencies]
+# The official Model Context Protocol Rust SDK (github.com/modelcontextprotocol/rust-sdk)
+# - not a hand-rolled JSON-RPC/stdio framing implementation. "server" for
+# the server-side handler/tool-router machinery, "transport-io" for the
+# real stdio transport MCP clients (Claude Desktop, Claude Code, etc.)
+# actually speak.
+rmcp = { version = "3", features = ["server", "transport-io"] }
+serde = { version = "1", features = ["derive"] }
+schemars = "1"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+
+[dev-dependencies]
+# Real, live end-to-end verification (tests/mcp_client_test.rs): spawns
+# the actual built nepali-mcp binary as a real child process and speaks
+# real MCP protocol to it over real stdio, via the same official SDK's
+# client side - not a mocked/simulated transport.
+rmcp = { version = "3", features = ["client", "transport-child-process"] }
+serde_json = "1"

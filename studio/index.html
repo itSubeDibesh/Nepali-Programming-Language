@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ne">
+<head>
+<meta charset="utf-8">
+<title>नेपाली स्टुडियो</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#0a0e1e; --panel:#0f1530; --out:#070a17; --line:#26336e; --text:#f2f2f2; --dim:#8fa0d8;
+          --red:#dc143c; --blue:#003893; --ok:#7bd88f; --err:#ff6b81; }
+  * { box-sizing: border-box; }
+  html, body { height:100%; margin:0; background:var(--bg); color:var(--text);
+    font-family:"Noto Sans Devanagari","Kohinoor Devanagari","Devanagari Sangam MN",-apple-system,"Segoe UI",sans-serif; }
+  body { display:grid; grid-template-rows:auto 1fr auto; height:100vh; padding:10px; gap:8px; }
+  .bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  button, select { background:#1b2450; color:#fff; border:1px solid var(--blue); border-radius:6px; padding:8px 14px;
+    font:inherit; font-size:15px; cursor:pointer; }
+  button:hover, select:hover { background:#26336e; }
+  button.run { background:var(--red); border-color:var(--red); font-weight:700; }
+  button.run:hover { background:#f0264d; }
+  button.on { background:var(--blue); box-shadow:0 0 0 2px var(--red); }
+  .flag { width:26px; height:32px; margin-right:6px; }
+  .main { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:10px; min-height:0; }
+  .left { display:grid; grid-template-rows:minmax(0,1.5fr) minmax(0,1fr); gap:10px; min-height:0; }
+  textarea#code, pre#out, #answer, #help { background:var(--panel); color:var(--text); border:1px solid var(--line);
+    border-radius:8px; margin:0; padding:12px; overflow:auto; min-height:0; }
+  textarea#code { resize:none; width:100%; height:100%; outline:none; tab-size:2; white-space:pre;
+    font-family:Menlo,"SF Mono","Kohinoor Devanagari","Devanagari Sangam MN",monospace; font-size:18px; line-height:1.55; }
+  textarea#code:focus { border-color:var(--red); }
+  pre#out { background:var(--out); font-family:inherit; font-size:17px; white-space:pre-wrap; }
+  .err { color:var(--err); } .ok { color:var(--ok); }
+  .side { display:grid; grid-template-rows:auto 1fr; min-height:0; }
+  .tabs { display:flex; gap:6px; margin-bottom:6px; }
+  .tabs button { border-radius:6px 6px 0 0; }
+  .tabs button.active { background:var(--red); border-color:var(--red); }
+  .pane { display:none; min-height:0; } .pane.active { display:grid; grid-template-rows:1fr auto auto auto; gap:8px; }
+  #help.pane.active { display:block; }
+  #answer { white-space:pre-wrap; font-size:17px; }
+  input#q { width:100%; background:var(--panel); color:#fff; border:1px solid var(--line); border-radius:6px; padding:10px; font:inherit; font-size:16px; }
+  input#q:focus { outline:none; border-color:var(--red); }
+  .row { display:flex; gap:8px; } .row button { flex:1; }
+  .cheat { padding:8px 6px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .cheat:hover { background:#141c44; }
+  .cheat b { font-weight:500; font-size:16px; } .cheat code { display:block; color:#9db4ff; font-family:Menlo,monospace; font-size:13px; }
+  .cheat span { color:var(--dim); font-size:13px; }
+  .status { color:var(--dim); font-size:14px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .mode { color:#fff; }
+  @media (max-width: 900px) { .main { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="bar">
+  <svg class="flag" viewBox="0 0 26 32"><polygon points="1,1 24,15 9,15 24,31 1,31" fill="#003893"/><polygon points="3.5,4 19,14 7,14 19,28 3.5,28" fill="#dc143c"/></svg>
+  <button class="run" id="run" title="F5 / Cmd+Enter">▶ चलाउनुहोस्</button>
+  <select id="examples" title="उदाहरण"><option value="">उदाहरण ▾</option></select>
+  <button id="new">नयाँ</button>
+  <button id="open">खोल्नुहोस्</button><input type="file" id="file" accept=".nep,.txt" hidden>
+  <button id="save">सुरक्षित</button>
+  <button id="mode" title="F2 (or Ctrl+Shift+Space)">टाइप: English</button>
+</div>
+<div class="main">
+  <div class="left">
+    <textarea id="code" spellcheck="false" autofocus></textarea>
+    <pre id="out"></pre>
+  </div>
+  <div class="side">
+    <div class="tabs"><button class="active" data-pane="ai">एआई</button><button data-pane="help">सहायता</button></div>
+    <div class="pane active" id="ai">
+      <div id="answer">एआईलाई नेपाली प्रोग्राम, वा यो OS बारे सोध्नुहोस्।</div>
+      <input id="q" placeholder="प्रश्न…  (F2 मा नेपाली टाइप)" autocomplete="off">
+      <div class="row"><button id="ask">सोध्नुहोस्</button><button id="insert">कोडमा राख्नुहोस्</button></div>
+      <button id="why">यो त्रुटि किन?</button>
+    </div>
+    <div class="pane" id="help"></div>
+  </div>
+</div>
+<div class="status"><span id="status">F5: चलाउनुहोस्  ·  F2: नेपाली / English टाइप  ·  Roman मा लेख्दा देवनागरी बन्छ (namaste → नमस्ते, bhana → भनौँ)</span><span class="mode" id="modeLabel"></span></div>
+
+<script src="/translit.js"></script>
+<script>
+// The link printed by ./dev.sh carries the token in its #fragment; remember it so a reload works.
+const token = location.hash.slice(1) || sessionStorage.getItem("nepali-token") || "";
+if (token) sessionStorage.setItem("nepali-token", token);
+const $ = (id) => document.getElementById(id);
+const api = async (path, body) => {
+  const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "X-Token": token, "Content-Type": "application/json" },
+                                body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 403) throw new Error("token");
+  if (!r.ok) throw new Error("server: " + r.status);
+  return r.json();
+};
+function explain(e) {
+  if (e.message === "token") return "यो पेजलाई अनुमति छैन (token मिलेन)। टर्मिनलमा './dev.sh studio' ले छापेको पूरै लिङ्क (# सहित) फेरि खोल्नुहोस्।";
+  if (e.message === "Failed to fetch") return "स्टुडियो सर्भर बन्द छ। टर्मिनलमा './dev.sh studio' फेरि चलाउनुहोस्, अनि यही पेज रिफ्रेस गर्नुहोस्।";
+  return "सर्भर: " + e.message;
+}
+const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, "");
+const code = $("code"), out = $("out");
+const WELCOME = `// नेपाली स्टुडियोमा स्वागत छ!  F5 थिचेर चलाउनुहोस्।
+// F2: नेपाली / English टाइप।  Roman मा लेख्दा देवनागरी बन्छ (namaste → नमस्ते)।
+
+राखौँ नाम = "संसार"।
+भनौँ("नमस्ते", नाम)।
+
+काम जोड(क, ख) {
+  पठाउँ क + ख।
+}
+भनौँ("२ + ३ =", जोड(2, 3))।
+`;
+code.value = WELCOME;
+let lastCode = "", lastError = "";
+
+// ---- phonetic typing -----------------------------------------------------------------
+const typers = [new PhoneticTyper(code), new PhoneticTyper($("q"))];
+function setTyping(on) {
+  typers.forEach((t) => { t.enabled = on; t.reset(); });
+  $("mode").textContent = on ? "टाइप: नेपाली" : "टाइप: English";
+  $("mode").classList.toggle("on", on);
+  $("modeLabel").textContent = on ? "नेपाली (Roman → देवनागरी)" : "English";
+}
+$("mode").onclick = () => { setTyping(!typers[0].enabled); code.focus(); };
+setTyping(false);
+
+// ---- run / ask -----------------------------------------------------------------------
+async function run() {
+  lastCode = code.value;
+  $("status").textContent = "चलाउँदै…";
+  out.textContent = "";
+  try {
+    const r = await api("/api/run", { code: lastCode });
+    out.textContent = r.stdout;
+    if (r.stderr) { const s = document.createElement("span"); s.className = "err"; s.textContent = (r.stdout && !r.stdout.endsWith("\n") ? "\n" : "") + r.stderr; out.appendChild(s); }
+    const m = document.createElement("div");
+    m.className = r.rc === 0 ? "ok" : "err";
+    m.textContent = r.rc === 0 ? "✓ सफल भयो" : `✗ त्रुटि (कोड ${r.rc})`;
+    out.appendChild(m);
+    lastError = r.rc === 0 ? "" : (r.stderr.trim() || r.stdout.trim());
+    $("status").textContent = r.rc === 0 ? "सफल भयो" : "त्रुटि भयो - 'यो त्रुटि किन?' थिच्नुहोस्";
+  } catch (e) { out.textContent = explain(e); }
+}
+async function ask(q) {
+  q = (q || $("q").value).trim();
+  if (!q) return;
+  $("answer").textContent = "सोच्दै छु…";
+  $("status").textContent = "एआई सोच्दै छ… (एक-दुई मिनेट लाग्न सक्छ)";
+  try {
+    const r = await api("/api/ask", { q });
+    $("answer").textContent = stripAnsi(r.stdout).trim() || r.stderr.trim() || "(जवाफ आएन)";
+    $("status").textContent = "जवाफ आयो";
+  } catch (e) { $("answer").textContent = explain(e); }
+}
+function insertAnswer() {
+  const t = $("answer").textContent;
+  if (!t.trim() || t.startsWith("सोच्दै")) return;
+  const lines = stripAnsi(t).split("\n").filter((l) => !l.trim().startsWith("```") && !l.startsWith("(prints"));
+  code.value = lines.join("\n").trim() + "\n";
+  $("status").textContent = "कोड सम्पादकमा राखियो - F5 थिचेर चलाउनुहोस्";
+  code.focus();
+}
+$("run").onclick = run; $("ask").onclick = () => ask(); $("insert").onclick = insertAnswer;
+$("why").onclick = () => {
+  if (!lastError) { $("status").textContent = "अहिलेसम्म कुनै त्रुटि छैन"; return; }
+  ask("I ran this Nepali-language program:\n" + lastCode + "\nIt failed with: " + lastError +
+      "\nIn one or two sentences explain the mistake, then show the corrected Nepali code.");
+};
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter") ask(); });
+
+// ---- files & examples ----------------------------------------------------------------
+$("new").onclick = () => { code.value = ""; code.focus(); };
+$("open").onclick = () => $("file").click();
+$("file").onchange = async (e) => { const f = e.target.files[0]; if (f) { code.value = await f.text(); } e.target.value = ""; };
+$("save").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([code.value], { type: "text/plain;charset=utf-8" }));
+  a.download = "कार्यक्रम.nep"; a.click(); URL.revokeObjectURL(a.href);
+};
+api("/api/examples").then((list) => list.forEach((x) => {
+  const o = document.createElement("option"); o.value = x.name; o.textContent = x.title; $("examples").appendChild(o);
+})).catch(() => {});
+$("examples").onchange = async (e) => {
+  if (!e.target.value) return;
+  const r = await api("/api/example?name=" + encodeURIComponent(e.target.value));
+  code.value = r.code; e.target.value = ""; code.focus();
+};
+
+// ---- help ----------------------------------------------------------------------------
+const CHEAT = [
+  ["राखौँ x = 5।", "rakha x = 5", "चर बनाउनुहोस्  ·  variable"],
+  ["भनौँ(\"नमस्ते\", x)।", "bhana(\"namaste\", x)", "छाप्नुहोस्  ·  print"],
+  ["यदि x > 3 { … } नत्र { … }", "yadi x > 3 { … } natra { … }", "यदि-नत्र  ·  if / else"],
+  ["भएसम्म x < 10 { … }", "bhayesamma x < 10 { … }", "दोहोर्याउनुहोस्  ·  while"],
+  ["काम जोड(क, ख) { पठाउँ क + ख }", "kaam jod(a, b) { pathau a + b }", "कार्य  ·  function / return"],
+  ["सहि   गलत   केहीछैन", "sahi   galat   kehichaina", "true   false   null"],
+  ["र    वा    होइन", "ra    wa    hoina", "and   or   not"],
+  ["[1, 2, 3]    सूची[0]", "[1, 2, 3]    suchi[0]", "सूची  ·  array"],
+  ["लम्बाइ(x)    थप्नुहोस्(सूची, v)", "lambai(x)    thapnuhos(suchi, v)", "length   append"],
+  ["आयात \"फाइल.nep\"", "aayat \"file.nep\"", "अर्को फाइल ल्याउनुहोस्  ·  import"],
+  ["आदेश_चलाउनुहोस्(\"ls\", [\"/tmp\"])", "aadesh_chalaunuhos(\"ls\", [\"/tmp\"])", "Linux आदेश  ·  run a command"],
+  ["डाटाबेस_सोध्नुहोस्(\"SELECT 1\")", "database_sodhnuhos(\"SELECT 1\")", "SQLite"],
+  ["एआई_सोध्नुहोस्(\"…\")", "ai_sodhnuhos(\"…\")", "एआईलाई सोध्नुहोस्  ·  ask the AI"],
+];
+$("help").innerHTML = "<div class='status' style='padding:4px 6px'>थिच्नुहोस् = सम्पादकमा राख्नुहोस्  ·  click to insert</div>" +
+  CHEAT.map(([d, r, m], i) => `<div class="cheat" data-i="${i}"><b>${d.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</b><code>${r.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</code><span>→ ${m}</span></div>`).join("");
+$("help").onclick = (e) => {
+  const c = e.target.closest(".cheat"); if (!c) return;
+  const text = CHEAT[+c.dataset.i][0].replace(/\s{3,}/g, " ") + "\n";
+  code.setRangeText(text, code.selectionStart, code.selectionEnd, "end"); code.focus();
+};
+document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("active", x === b));
+  document.querySelectorAll(".pane").forEach((p) => p.classList.toggle("active", p.id === b.dataset.pane));
+});
+
+// ---- shortcuts -----------------------------------------------------------------------
+// (macOS reserves Ctrl+Space for switching input sources, so the browser never sees it: F2 is the key.)
+document.addEventListener("keydown", (e) => {
+  if (e.key === "F5" || ((e.metaKey || e.ctrlKey) && e.key === "Enter")) { e.preventDefault(); run(); }
+  else if (e.key === "F2" || (e.ctrlKey && e.shiftKey && e.code === "Space")) { e.preventDefault(); setTyping(!typers[0].enabled); }
+});
+</script>
+</body>
+</html>

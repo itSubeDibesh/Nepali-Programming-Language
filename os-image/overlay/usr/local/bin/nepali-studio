@@ -1,0 +1,579 @@
+#!/usr/bin/env python3
+"""नेपाली स्टुडियो - write, run and ask the AI about Nepali-language code.
+
+A GTK window, so Devanagari is shaped and laid out properly (a terminal's
+fixed cell grid cannot do that). Typing: press Ctrl+Space to switch between
+English and Nepali phonetic typing (type `namaste`, get नमस्ते).
+"""
+import glob
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import sys
+import threading
+
+import gi
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+from gi.repository import Gdk, GLib, Gtk, Pango  # noqa: E402
+
+try:
+    gi.require_version("Vte", "2.91")
+    from gi.repository import Vte  # noqa: E402
+except (ValueError, ImportError):
+    Vte = None
+
+for _p in ("/usr/local/lib/nepali", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lib", "nepali")):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+import translit  # noqa: E402
+
+NEPALI = os.environ.get("NEPALI_BIN") or shutil.which("nepali") or "/usr/local/bin/nepali"
+EXAMPLES = os.environ.get("NEPALI_EXAMPLES", "/usr/share/nepali/examples")
+HOME_DIR = os.path.expanduser("~")
+
+WELCOME = """// नेपाली स्टुडियोमा स्वागत छ!  F5 थिचेर चलाउनुहोस्।
+// Ctrl+Space: नेपाली / English टाइप।  Roman मा लेख्दा देवनागरी बन्छ (namaste → नमस्ते)।
+
+राखौँ नाम = "संसार"।
+भनौँ("नमस्ते", नाम)।
+
+काम जोड(क, ख) {
+  पठाउँ क + ख।
+}
+भनौँ("२ + ३ =", जोड(2, 3))।
+"""
+
+# (Devanagari form, Roman form, meaning)
+CHEAT = [
+    ("राखौँ x = 5।", "rakha x = 5", "चर बनाउनुहोस्  ·  variable"),
+    ("भनौँ(\"नमस्ते\", x)।", "bhana(\"namaste\", x)", "छाप्नुहोस्  ·  print"),
+    ("यदि x > 3 { … } नत्र { … }", "yadi x > 3 { … } natra { … }", "यदि-नत्र  ·  if / else"),
+    ("भएसम्म x < 10 { … }", "bhayesamma x < 10 { … }", "दोहोर्याउनुहोस्  ·  while"),
+    ("काम जोड(क, ख) { पठाउँ क + ख }", "kaam jod(a, b) { pathau a + b }", "कार्य  ·  function / return"),
+    ("सहि   गलत   केहीछैन", "sahi   galat   kehichaina", "true   false   null"),
+    ("र    वा    होइन", "ra    wa    hoina", "and   or   not"),
+    ("[1, 2, 3]    सूची[0]", "[1, 2, 3]    suchi[0]", "सूची  ·  array"),
+    ("लम्बाइ(x)    थप्नुहोस्(सूची, v)", "lambai(x)    thapnuhos(suchi, v)", "length   append"),
+    ("आयात \"फाइल.nep\"", "aayat \"file.nep\"", "अर्को फाइल ल्याउनुहोस्  ·  import"),
+    ("आदेश_चलाउनुहोस्(\"ls\", [\"/tmp\"])", "aadesh_chalaunuhos(\"ls\", [\"/tmp\"])", "Linux आदेश  ·  run a command"),
+    ("डाटाबेस_सोध्नुहोस्(\"SELECT 1\")", "database_sodhnuhos(\"SELECT 1\")", "SQLite"),
+    ("एआई_सोध्नुहोस्(\"…\")", "ai_sodhnuhos(\"…\")", "एआईलाई सोध्नुहोस्  ·  ask the AI"),
+]
+
+CSS = b"""
+window, .studio { background: #0a0e1e; color: #ebebeb; }
+textview, textview text { background: #0f1530; color: #f2f2f2;
+    font-family: "DejaVu Sans Mono", "Noto Sans Devanagari", monospace; font-size: 17pt; }
+.output text { background: #070a17; }
+button { background: #1b2450; color: #ffffff; border: 1px solid #003893; padding: 6px 14px;
+    font-family: "Noto Sans Devanagari", sans-serif; font-size: 14pt; }
+button.run { background: #dc143c; border-color: #dc143c; font-weight: bold; }
+button:hover { background: #26336e; }
+button.run:hover { background: #f0264d; }
+entry { background: #0f1530; color: #ffffff; font-family: "DejaVu Sans", "Noto Sans Devanagari", sans-serif; font-size: 15pt; }
+label { color: #cfd6f2; font-family: "Noto Sans Devanagari", sans-serif; font-size: 13pt; }
+.status { color: #8fa0d8; }
+notebook tab { background: #1b2450; padding: 6px 12px; }
+notebook tab:checked { background: #dc143c; }
+notebook header, notebook header.top { background: #0a0e1e; }
+list, row { background: #0f1530; }
+box, scrolledwindow, viewport { background: #0a0e1e; }
+.cheat-dev { color: #ffffff; font-size: 14pt; }
+.cheat-rom { color: #9db4ff; font-family: "DejaVu Sans Mono", monospace; font-size: 12pt; }
+"""
+
+
+# This window can draw Devanagari properly, so ask `nepali` for it even though the session
+# runs with TERM=linux (which would otherwise switch the shell to its Roman fallback).
+CHILD_ENV = {**os.environ, "NEPALI_SCRIPT": "devanagari"}
+
+
+def strip_ansi(s):
+    return re.sub(r"\x1b\[[0-9;]*m", "", s)
+
+
+def code_from_answer(answer):
+    """The code part of an AI answer: drop fences and '(prints: …)' notes."""
+    lines = []
+    for line in strip_ansi(answer).splitlines():
+        if line.strip().startswith("```") or line.startswith("(prints"):
+            continue
+        lines.append(line)
+    return "\n".join(lines).strip() + "\n"
+
+
+class PhoneticTyper:
+    """A small input method for one TextView or Entry: while enabled, Latin letters
+    typed as a word are shown as Devanagari as you type (namaste -> नमस्ते), and a
+    finished word that is a language keyword becomes the canonical keyword
+    (bhana -> भनौँ). Space, punctuation, Enter, arrows and mouse clicks end the word."""
+
+    LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
+
+    def __init__(self, widget):
+        self.widget = widget
+        self.enabled = False
+        self.word = ""
+        self.start = 0
+        self.shown = ""
+        widget.connect("key-press-event", self.on_key)
+        widget.connect("button-press-event", lambda *_: self.reset())
+        widget.connect("focus-out-event", lambda *_: self.reset())
+
+    def reset(self):
+        self.word = ""
+        self.shown = ""
+
+    # -- widget adapters (TextView works on a buffer, Entry on a string) --------
+    def is_entry(self):
+        return isinstance(self.widget, Gtk.Entry)
+
+    def cursor(self):
+        if self.is_entry():
+            return self.widget.get_position()
+        buf = self.widget.get_buffer()
+        return buf.get_iter_at_mark(buf.get_insert()).get_offset()
+
+    def replace(self, start, old_len, text):
+        if self.is_entry():
+            s = self.widget.get_text()
+            self.widget.set_text(s[:start] + text + s[start + old_len:])
+            self.widget.set_position(start + len(text))
+            return
+        buf = self.widget.get_buffer()
+        a = buf.get_iter_at_offset(start)
+        b = buf.get_iter_at_offset(start + old_len)
+        buf.delete(a, b)
+        buf.insert(buf.get_iter_at_offset(start), text)
+        buf.place_cursor(buf.get_iter_at_offset(start + len(text)))
+
+    def drop_selection(self):
+        if self.is_entry():
+            bounds = self.widget.get_selection_bounds()
+            if bounds:
+                self.widget.delete_text(bounds[0], bounds[1])
+        else:
+            self.widget.get_buffer().delete_selection(True, True)
+
+    # -- key handling ----------------------------------------------------------
+    def on_key(self, _w, event):
+        if not self.enabled:
+            return False
+        if event.state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.MOD1_MASK):
+            self.reset()
+            return False
+        uni = Gdk.keyval_to_unicode(event.keyval)
+        ch = chr(uni) if uni else ""
+        if ch and ch in self.LETTERS:
+            if not self.word:
+                self.drop_selection()
+                self.start = self.cursor()
+                self.shown = ""
+            self.word += ch
+            self.render()
+            return True
+        if event.keyval == Gdk.KEY_BackSpace and self.word:
+            self.word = self.word[:-1]
+            if self.word:
+                self.render()
+            else:
+                self.replace(self.start, len(self.shown), "")
+                self.reset()
+            return True
+        self.reset()
+        if ch == "|":
+            self.drop_selection()
+            pos = self.cursor()
+            self.replace(pos, 0, "।")
+            return True
+        return False
+
+    def render(self):
+        text = translit.convert_word(self.word)
+        self.replace(self.start, len(self.shown), text)
+        self.shown = text
+
+
+class Studio(Gtk.Window):
+    def __init__(self):
+        super().__init__(title="नेपाली स्टुडियो")
+        self.cwd = HOME_DIR
+        self.last_code = ""
+        self.last_error = ""
+        self.connect("destroy", Gtk.main_quit)
+        self.connect("key-press-event", self.on_key)
+
+        provider = Gtk.CssProvider()
+        provider.load_from_data(CSS)
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+        screen = Gdk.Screen.get_default()
+        self.set_default_size(min(screen.get_width(), 1600), min(screen.get_height(), 1000))
+        self.move(0, 0)
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        root.get_style_context().add_class("studio")
+        root.set_border_width(8)
+        self.add(root)
+
+        root.pack_start(self.build_toolbar(), False, False, 0)
+
+        main = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        root.pack_start(main, True, True, 0)
+
+        left = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
+        main.pack1(left, True, False)
+        self.editor = Gtk.TextView()
+        self.editor.set_left_margin(10)
+        self.editor.set_top_margin(8)
+        self.editor.set_wrap_mode(Gtk.WrapMode.NONE)
+        self.editor.get_buffer().set_text(WELCOME)
+        left.pack1(self.scrolled(self.editor), True, False)
+
+        self.output = Gtk.TextView()
+        self.output.set_editable(False)
+        self.output.set_left_margin(10)
+        self.output.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.output.get_style_context().add_class("output")
+        buf = self.output.get_buffer()
+        self.tag_err = buf.create_tag("err", foreground="#ff6b81")
+        self.tag_ok = buf.create_tag("ok", foreground="#7bd88f")
+        self.bottom = Gtk.Notebook()
+        self.bottom.append_page(self.scrolled(self.output), Gtk.Label(label="आउटपुट"))
+        self.terminal = self.make_terminal()
+        if self.terminal is not None:
+            self.bottom.append_page(self.scrolled(self.terminal), Gtk.Label(label="टर्मिनल"))
+        left.pack2(self.bottom, False, False)
+        left.set_position(int(self.get_default_size()[1] * 0.58))
+
+        main.pack2(self.build_side(), False, False)
+        main.set_position(int(self.get_default_size()[0] * 0.66))
+
+        self.status = Gtk.Label(label="F5: चलाउनुहोस्  ·  Ctrl+Space: नेपाली/English  ·  Ctrl+T: टर्मिनल  ·  Ctrl+E: सम्पादक  ·  Ctrl+L: एआई  ·  Ctrl+S: सुरक्षित")
+        self.status.get_style_context().add_class("status")
+        self.status.set_xalign(0)
+        self.input_label = Gtk.Label(label="")
+        self.input_label.set_xalign(1)
+        statusrow = Gtk.Box(spacing=12)
+        statusrow.pack_start(self.status, True, True, 0)
+        statusrow.pack_end(self.input_label, False, False, 0)
+        root.pack_start(statusrow, False, False, 0)
+        self.typers = [PhoneticTyper(self.editor), PhoneticTyper(self.question)]
+        self.set_typing(False)
+        self.show_all()
+        # No window manager on this desktop, so nobody gives the window keyboard
+        # focus for us: take it, and put the cursor in the editor.
+        self.connect("map-event", lambda *_: GLib.timeout_add(400, self.take_focus) and False)
+
+    # ---- construction helpers -------------------------------------------------
+    def scrolled(self, child):
+        sw = Gtk.ScrolledWindow()
+        sw.add(child)
+        return sw
+
+    def button(self, label, tip, handler, css=None):
+        b = Gtk.Button(label=label)
+        b.set_tooltip_text(tip)
+        b.connect("clicked", lambda *_: handler())
+        if css:
+            b.get_style_context().add_class(css)
+        return b
+
+    def build_toolbar(self):
+        bar = Gtk.Box(spacing=8)
+        bar.pack_start(self.button("▶  चलाउनुहोस्", "Run (F5)", self.run_code, "run"), False, False, 0)
+        bar.pack_start(self.example_menu(), False, False, 0)
+        bar.pack_start(self.button("नयाँ", "New empty program", self.new_file), False, False, 0)
+        bar.pack_start(self.button("खोल्नुहोस्", "Open a .nep file", self.open_file), False, False, 0)
+        bar.pack_start(self.button("सुरक्षित", "Save (Ctrl+S)", self.save_file), False, False, 0)
+        bar.pack_start(self.button("टर्मिनल", "Open the Nepali shell (Ctrl+T)", self.open_terminal), False, False, 0)
+        return bar
+
+    def example_menu(self):
+        mb = Gtk.MenuButton(label="उदाहरण ▾")
+        mb.set_tooltip_text("Learn by example")
+        menu = Gtk.Menu()
+        files = sorted(glob.glob(os.path.join(EXAMPLES, "[0-9]*.nep")))
+        if not files:
+            item = Gtk.MenuItem(label="(उदाहरण फेला परेन)")
+            item.set_sensitive(False)
+            menu.append(item)
+        for path in files:
+            first = ""
+            try:
+                with open(path, encoding="utf-8") as f:
+                    first = f.readline().strip().lstrip("/ ").strip()
+            except OSError:
+                pass
+            item = Gtk.MenuItem(label=first or os.path.basename(path))
+            item.connect("activate", lambda _w, p=path: self.load_path(p))
+            menu.append(item)
+        menu.show_all()
+        mb.set_popup(menu)
+        return mb
+
+    def build_side(self):
+        nb = Gtk.Notebook()
+        nb.set_size_request(430, -1)
+
+        ai = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        ai.set_border_width(6)
+        self.answer = Gtk.TextView()
+        self.answer.set_editable(False)
+        self.answer.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.answer.set_left_margin(8)
+        ai.pack_start(self.scrolled(self.answer), True, True, 0)
+        self.question = Gtk.Entry()
+        self.question.set_placeholder_text("एआईलाई सोध्नुहोस्…  (Ctrl+Space मा नेपाली टाइप)")
+        self.question.connect("activate", lambda *_: self.ask_ai())
+        ai.pack_start(self.question, False, False, 0)
+        row = Gtk.Box(spacing=6)
+        row.pack_start(self.button("सोध्नुहोस्", "Ask the assistant", self.ask_ai), True, True, 0)
+        row.pack_start(self.button("कोडमा राख्नुहोस्", "Put the answer's code in the editor", self.insert_answer), True, True, 0)
+        ai.pack_start(row, False, False, 0)
+        ai.pack_start(self.button("यो त्रुटि किन?", "Ask the AI why the last run failed", self.explain_error), False, False, 0)
+        nb.append_page(ai, Gtk.Label(label="एआई"))
+
+        lst = Gtk.ListBox()
+        lst.set_selection_mode(Gtk.SelectionMode.NONE)
+        lst.set_activate_on_single_click(True)
+        for dev, rom, meaning in CHEAT:
+            row = Gtk.ListBoxRow()
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            box.set_border_width(6)
+            for text, css in ((dev, "cheat-dev"), (rom, "cheat-rom"), ("→ " + meaning, "status")):
+                lbl = Gtk.Label(label=text)
+                lbl.set_xalign(0)
+                lbl.set_line_wrap(True)
+                lbl.get_style_context().add_class(css)
+                box.pack_start(lbl, False, False, 0)
+            row.add(box)
+            row.snippet = dev
+            lst.add(row)
+        lst.connect("row-activated", lambda _l, row: self.insert_snippet(row.snippet))
+        hint = Gtk.Label(label="थिच्नुहोस् = सम्पादकमा राख्नुहोस्  ·  click to insert")
+        hint.get_style_context().add_class("status")
+        helpbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        helpbox.pack_start(hint, False, False, 4)
+        helpbox.pack_start(self.scrolled(lst), True, True, 0)
+        nb.append_page(helpbox, Gtk.Label(label="सहायता"))
+        return nb
+
+    # ---- actions --------------------------------------------------------------
+    def on_key(self, _w, event):
+        ctrl = event.state & Gdk.ModifierType.CONTROL_MASK
+        if event.keyval == Gdk.KEY_F5:
+            self.run_code()
+            return True
+        if ctrl and event.keyval == Gdk.KEY_space:
+            self.toggle_typing()
+            return True
+        if ctrl and event.keyval in (Gdk.KEY_l, Gdk.KEY_L):
+            self.question.grab_focus()
+            return True
+        if ctrl and event.keyval in (Gdk.KEY_e, Gdk.KEY_E):
+            self.editor.grab_focus()
+            return True
+        if ctrl and event.keyval in (Gdk.KEY_t, Gdk.KEY_T):
+            self.open_terminal()
+            return True
+        if ctrl and event.keyval in (Gdk.KEY_s, Gdk.KEY_S):
+            self.save_file()
+            return True
+        return False
+
+    def set_typing(self, on):
+        for typer in self.typers:
+            typer.enabled = on
+            typer.reset()
+        self.input_label.set_text(
+            "टाइप: नेपाली (Roman → देवनागरी)  ·  Ctrl+Space = English" if on
+            else "टाइप: English  ·  Ctrl+Space = नेपाली"
+        )
+
+    def toggle_typing(self):
+        """Ctrl+Space: English <-> phonetic Nepali typing."""
+        self.set_typing(not self.typers[0].enabled)
+
+    def take_focus(self):
+        self.present()
+        self.editor.grab_focus()
+        return False
+
+    def code(self):
+        b = self.editor.get_buffer()
+        return b.get_text(b.get_start_iter(), b.get_end_iter(), True)
+
+    def set_status(self, text):
+        self.status.set_text(text)
+
+    def run_code(self):
+        code = self.code()
+        self.last_code = code
+        self.set_status("चलाउँदै…")
+        path = os.path.join(tempfile.gettempdir(), "nepali_studio_run.nep")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(code)
+
+        def work():
+            try:
+                r = subprocess.run(
+                    [NEPALI, path], capture_output=True, text=True, encoding="utf-8",
+                    timeout=120, cwd=self.cwd, env=CHILD_ENV,
+                )
+                out, err, rc = r.stdout, r.stderr, r.returncode
+            except subprocess.TimeoutExpired:
+                out, err, rc = "", "समय सकियो (१२० सेकेन्ड)", 124
+            except OSError as e:
+                out, err, rc = "", f"nepali चलाउन सकिएन: {e}", 127
+            GLib.idle_add(self.show_result, out, err, rc)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def show_result(self, out, err, rc):
+        self.bottom.set_current_page(0)
+        buf = self.output.get_buffer()
+        buf.set_text("")
+        end = buf.get_end_iter()
+        if out:
+            buf.insert(end, out)
+        if err:
+            buf.insert_with_tags(buf.get_end_iter(), err if err.endswith("\n") else err + "\n", self.tag_err)
+        if rc == 0:
+            buf.insert_with_tags(buf.get_end_iter(), "✓ सफल भयो\n", self.tag_ok)
+            self.last_error = ""
+            self.set_status("सफल भयो")
+        else:
+            buf.insert_with_tags(buf.get_end_iter(), f"✗ त्रुटि (कोड {rc})\n", self.tag_err)
+            self.last_error = err.strip() or out.strip()
+            self.set_status("त्रुटि भयो - 'यो त्रुटि किन?' थिच्नुहोस्")
+        return False
+
+    def ask_ai(self, question=None):
+        q = (question or self.question.get_text()).strip()
+        if not q:
+            return
+        self.set_status("एआई सोच्दै छ…")
+        self.answer.get_buffer().set_text("सोच्दै छु…")
+
+        def work():
+            try:
+                r = subprocess.run(
+                    [NEPALI, "ask", q], capture_output=True, text=True, encoding="utf-8",
+                    timeout=900, cwd=self.cwd, env=CHILD_ENV,
+                )
+                text = strip_ansi(r.stdout).strip() or r.stderr.strip() or "(जवाफ आएन)"
+            except subprocess.TimeoutExpired:
+                text = "समय सकियो"
+            except OSError as e:
+                text = f"nepali चलाउन सकिएन: {e}"
+            GLib.idle_add(self.show_answer, text)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def show_answer(self, text):
+        self.answer.get_buffer().set_text(text)
+        self.set_status("जवाफ आयो")
+        return False
+
+    def insert_answer(self):
+        b = self.answer.get_buffer()
+        text = b.get_text(b.get_start_iter(), b.get_end_iter(), True)
+        if text.strip() and not text.startswith("सोच्दै"):
+            self.editor.get_buffer().set_text(code_from_answer(text))
+            self.set_status("कोड सम्पादकमा राखियो - F5 थिचेर चलाउनुहोस्")
+
+    def explain_error(self):
+        if not self.last_error:
+            self.set_status("अहिलेसम्म कुनै त्रुटि छैन")
+            return
+        self.ask_ai(
+            "I ran this Nepali-language program:\n" + self.last_code
+            + "\nIt failed with: " + self.last_error
+            + "\nIn one or two sentences explain the mistake, then show the corrected Nepali code."
+        )
+
+    def insert_snippet(self, text):
+        buf = self.editor.get_buffer()
+        buf.insert_at_cursor(re.sub(r"\s{3,}", " ", text) + "\n")
+        self.editor.grab_focus()
+
+    def new_file(self):
+        self.editor.get_buffer().set_text("")
+
+    def load_path(self, path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                self.editor.get_buffer().set_text(f.read())
+            self.cwd = os.path.dirname(path) or self.cwd
+            self.set_status(os.path.basename(path))
+        except OSError as e:
+            self.set_status(f"खोल्न सकिएन: {e}")
+
+    def file_dialog(self, save):
+        d = Gtk.FileChooserDialog(
+            title="सुरक्षित गर्नुहोस्" if save else "खोल्नुहोस्", transient_for=self,
+            action=Gtk.FileChooserAction.SAVE if save else Gtk.FileChooserAction.OPEN,
+        )
+        d.add_buttons("रद्द", Gtk.ResponseType.CANCEL, "ठीक छ", Gtk.ResponseType.OK)
+        d.set_current_folder(HOME_DIR)
+        if save:
+            d.set_current_name("कार्यक्रम.nep")
+        path = d.get_filename() if d.run() == Gtk.ResponseType.OK else None
+        d.destroy()
+        return path
+
+    def open_file(self):
+        p = self.file_dialog(False)
+        if p:
+            self.load_path(p)
+
+    def save_file(self):
+        p = self.file_dialog(True)
+        if p:
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(self.code())
+            self.cwd = os.path.dirname(p)
+            self.set_status(f"सुरक्षित भयो: {p}")
+
+    def make_terminal(self):
+        """The Nepali shell inside this window (a separate terminal window would
+        get no keyboard focus on this window-manager-less desktop)."""
+        if Vte is None:
+            return None
+        term = Vte.Terminal()
+        term.set_font(Pango.FontDescription("DejaVu Sans Mono 15"))
+        fg, bg = Gdk.RGBA(), Gdk.RGBA()
+        fg.parse("#ebebeb")
+        bg.parse("#070a17")
+        term.set_colors(fg, bg, None)
+        term.set_scrollback_lines(2000)
+        term.connect("child-exited", lambda *_: self.spawn_shell(term))
+        self.spawn_shell(term)
+        return term
+
+    def spawn_shell(self, term):
+        try:
+            term.spawn_sync(
+                Vte.PtyFlags.DEFAULT, HOME_DIR, ["/usr/local/bin/nepali-shell"], None,
+                GLib.SpawnFlags.DEFAULT, None, None,
+            )
+        except GLib.Error as e:
+            self.set_status(f"टर्मिनल सुरु गर्न सकिएन: {e.message}")
+
+    def open_terminal(self):
+        if self.terminal is not None:
+            self.bottom.set_current_page(1)
+            self.terminal.grab_focus()
+            return
+        self.set_status("टर्मिनल उपलब्ध छैन")
+
+
+if __name__ == "__main__":
+    Studio()
+    Gtk.main()

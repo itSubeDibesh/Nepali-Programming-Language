@@ -323,6 +323,12 @@ pub trait HostAi {
     /// quality limitation of the underlying weights, not something this
     /// trait can paper over.
     fn ask(&self, prompt: &str) -> Result<String, String>;
+    /// Like `ask`, but with an explicit system message (what the model is
+    /// told about the language, the OS and the machine before the user's
+    /// question). Backends without a system role get it prepended.
+    fn ask_with_system(&self, system: &str, prompt: &str) -> Result<String, String> {
+        self.ask(&format!("{system}\n\n{prompt}"))
+    }
     /// Real speech-to-text: `audio_path` names a real audio file on the
     /// host filesystem, transcribed by a real local speech model.
     fn listen(&self, audio_path: &str) -> Result<String, String>;
@@ -344,6 +350,9 @@ pub struct Interpreter {
     host_cache: Option<Rc<dyn HostCache>>,
     host_ai: Option<Rc<dyn HostAi>>,
     host_command: Option<Rc<dyn HostCommand>>,
+    fuel: Option<u64>,
+    call_depth: u32,
+    max_call_depth: Option<u32>,
 }
 
 impl Interpreter {
@@ -361,7 +370,18 @@ impl Interpreter {
             host_cache: None,
             host_ai: None,
             host_command: None,
+            fuel: None,
+            call_depth: 0,
+            max_call_depth: None,
         }
+    }
+
+    /// Caps how much a program may do (statements executed, call depth).
+    /// Used for code an AI wrote, so an infinite loop or runaway recursion
+    /// becomes an error instead of hanging or crashing the whole shell.
+    pub fn set_limits(&mut self, max_steps: u64, max_call_depth: u32) {
+        self.fuel = Some(max_steps);
+        self.max_call_depth = Some(max_call_depth);
     }
 
     /// Gives this interpreter a real filesystem to reach through
@@ -451,6 +471,12 @@ impl Interpreter {
     }
 
     fn exec_stmt(&mut self, stmt: &Stmt, env: &Env) -> EvalResult<Signal> {
+        if let Some(fuel) = self.fuel.as_mut() {
+            if *fuel == 0 {
+                return Err("चरण सीमा नाघ्यो (अनन्त लुप वा धेरै लामो कार्यक्रम?)".to_string());
+            }
+            *fuel -= 1;
+        }
         match stmt {
             Stmt::Let(name, expr) => {
                 let value = self.eval_expr(expr, env)?;
@@ -881,6 +907,11 @@ impl Interpreter {
                 let response = host.ask(&prompt)?;
                 Ok(Value::Str(response))
             }
+            "सहायक_सोध्नुहोस्" => {
+                let prompt = expect_string(name, args, 0)?;
+                let system = crate::grounding::assistant_system_prompt(&prompt, &self.system_snapshot());
+                Ok(Value::Str(host.ask_with_system(&system, &prompt)?))
+            }
             "एआई_सुन्नुहोस्" => {
                 let audio_path = expect_string(name, args, 0)?;
                 let text = host.listen(&audio_path)?;
@@ -973,10 +1004,33 @@ impl Interpreter {
                 .to_string()
         })?;
 
+        let remembered = self.load_agent_memory();
+        let memory_context = if remembered.is_empty() {
+            String::new()
+        } else {
+            let mut s = String::from("Known facts remembered from previous sessions:\n");
+            for (k, v) in &remembered {
+                s.push_str(&format!("- {k}: {v}\n"));
+            }
+            s.push('\n');
+            s
+        };
+
+        let os_facts = crate::grounding::os_facts();
+        let language = if crate::grounding::looks_like_code_task(goal) {
+            crate::grounding::language_guide_for(goal, 2)
+        } else {
+            String::new()
+        };
+        let snapshot = self.system_snapshot();
+
         let mut transcript = format!(
-            "You are an OS agent for Nepali OS. Respond with EXACTLY one line, one of:\n\
+            "You are the OS agent of Nepali OS, which is built around the Nepali \
+             programming language. Respond with EXACTLY one line, one of:\n\
              कार्य: TOOL(args)\n\
              अन्तिम: your final answer\n\n\
+             {os_facts}\n{language}\n{snapshot}\n\
+             {memory_context}\
              Available tools:\n\
              - फाइल_पढ्नुहोस्(path) - reads a real file\n\
              - फाइल_लेख्नुहोस्(path, contents) - writes a real file\n\
@@ -984,7 +1038,19 @@ impl Interpreter {
              - आदेश(program, arg1, arg2, ...) - runs a real command, returns its exit code and output\n\
              - प्रक्रिया_सूची() - lists real running processes on this OS\n\
              - डिस्क_ठाउँ() - real disk space usage on this OS\n\
-             - प्रणाली_जानकारी() - real OS/kernel identification (uname -a)\n\n\
+             - प्रणाली_जानकारी() - real OS/kernel identification (uname -a)\n\
+             - सम्झना_राख्नुहोस्(key, value) - persists a fact for future agent runs (survives across separate एजेन्ट्_चलाउनुहोस् calls, even after restart)\n\
+             - सम्झना_ल्याउनुहोस्(key) - recalls a previously remembered fact\n\
+             - कोड_चलाउनुहोस्(code) - runs a short program in the Nepali language in a safe sandbox (no files/commands) \
+             and returns what it printed or the error; write it on ONE line, statements separated by ; \
+             - use it to compute things or to check code you plan to show\n\n\
+             Some actions (deleting files, wiping disks, killing \
+             processes, shutting the system down, force-overwriting git \
+             history, writing into system directories) are permanently \
+             blocked for safety and will never run, no matter how you \
+             phrase them. If a नतिजा: line says a कार्य was blocked, \
+             do not retry it or a similar one - explain plainly in your \
+             अन्तिम: answer that the action was refused and why.\n\n\
              Example:\n\
              Goal: read /tmp/x.txt and tell me what it says\n\
              कार्य: फाइल_पढ्नुहोस्(/tmp/x.txt)\n\
@@ -998,7 +1064,10 @@ impl Interpreter {
         let mut last_action: Option<String> = None;
 
         for step in 0..max_steps {
-            let response = host_ai.ask(&transcript)?;
+            let response = host_ai.ask_with_system(
+                "You are a careful tool-using agent. Follow the response format exactly.",
+                &transcript,
+            )?;
             let line: String = response
                 .lines()
                 .find(|l| !l.trim().is_empty())
@@ -1057,6 +1126,149 @@ impl Interpreter {
         Ok("(कुनै जवाफ आएन)".to_string())
     }
 
+    /// Real, persistent agent memory backed by the same `HostDb`
+    /// (SQLite) every other builtin uses - not an in-process cache that
+    /// dies with the interpreter. A fact remembered in one
+    /// `एजेन्ट्_चलाउनुहोस्` call is genuinely still there in a separate
+    /// call, even a separate process invocation, because it's on disk
+    /// in the real database file `NEPALI_DB` points at. Table is
+    /// created lazily on first real use, same as every other real
+    /// schema this project creates on demand rather than assuming a
+    /// pre-existing one.
+    fn ensure_agent_memory_table(&mut self) {
+        if let Some(host) = self.host_db.clone() {
+            let _ = host.execute(
+                "CREATE TABLE IF NOT EXISTS nepali_agent_memory (key TEXT PRIMARY KEY, value TEXT)",
+            );
+        }
+    }
+
+    fn load_agent_memory(&mut self) -> Vec<(String, String)> {
+        self.ensure_agent_memory_table();
+        let Some(host) = self.host_db.clone() else {
+            return Vec::new();
+        };
+        let Ok(rows) = host.query("SELECT key, value FROM nepali_agent_memory ORDER BY key") else {
+            return Vec::new();
+        };
+        rows.into_iter()
+            .filter_map(|row| match row {
+                Value::Array(cols) => {
+                    let cols = cols.borrow();
+                    match (cols.first(), cols.get(1)) {
+                        (Some(Value::Str(k)), Some(Value::Str(v))) => Some((k.clone(), v.clone())),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn remember_fact(&mut self, key: &str, value: &str) -> Result<(), String> {
+        self.ensure_agent_memory_table();
+        let Some(host) = self.host_db.clone() else {
+            return Err("कुनै वास्तविक डाटाबेस उपलब्ध छैन".to_string());
+        };
+        let k = sql_escape(key);
+        let v = sql_escape(value);
+        host.execute(&format!(
+            "INSERT INTO nepali_agent_memory (key, value) VALUES ('{k}', '{v}') \
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        ))?;
+        Ok(())
+    }
+
+    fn recall_fact(&mut self, key: &str) -> Result<Option<String>, String> {
+        self.ensure_agent_memory_table();
+        let Some(host) = self.host_db.clone() else {
+            return Err("कुनै वास्तविक डाटाबेस उपलब्ध छैन".to_string());
+        };
+        let k = sql_escape(key);
+        let rows = host.query(&format!(
+            "SELECT value FROM nepali_agent_memory WHERE key = '{k}'"
+        ))?;
+        Ok(rows.into_iter().find_map(|row| match row {
+            Value::Array(cols) => match cols.borrow().first() {
+                Some(Value::Str(v)) => Some(v.clone()),
+                _ => None,
+            },
+            _ => None,
+        }))
+    }
+
+    /// One grounded question to the local AI (same as the
+    /// `सहायक_सोध्नुहोस्` builtin) - the shell's `? ...` command.
+    pub fn ask_assistant(&mut self, question: &str) -> Result<String, String> {
+        match self.call_host_ai_builtin("सहायक_सोध्नुहोस्", &[Value::Str(question.to_string())])? {
+            Value::Str(s) => Ok(cut_repetition(&s)),
+            other => Ok(other.display()),
+        }
+    }
+
+    /// Runs the AI agent on a goal (same as `एजेन्ट_चलाउनुहोस्`) - the
+    /// shell's `गर्नुहोस् ...` command.
+    pub fn run_agent_goal(&mut self, goal: &str, max_steps: usize) -> Result<String, String> {
+        self.run_agent(goal, max_steps)
+    }
+
+    /// A few real facts about the machine this is running on, read now
+    /// through `HostCommand` (kernel, hostname, root disk). Empty if no
+    /// command backend is attached.
+    pub fn system_snapshot(&self) -> String {
+        let Some(cmd) = self.host_command.clone() else {
+            return String::new();
+        };
+        let run = |prog: &str, args: &[&str]| -> Option<String> {
+            let args: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+            match cmd.run(prog, &args) {
+                Ok((0, out, _)) => Some(out),
+                _ => None,
+            }
+        };
+        let mut s = String::from("LIVE SYSTEM STATE (measured just now):\n");
+        if let Some(o) = run("hostname", &[]) {
+            s.push_str(&format!("- hostname: {}\n", o.trim()));
+        }
+        if let Some(o) = run("uname", &["-srm"]) {
+            s.push_str(&format!("- kernel: {}\n", o.trim()));
+        }
+        if let Some(o) = run("df", &["-h", "/"]) {
+            if let Some(l) = o.lines().last() {
+                let l: Vec<&str> = l.split_whitespace().collect();
+                s.push_str(&format!("- root disk: {}\n", l.join(" ")));
+            }
+        }
+        s
+    }
+
+    /// Runs Nepali-language code an AI wrote, in a fresh interpreter with
+    /// NO host access (no files, commands, network) and hard step/depth
+    /// limits - it can compute and print, nothing else, so it cannot
+    /// bypass the agent's destructive-action guardrails.
+    fn run_sandboxed_code(&self, code: &str) -> String {
+        let mut parser = crate::parser::Parser::new(code);
+        let program = match parser.parse_program() {
+            Ok(p) => p,
+            Err(e) => return format!("त्रुटि (वाक्य रचना): {e}"),
+        };
+        if let Err(errs) = crate::resolver::Resolver::resolve(&program) {
+            return format!("त्रुटि (विश्लेषण): {}", errs.join("; "));
+        }
+        let mut interp = Interpreter::new();
+        interp.set_limits(100_000, 64);
+        let outcome = interp.run(&program);
+        let mut out = interp.output.join("\n");
+        if out.chars().count() > 600 {
+            out = out.chars().take(600).collect::<String>() + "...";
+        }
+        match outcome {
+            Ok(()) if out.is_empty() => "(कार्यक्रम चल्यो, केही छापिएन)".to_string(),
+            Ok(()) => out,
+            Err(e) => format!("त्रुटि (चलाउँदा): {e}\nअहिलेसम्मको आउटपुट: {out}"),
+        }
+    }
+
     /// Parses `name(arg1, arg2, ...)` and dispatches to the one real
     /// tool it names, via the exact same `Host*` implementations every
     /// other builtin uses - not a second, separate implementation of
@@ -1106,6 +1318,14 @@ impl Interpreter {
                 if raw_args.len() < 2 {
                     return "त्रुटि: फाइल_लेख्नुहोस् लाई path र contents चाहिन्छ".to_string();
                 }
+                if let Some(reason) = system_path_write_reason(&raw_args[0]) {
+                    return format!(
+                        "रोकियो (सुरक्षा): फाइल_लेख्नुहोस्('{}', ...) चलाइएन। {reason} \
+                         यो कार्य असुरक्षित भएकाले स्वतः इन्कार गरियो - कुनै \
+                         पुष्टिकरणले पनि यसलाई पास गर्दैन।",
+                        raw_args[0]
+                    );
+                }
                 match host.write_file(&raw_args[0], &raw_args[1]) {
                     Ok(()) => "ठिक छ".to_string(),
                     Err(e) => format!("त्रुटि: {e}"),
@@ -1130,7 +1350,18 @@ impl Interpreter {
                 let Some(program) = raw_args.first() else {
                     return "त्रुटि: आदेश लाई program चाहिन्छ".to_string();
                 };
-                let cmd_args = raw_args[1..].to_vec();
+                // A stray trailing comma from the model (`आदेश(whoami, )`) must
+                // not become an empty argument that makes the command fail.
+                let cmd_args: Vec<String> =
+                    raw_args[1..].iter().filter(|a| !a.is_empty()).cloned().collect();
+                if let Some(reason) = destructive_command_reason(program, &cmd_args) {
+                    return format!(
+                        "रोकियो (सुरक्षा): आदेश('{program}', ...) चलाइएन। {reason} \
+                         यो कार्य असुरक्षित भएकाले स्वतः इन्कार गरियो - कुनै \
+                         पुष्टिकरणले पनि यसलाई पास गर्दैन। लक्ष्य पूरा गर्न सुरक्षित \
+                         वैकल्पिक तरिका खोज्नुहोस् वा प्रयोगकर्तालाई सोध्नुहोस्।"
+                    );
+                }
                 match host.run(program, &cmd_args) {
                     Ok((code, stdout, stderr)) => {
                         format!("exit={code}\nstdout: {stdout}\nstderr: {stderr}")
@@ -1177,6 +1408,34 @@ impl Interpreter {
                     Err(e) => format!("त्रुटि: {e}"),
                 }
             }
+            "सम्झना_राख्नुहोस्" => {
+                let Some(key) = raw_args.first() else {
+                    return "त्रुटि: सम्झना_राख्नुहोस् लाई key चाहिन्छ".to_string();
+                };
+                let value = raw_args.get(1).map(|s| s.as_str()).unwrap_or("");
+                match self.remember_fact(key, value) {
+                    Ok(()) => "याद राखियो".to_string(),
+                    Err(e) => format!("त्रुटि: {e}"),
+                }
+            }
+            "सम्झना_ल्याउनुहोस्" => {
+                let Some(key) = raw_args.first() else {
+                    return "त्रुटि: सम्झना_ल्याउनुहोस् लाई key चाहिन्छ".to_string();
+                };
+                match self.recall_fact(key) {
+                    Ok(Some(value)) => value,
+                    Ok(None) => "(केही याद छैन)".to_string(),
+                    Err(e) => format!("त्रुटि: {e}"),
+                }
+            }
+            "कोड_चलाउनुहोस्" => {
+                let code = args_str
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .replace("\\n", "\n");
+                self.run_sandboxed_code(&code)
+            }
             other => format!("त्रुटि: अज्ञात औजार '{other}'"),
         }
     }
@@ -1198,7 +1457,15 @@ impl Interpreter {
         for (param, arg) in func.params.iter().zip(args.into_iter()) {
             env_define(&call_scope, param.clone(), arg);
         }
-        match self.exec_block(&func.body, &call_scope)? {
+        if let Some(max) = self.max_call_depth {
+            if self.call_depth >= max {
+                return Err(format!("कल गहिराइ सीमा ({max}) नाघ्यो (अनन्त पुनरावृत्ति?)"));
+            }
+        }
+        self.call_depth += 1;
+        let result = self.exec_block(&func.body, &call_scope);
+        self.call_depth -= 1;
+        match result? {
             Signal::Return(v) => Ok(v),
             Signal::Normal => Ok(Value::Null),
         }
@@ -1266,6 +1533,87 @@ impl Default for Interpreter {
     }
 }
 
+/// Real, hard preventive guardrails for `एजेन्ट_चलाउनुहोस्`'s `आदेश`
+/// tool - not advisory, not a "confirm to proceed" prompt (there is no
+/// live human to confirm to inside an autonomous agent run), a real
+/// refusal that never reaches `HostCommand::run` at all. Matches the
+/// same principle this assistant itself operates under: genuinely
+/// destructive/irreversible actions are never executed on a mere
+/// instruction, confirmation included - they're refused outright, with
+/// the reason stated plainly so the caller (the model, and whoever
+/// reads the agent's transcript) understands exactly what was blocked
+/// and why, rather than a silent no-op or an opaque error.
+///
+/// Deliberately a real, named denylist of genuinely destructive/
+/// irreversible operations (delete, wipe, format, shut down, kill,
+/// force-overwrite of remote git history) - not an attempt at a
+/// complete sandbox (this agent's tools run with the same real Linux
+/// permissions the host process itself has, stated as a known,
+/// separate gap elsewhere in CLAUDE.md), but a real, meaningful first
+/// line of defense against the most obviously harmful commands a
+/// small, imperfect model might otherwise be talked into proposing.
+/// `HostDb::execute`/`query` take a raw SQL string (no parameterized-
+/// query API exists on the trait) - real, standard single-quote
+/// doubling so agent-remembered content with a literal `'` in it can't
+/// break the query's own syntax.
+fn sql_escape(s: &str) -> String {
+    s.replace('\'', "''")
+}
+
+fn destructive_command_reason(program: &str, args: &[String]) -> Option<String> {
+    let prog = program.rsplit('/').next().unwrap_or(program).to_lowercase();
+    let args_joined = args.join(" ").to_lowercase();
+
+    let always_blocked = [
+        "rm", "rmdir", "dd", "mkfs", "shutdown", "reboot", "halt", "poweroff", "kill", "killall",
+        "pkill", "fdisk", "parted", "diskutil", "shred", "wipefs", "unlink",
+    ];
+    if always_blocked.iter().any(|b| prog == *b || prog.starts_with(&format!("{b}."))) {
+        return Some(format!(
+            "'{program}' विनाशकारी/अपरिवर्तनीय ठानिन्छ (फाइल/डिस्क मेट्ने, प्रणाली बन्द गर्ने, वा प्रक्रिया मार्ने)।"
+        ));
+    }
+    if prog == "git" && (args_joined.contains("push") && args_joined.contains("--force")
+        || args_joined.contains("push") && args_joined.contains("-f ")
+        || args_joined.contains("reset --hard")
+        || args_joined.contains("clean -f"))
+    {
+        return Some(
+            "यो git आदेशले इतिहास/काम गरेको फाइल स्थायी रूपमा मेटाउन/अधिलेखन गर्न सक्छ।".to_string(),
+        );
+    }
+    if args.iter().any(|a| {
+        let a = a.to_lowercase();
+        a == "-rf" || a == "-fr" || a == "--force" && (prog == "rm" || prog == "git")
+    }) {
+        return Some(format!(
+            "'{program}' लाई विनाशकारी फ्ल्याग (जस्तै -rf/--force) सहित चलाउन खोजियो।"
+        ));
+    }
+    None
+}
+
+/// Real preventive guardrail for `फाइल_लेख्नुहोस्`: writing into the
+/// OS's own system directories (where this OS's real binaries,
+/// libraries, and boot configuration live) could genuinely break the
+/// running system - blocked outright, same "no confirmation would pass
+/// this either" principle as `destructive_command_reason`. Writing
+/// inside a normal user's own files/home directory - the agent's real,
+/// intended working area - is untouched by this check.
+fn system_path_write_reason(path: &str) -> Option<String> {
+    const SYSTEM_PREFIXES: &[&str] = &[
+        "/etc", "/boot", "/usr", "/bin", "/sbin", "/lib", "/lib64", "/sys", "/proc", "/dev",
+        "/var/lib", "/root",
+    ];
+    let normalized = if path.starts_with('/') { path } else { return None };
+    if SYSTEM_PREFIXES.iter().any(|p| normalized == *p || normalized.starts_with(&format!("{p}/"))) {
+        return Some(format!(
+            "'{path}' यस OS को प्रणाली डाइरेक्टरी भित्र पर्छ, जहाँ लेख्नाले वास्तविक प्रणाली बिगार्न सक्छ।"
+        ));
+    }
+    None
+}
+
 fn values_equal(l: &Value, r: &Value) -> bool {
     match (l, r) {
         (Value::Number(a), Value::Number(b)) => a == b,
@@ -1298,6 +1646,14 @@ fn expect_index(v: &Value, len: usize) -> EvalResult<usize> {
     match v {
         Value::Number(n) => {
             let i = *n as i64;
+            // Not a whole number (1.9, NaN, infinity): an error, not a silent
+            // truncation that reads the wrong element.
+            if i as f64 != *n {
+                return Err(format!(
+                    "array index must be a whole number, got {}",
+                    Value::Number(*n).display()
+                ));
+            }
             if i < 0 || i as usize >= len {
                 Err(format!(
                     "array index {} out of bounds (length {})",
@@ -1343,6 +1699,7 @@ pub const BUILTINS: &[&str] = &[
     "क्यास_ल्याउनुहोस्",
     "क्यास_हटाउनुहोस्",
     "एआई_सोध्नुहोस्",
+    "सहायक_सोध्नुहोस्",
     "एआई_सुन्नुहोस्",
     "एआई_बोल्नुहोस्",
     "आदेश_चलाउनुहोस्",
@@ -1388,8 +1745,34 @@ fn is_host_cache_builtin(name: &str) -> bool {
     matches!(name, "क्यास_राख्नुहोस्" | "क्यास_ल्याउनुहोस्" | "क्यास_हटाउनुहोस्")
 }
 
+/// Small models often keep going after a complete answer, repeating a
+/// block until the token limit. Stops at the first separator line, and at
+/// a line that restarts the answer's first line or repeats a long line.
+fn cut_repetition(answer: &str) -> String {
+    let mut seen: Vec<&str> = Vec::new();
+    let mut out: Vec<&str> = Vec::new();
+    for line in answer.lines() {
+        let l = line.trim();
+        if l == "---" {
+            break;
+        }
+        let restarts_block = out.len() >= 2 && seen.first() == Some(&l);
+        if restarts_block || (l.chars().count() > 12 && seen.contains(&l)) {
+            break;
+        }
+        if !l.is_empty() {
+            seen.push(l);
+        }
+        out.push(line);
+    }
+    out.join("\n").trim_end().to_string()
+}
+
 fn is_host_ai_builtin(name: &str) -> bool {
-    matches!(name, "एआई_सोध्नुहोस्" | "एआई_सुन्नुहोस्" | "एआई_बोल्नुहोस्")
+    matches!(
+        name,
+        "एआई_सोध्नुहोस्" | "सहायक_सोध्नुहोस्" | "एआई_सुन्नुहोस्" | "एआई_बोल्नुहोस्"
+    )
 }
 
 fn is_host_command_builtin(name: &str) -> bool {
@@ -1480,5 +1863,101 @@ fn expect_number(fn_name: &str, args: &[Value], idx: usize) -> EvalResult<f64> {
             other.display()
         )),
         None => Err(format!("'{}' expects an argument at position {}", fn_name, idx + 1)),
+    }
+}
+
+#[cfg(test)]
+mod agent_safety_tests {
+    use super::*;
+
+    #[test]
+    fn repetition_is_cut_at_separator_and_at_repeated_lines() {
+        assert_eq!(cut_repetition("a b\n---\nsecond"), "a b");
+        assert_eq!(
+            cut_repetition("राखौँ x = 1।\nभनौँ(x)।\nराखौँ x = 1।\nभनौँ(x)।"),
+            "राखौँ x = 1।\nभनौँ(x)।"
+        );
+        assert_eq!(cut_repetition("भनौँ(1)।\nभनौँ(1)।"), "भनौँ(1)।\nभनौँ(1)।");
+    }
+
+    #[test]
+    fn sandboxed_code_runs_real_programs() {
+        assert_eq!(Interpreter::new().run_sandboxed_code("राखौँ a = 2; भनौँ(a * 21)"), "42");
+    }
+
+    #[test]
+    fn sandboxed_infinite_loop_is_stopped_not_hung() {
+        let r = Interpreter::new().run_sandboxed_code("भएसम्म सहि { राखौँ z = 1। }");
+        assert!(r.contains("चरण सीमा"), "{r}");
+    }
+
+    #[test]
+    fn sandboxed_runaway_recursion_is_stopped_not_a_stack_overflow() {
+        let r = Interpreter::new().run_sandboxed_code("काम फ() { पठाउँ फ()। }\nफ()।");
+        assert!(r.contains("कल गहिराइ"), "{r}");
+    }
+
+    #[test]
+    fn sandboxed_code_has_no_host_access_even_if_the_agent_has_it() {
+        struct Boom;
+        impl HostCommand for Boom {
+            fn run(&self, _: &str, _: &[String]) -> Result<(i32, String, String), String> {
+                panic!("sandboxed code reached a real command");
+            }
+        }
+        let mut agent = Interpreter::new();
+        agent.set_host_command(Rc::new(Boom));
+        let r = agent.run_sandboxed_code("आदेश_चलाउनुहोस्(\"echo\", \"hi\")।");
+        assert!(r.contains("त्रुटि"), "{r}");
+    }
+
+    #[test]
+    fn rm_is_always_blocked() {
+        assert!(destructive_command_reason("rm", &["-rf".to_string(), "/tmp/x".to_string()]).is_some());
+        assert!(destructive_command_reason("rm", &["/tmp/x".to_string()]).is_some());
+    }
+
+    #[test]
+    fn dd_shutdown_kill_are_blocked() {
+        assert!(destructive_command_reason("dd", &["if=/dev/zero".to_string()]).is_some());
+        assert!(destructive_command_reason("shutdown", &["-h".to_string(), "now".to_string()]).is_some());
+        assert!(destructive_command_reason("kill", &["-9".to_string(), "1".to_string()]).is_some());
+        assert!(destructive_command_reason("mkfs.ext4", &["/dev/sda1".to_string()]).is_some());
+    }
+
+    #[test]
+    fn git_force_push_and_hard_reset_are_blocked() {
+        assert!(destructive_command_reason(
+            "git",
+            &["push".to_string(), "--force".to_string(), "origin".to_string(), "main".to_string()]
+        )
+        .is_some());
+        assert!(destructive_command_reason(
+            "git",
+            &["reset".to_string(), "--hard".to_string()]
+        )
+        .is_some());
+    }
+
+    #[test]
+    fn harmless_commands_are_not_blocked() {
+        assert!(destructive_command_reason("echo", &["hello".to_string()]).is_none());
+        assert!(destructive_command_reason("ls", &["-la".to_string()]).is_none());
+        assert!(destructive_command_reason("git", &["status".to_string()]).is_none());
+        assert!(destructive_command_reason("cargo", &["build".to_string()]).is_none());
+    }
+
+    #[test]
+    fn writes_to_system_directories_are_blocked() {
+        assert!(system_path_write_reason("/etc/passwd").is_some());
+        assert!(system_path_write_reason("/usr/local/bin/nepali").is_some());
+        assert!(system_path_write_reason("/boot/grub/grub.cfg").is_some());
+    }
+
+    #[test]
+    fn writes_to_normal_paths_are_not_blocked() {
+        assert!(system_path_write_reason("/home/nepali/notes.txt").is_none());
+        assert!(system_path_write_reason("/tmp/scratch.txt").is_none());
+        assert!(system_path_write_reason("relative/path.txt").is_none());
     }
 }

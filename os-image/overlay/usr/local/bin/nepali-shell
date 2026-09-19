@@ -1,0 +1,3 @@
+#!/bin/sh
+cat /etc/motd
+exec /usr/local/bin/nepali

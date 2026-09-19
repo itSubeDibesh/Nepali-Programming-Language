@@ -6,6 +6,8 @@ extern crate std;
 
 pub mod ast;
 pub mod bytecode;
+pub mod formatter;
+pub mod grounding;
 pub mod interpreter;
 pub mod lexer;
 pub mod parser;
@@ -15,6 +17,7 @@ pub mod vm;
 
 pub use ast::{BinOp, Expr, Stmt};
 pub use bytecode::Compiler;
+pub use formatter::format;
 pub use interpreter::{
     HostAi, HostCache, HostChannel, HostCommand, HostDb, HostFs, HostJs, HostProcess, HostPython,
     HostRust, Interpreter, Value,
@@ -117,7 +120,7 @@ mod tests {
     #[test]
     fn test_resolver_accepts_recursion_and_forward_use_within_function() {
         let mut parser = Parser::new(
-            "काम fib(n) { यदि n < 2 { पठाउँ n। } पठाउँ fib(n - 1) + fib(n - 2)। } भनौँ(fib(5))।",
+            "काम फिबो(अ) { यदि अ < 2 { पठाउँ अ। } पठाउँ फिबो(अ - 1) + फिबो(अ - 2)। } भनौँ(फिबो(5))।",
         );
         let program = parser.parse_program().unwrap();
         assert_eq!(Resolver::resolve(&program), Ok(()));
@@ -140,7 +143,7 @@ mod tests {
     #[test]
     fn test_recursive_fibonacci() {
         let out = run(
-            "काम fib(n) { यदि n < 2 { पठाउँ n। } पठाउँ fib(n - 1) + fib(n - 2)। } भनौँ(fib(10))।",
+            "काम फिबो(अ) { यदि अ < 2 { पठाउँ अ। } पठाउँ फिबो(अ - 1) + फिबो(अ - 2)। } भनौँ(फिबो(10))।",
         );
         assert_eq!(out, alloc::vec!["55".to_string()]);
     }
@@ -201,7 +204,7 @@ mod tests {
     #[test]
     fn test_vm_recursive_fibonacci() {
         let out = run_vm(
-            "काम fib(n) { यदि n < 2 { पठाउँ n। } पठाउँ fib(n - 1) + fib(n - 2)। } भनौँ(fib(10))।",
+            "काम फिबो(अ) { यदि अ < 2 { पठाउँ अ। } पठाउँ फिबो(अ - 1) + फिबो(अ - 2)। } भनौँ(फिबो(10))।",
         );
         assert_eq!(out, alloc::vec!["55".to_string()]);
     }
@@ -210,6 +213,127 @@ mod tests {
     fn test_vm_multi_arg_print_and_arithmetic() {
         let out = run_vm("राखौँ x = 4। राखौँ y = 5। भनौँ(\"x*y=\", x * y)।");
         assert_eq!(out, alloc::vec!["x*y= 20".to_string()]);
+    }
+
+    #[test]
+    fn test_vm_not() {
+        let out = run_vm("भनौँ(होइन सहि)। भनौँ(होइन गलत)।");
+        assert_eq!(out, alloc::vec!["गलत".to_string(), "सहि".to_string()]);
+    }
+
+    #[test]
+    fn test_vm_and_or_results() {
+        let out = run_vm(
+            "भनौँ(सहि र गलत)। भनौँ(सहि र सहि)। भनौँ(गलत वा सहि)। भनौँ(गलत वा गलत)।",
+        );
+        assert_eq!(
+            out,
+            alloc::vec![
+                "गलत".to_string(),
+                "सहि".to_string(),
+                "सहि".to_string(),
+                "गलत".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_vm_and_or_short_circuit_real_side_effect() {
+        // Same real property, same real technique, as
+        // `test_logical_and_or_short_circuit_real_side_effects` verifies
+        // for the tree-walker: a function call as the right operand has
+        // an observable side effect (a print) that would show up in
+        // `out` if the VM's short-circuit codegen didn't really skip
+        // its bytecode entirely.
+        let out = run_vm(
+            "काम क्रिया() { भनौँ(\"called\")। पठाउँ सहि। } \
+             भनौँ(गलत र क्रिया())। भनौँ(सहि वा क्रिया())।",
+        );
+        assert_eq!(out, alloc::vec!["गलत".to_string(), "सहि".to_string()]);
+    }
+
+    #[test]
+    fn test_vm_array_literal_index_and_length() {
+        let out = run_vm(
+            "राखौँ समूह = [10, 20, 30]। भनौँ(समूह[1])। भनौँ(लम्बाइ(समूह))।",
+        );
+        assert_eq!(out, alloc::vec!["20".to_string(), "3".to_string()]);
+    }
+
+    #[test]
+    fn test_vm_index_assign_is_a_real_mutation() {
+        let out = run_vm("राखौँ समूह = [1, 2, 3]। समूह[0] = 99। भनौँ(समूह[0])।");
+        assert_eq!(out, alloc::vec!["99".to_string()]);
+    }
+
+    #[test]
+    fn test_vm_array_push() {
+        let out = run_vm("राखौँ समूह = [1, 2]। थप्नुहोस्(समूह, 3)। भनौँ(लम्बाइ(समूह))। भनौँ(समूह[2])।");
+        assert_eq!(out, alloc::vec!["3".to_string(), "3".to_string()]);
+    }
+
+    #[test]
+    fn test_vm_array_out_of_bounds_is_a_real_error() {
+        let mut parser = Parser::new("राखौँ समूह = [1, 2]। भनौँ(समूह[5])।");
+        let program = parser.parse_program().expect("parse error");
+        Resolver::resolve(&program).expect("resolution error");
+        let (chunk, functions) = bytecode::Compiler::compile(&program);
+        let mut vm = Vm::new(functions);
+        assert!(vm.run(&chunk).is_err());
+    }
+
+    #[test]
+    fn test_vm_arrays_are_reference_types_across_bindings() {
+        // Same real property `expect_index`/`Value::Array`'s Rc<RefCell<..>>
+        // representation is for in the tree-walker: a second binding to
+        // the same array sees mutations through the first.
+        let out = run_vm(
+            "राखौँ क = [1, 2, 3]। राखौँ ख = क। ख[0] = 100। भनौँ(क[0])।",
+        );
+        assert_eq!(out, alloc::vec!["100".to_string()]);
+    }
+
+    #[test]
+    fn test_vm_closures_capture_outer_scope() {
+        // The exact same program test_closures_capture_outer_scope runs
+        // against the tree-walker - real parity, not a simplified stand-in.
+        let out = run_vm(
+            "काम बनाउ(क) { काम थप्नु(ख) { पठाउँ क + ख। } पठाउँ थप्नु। } राखौँ जोड_५ = बनाउ(5)। भनौँ(जोड_५(3))।",
+        );
+        assert_eq!(out, alloc::vec!["8".to_string()]);
+    }
+
+    #[test]
+    fn test_vm_two_closures_from_same_template_capture_independently() {
+        // Real proof each call to बनाउ creates a genuinely distinct
+        // closure, not one shared function object re-reading a single
+        // static क - जोड्_५ and जोड्_१० must disagree.
+        let out = run_vm(
+            "काम बनाउ(क) { काम थप्नु(ख) { पठाउँ क + ख। } पठाउँ थप्नु। } \
+             राखौँ जोड_५ = बनाउ(5)। राखौँ जोड_१० = बनाउ(10)। \
+             भनौँ(जोड_५(1))। भनौँ(जोड_१०(1))।",
+        );
+        assert_eq!(out, alloc::vec!["6".to_string(), "11".to_string()]);
+    }
+
+    #[test]
+    fn test_vm_closure_returned_and_called_through_a_value_expression() {
+        // Exercises CallValue specifically: calling directly off a
+        // non-identifier callee expression (the result of a call), not
+        // through a named variable first.
+        let out = run_vm("काम बनाउ() { काम भित्री() { पठाउँ 42। } पठाउँ भित्री। } भनौँ(बनाउ()())।");
+        assert_eq!(out, alloc::vec!["42".to_string()]);
+    }
+
+    #[test]
+    fn test_vm_recursion_still_works_via_named_call_fast_path() {
+        // Real regression guard: Call(name, argc) must still resolve a
+        // plain named function call (the common, non-closure case) via
+        // the frame chain now, not the old global function-name map.
+        let out = run_vm(
+            "काम फिबो(अ) { यदि अ < 2 { पठाउँ अ। } पठाउँ फिबो(अ - 1) + फिबो(अ - 2)। } भनौँ(फिबो(10))।",
+        );
+        assert_eq!(out, alloc::vec!["55".to_string()]);
     }
 
     #[test]
@@ -597,5 +721,84 @@ mod tests {
         }));
         interp.run(&program).expect("runtime error");
         assert_eq!(interp.output, alloc::vec!["2".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod roman_builtin_tests {
+    use super::*;
+    use alloc::string::ToString;
+
+    fn run(src: &str) -> alloc::vec::Vec<alloc::string::String> {
+        let mut parser = Parser::new(src);
+        let program = parser.parse_program().unwrap();
+        Resolver::resolve(&program).unwrap();
+        let mut interp = Interpreter::new();
+        interp.run(&program).unwrap();
+        interp.output
+    }
+
+    #[test]
+    fn a_program_typed_entirely_in_ascii_behaves_like_the_devanagari_one() {
+        let ascii = "rakha suchi = [3, 4]\nthapnuhos(suchi, 5)\nkaam jod(a, b) { pathau a + b }\n\
+                     yadi lambai(suchi) > 2 { bhana(\"ok\", jod(suchi[0], suchi[2])) } natra { bhana(\"no\") }";
+        let devanagari = "राखौँ सूची = [3, 4]\nथप्नुहोस्(सूची, 5)\nकाम जोड(क, ख) { पठाउँ क + ख }\n\
+                          यदि लम्बाइ(सूची) > 2 { भनौँ(\"ok\", जोड(सूची[0], सूची[2])) } नत्र { भनौँ(\"no\") }";
+        assert_eq!(run(ascii), run(devanagari));
+        assert_eq!(run(ascii), alloc::vec!["ok 8".to_string()]);
+    }
+
+    #[test]
+    fn every_alias_points_at_a_real_builtin() {
+        for (roman, canonical) in lexer::ROMAN_BUILTIN_ALIASES {
+            assert!(interpreter::is_builtin(canonical), "{roman} -> {canonical} is not a builtin");
+        }
+    }
+}
+
+#[cfg(test)]
+mod array_index_tests {
+    use super::*;
+    use alloc::format;
+    use alloc::string::ToString;
+
+    fn tree(src: &str) -> Result<alloc::vec::Vec<alloc::string::String>, alloc::string::String> {
+        let program = Parser::new(src).parse_program().unwrap();
+        let mut interp = Interpreter::new();
+        interp.run(&program)?;
+        Ok(interp.output)
+    }
+
+    fn bytecode(src: &str) -> Result<alloc::vec::Vec<alloc::string::String>, alloc::string::String> {
+        let program = Parser::new(src).parse_program().unwrap();
+        let (chunk, functions) = bytecode::Compiler::compile(&program);
+        let mut vm = Vm::new(functions);
+        vm.run(&chunk)?;
+        Ok(vm.output.clone())
+    }
+
+    #[test]
+    fn whole_number_indexes_still_work_including_computed_ones() {
+        let src = "राखौँ a = [7, 8, 9]। भनौँ(a[0], a[4 / 2], a[1 + 1])।";
+        assert_eq!(tree(src).unwrap(), alloc::vec!["7 9 9".to_string()]);
+        assert_eq!(bytecode(src).unwrap(), alloc::vec!["7 9 9".to_string()]);
+    }
+
+    #[test]
+    fn fractional_nan_and_infinite_indexes_are_errors_not_silent_truncation() {
+        for idx in ["1.9", "0.5", "0 / 0", "1 / 0", "-0.5"] {
+            let src = format!("राखौँ a = [7, 8]। भनौँ(a[{idx}])।");
+            let t = tree(&src).unwrap_err();
+            let b = bytecode(&src).unwrap_err();
+            assert!(t.contains("whole number"), "tree-walker, index {idx}: {t}");
+            assert!(b.contains("whole number"), "vm, index {idx}: {b}");
+        }
+    }
+
+    #[test]
+    fn assigning_through_a_fractional_index_is_an_error_too() {
+        let src = "राखौँ a = [7, 8]। a[0.5] = 1।";
+        assert!(tree(src).unwrap_err().contains("whole number"));
+        assert!(bytecode(src).unwrap_err().contains("whole number"));
     }
 }

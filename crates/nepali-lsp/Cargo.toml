@@ -1,0 +1,21 @@
+[package]
+name = "nepali-lsp"
+version = "0.1.0"
+edition = "2021"
+description = "A real Language Server Protocol server for nepali-core: real diagnostics (parse/resolution errors) and real formatting."
+license = "MIT"
+
+[[bin]]
+name = "nepali-lsp"
+path = "src/main.rs"
+
+[dependencies]
+# lsp-server: the real transport/protocol-framing crate rust-analyzer
+# itself is built on (github.com/rust-lang/rust-analyzer/tree/master/lib/lsp-server)
+# - not a hand-rolled JSON-RPC/Content-Length framing implementation.
+# lsp-types: the real, standard LSP protocol type definitions.
+lsp-server = "0.10"
+lsp-types = "0.97"
+serde = "1"
+serde_json = "1"
+nepali-core = { path = "../nepali-core", default-features = false }

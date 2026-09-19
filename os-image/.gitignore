@@ -3,3 +3,6 @@
 binaries/
 output/
 cache/
+__pycache__/
+*.pyc
+binaries-arm64/

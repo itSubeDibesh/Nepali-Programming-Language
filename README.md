@@ -52,7 +52,7 @@ docker build -t nepali-os .
 docker run -it --rm nepali-os
 ```
 
-Lands you in a real `nep:/home/nepali $` shell. AI models (LLM,
+Lands you in a real `नेपाली:~ $` shell. AI models (LLM,
 Whisper, TTS) are baked into the image, so `एआई_सोध्नुहोस्`,
 `एआई_सुन्नुहोस्`, `एआई_बोल्नुहोस्`, and `एजेन्ट_चलाउनुहोस्` work out of the
 box, no configuration needed.
@@ -78,6 +78,12 @@ bhana(square(4))
 nepali hello.nep
 ```
 
+More: [`examples/tour/`](examples/tour/README.md) is a 14-step, tested tour (variables,
+loops, functions, closures, arrays, modules, OS/database, Python/JS interop,
+local AI). [`examples/conditions/`](examples/conditions/README.md) covers every
+condition form and every error message, and [`docs/NEPALI_OS.md`](docs/NEPALI_OS.md)
+is the guide to running the OS and what it can do.
+
 ## Project layout
 
 - `crates/nepali-core/` — the language: lexer, parser, interpreter,
@@ -89,7 +95,8 @@ nepali hello.nep
   independent services shipped as part of the OS.
 - `plugins/go-example/`, `crates/nepali-example-plugin/` — reference
   plugins proving the native-plugin interop bridge.
-- `examples/` — real example programs and a Next.js hosting proof.
+- `examples/` — the tested tour of the language (`tour/`), programs for the
+  native compiler (`native/`), and a Next.js hosting proof.
 - `os-image/` — tooling for building the bootable ISO.
 - `Dockerfile` — the full OS image, AI included.
 - `install.sh` — standalone language installer.

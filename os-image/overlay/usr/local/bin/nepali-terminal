@@ -1,0 +1,13 @@
+#!/bin/sh
+set -a; . /etc/environment; set +a
+export HOME=/home/nepali LANG=C.UTF-8
+cd "$HOME"
+mkdir -p .config/lxterminal
+cp /etc/nepali/lxterminal.conf .config/lxterminal/lxterminal.conf
+
+# Clipboard sharing with the host when the hypervisor offers a SPICE agent port.
+command -v spice-vdagent >/dev/null 2>&1 && (spice-vdagent >/dev/null 2>&1 &)
+
+# The editor is the desktop; if it ever fails, fall back to the Nepali shell.
+python3 /usr/local/bin/nepali-studio 2>"$HOME/.nepali-studio.log" && exit 0
+exec lxterminal --geometry=110x30 -e /usr/local/bin/nepali-shell

@@ -1,0 +1,21 @@
+[Unit]
+Description=Nepali desktop (X server + Devanagari terminal on tty1)
+After=systemd-user-sessions.service systemd-logind.service live-config.service
+Conflicts=getty@tty1.service
+OnFailure=getty@tty1.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+ConditionPathExists=/dev/tty0
+
+[Service]
+ExecStart=/usr/bin/xinit /usr/local/bin/nepali-session -- /usr/bin/Xorg :0 vt1 -keeptty -nolisten tcp
+Restart=always
+RestartSec=2
+StandardInput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+
+[Install]
+WantedBy=multi-user.target

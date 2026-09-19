@@ -248,6 +248,10 @@ impl Default for LocalAi {
 
 impl HostAi for LocalAi {
     fn ask(&self, prompt: &str) -> Result<String, String> {
+        self.ask_with_system("You are a helpful assistant.", prompt)
+    }
+
+    fn ask_with_system(&self, system: &str, prompt: &str) -> Result<String, String> {
         self.load()?;
         let mut model_ref = self.model.borrow_mut();
         let loaded = model_ref.as_mut().expect("just loaded above");
@@ -260,7 +264,7 @@ impl HostAi for LocalAi {
         // trained on) is what makes it behave like an instruct model at
         // all, verified with real before/after output.
         let templated = format!(
-            "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n\
+            "<|im_start|>system\n{system}<|im_end|>\n\
              <|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
         );
         let encoding = loaded
@@ -276,7 +280,14 @@ impl HostAi for LocalAi {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(256);
-        let mut logits_processor = LogitsProcessor::new(299792458, Some(0.7), Some(0.9));
+        // Free chat keeps some randomness; answers grounded in the language
+        // guide/recipes should copy them, not improvise - a small model
+        // mangles Devanagari code at high temperature.
+        let temperature: f64 = env::var("NEPALI_AI_TEMPERATURE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(if system == "You are a helpful assistant." { 0.7 } else { 0.2 });
+        let mut logits_processor = LogitsProcessor::new(299792458, Some(temperature), Some(0.9));
 
         let mut generated: Vec<u32> = Vec::new();
         let start_pos = 0usize;

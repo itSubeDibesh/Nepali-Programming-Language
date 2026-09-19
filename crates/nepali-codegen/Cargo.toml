@@ -1,0 +1,27 @@
+[package]
+name = "nepali-codegen"
+version = "0.1.0"
+edition = "2021"
+description = "Real LLVM-backed native machine-code compilation for nepali-core (a real backend, not the bytecode VM)."
+license = "MIT"
+
+[[bin]]
+name = "nepali-codegen"
+path = "src/main.rs"
+
+[dependencies]
+# inkwell: the real, safe Rust wrapper around the real LLVM C++ APIs
+# (llvm-sys underneath) - the same crate real from-scratch language
+# projects (e.g. the "kaleidoscope" tutorial line, various production
+# Rust compilers) use for LLVM codegen, not a hand-rolled machine-code
+# emitter. Pinned to the llvm22-1 feature: the newest LLVM release
+# inkwell 0.10 actually supports (checked against its published feature
+# list). The system LLVM this links against must match exactly -
+# `brew install llvm@22` on macOS - not whatever `brew install llvm`
+# installs by default (that tracks LLVM's own latest, which can be
+# newer than what inkwell supports).
+inkwell = { version = "0.10", features = ["llvm22-1"] }
+nepali-core = { path = "../nepali-core", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"

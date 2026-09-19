@@ -1,0 +1,9 @@
+# Points llvm-sys (inkwell's dependency, pinned to the llvm22-1
+# feature in Cargo.toml) at Homebrew's llvm@22 keg on macOS - the
+# newest LLVM release inkwell 0.10 actually supports, distinct from
+# whatever `brew install llvm` (unversioned, tracks LLVM's own latest)
+# installs by default. On Linux CI/Docker, install a matching
+# LLVM 22 dev package and set this the same way, or point it at
+# wherever that distro's llvm-config lives.
+[env]
+LLVM_SYS_221_PREFIX = { value = "/opt/homebrew/opt/llvm@22", force = false }
