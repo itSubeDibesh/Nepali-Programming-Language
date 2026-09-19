@@ -195,6 +195,33 @@ Each: what, files, acceptance test. Commit each separately.
   command while its terminal pane (mode os) can. Update `CLAUDE.md` (facts only, with
   what was and was not verified), `docs/NEPALI_OS.md`, `README.md`.
 
+## Handoff notes (added after the plan was written)
+
+- **Shared working tree.** A second agent may be editing the same folder while you work
+  (uncommitted `studio.rs`, `tests/sandbox.rs`, `.github/`, `install.sh`, mode code in
+  `interpreter.rs`/`main.rs`). Never `git stash`/`reset`/`checkout` the tree. Commit only your
+  own hunks (`git add <file>`; for a file with mixed edits, stage a blob built from `HEAD` plus
+  your change via `git hash-object -w` + `git update-index --cacheinfo`). Check `git status` first.
+- **Two SQLite tests failed** in `cargo test` (`host_linux::tests::real_sqlite_create_insert_select_round_trip`,
+  `real_sqlite_persists_across_reopening_the_same_file`) while the sandbox-mode work was
+  uncommitted in the tree. Not caused by the AI commit (`e146c2d`, which touches only `host_ai.rs`,
+  a `cut_repeated_sentences` helper in `interpreter.rs`, and `CLAUDE.md`). Most likely sandbox
+  mode gating the DB in unit tests; unconfirmed. Fix before committing WP1: those tests should build
+  their host in `Mode::Os`. Re-run the full `cargo test` and read the result.
+- **AI answers in Nepali are weak (WP-independent, needs the user's choice).** `e146c2d` made
+  Devanagari questions get a Nepali-only system prompt and cut repeated sentences. Measured with the
+  real Qwen2.5-1.5B: no more Hindi, the age question is right, but the capital of Nepal is wrong in
+  Nepali (right in English) and longer answers drift. A repetition penalty made it worse; do not
+  re-add it. The real fix is a bigger GGUF (Qwen2.5 3B/7B) via `NEPALI_AI_MODEL_PATH`; try one,
+  measure the same questions, and ask the user before bundling it into the ISO (size/speed).
+- **Sandbox mode and AI.** The plan allows `एआई_सोध्नुहोस्`/`सहायक_सोध्नुहोस्` in sandbox. Keep
+  them off the agent tools: `एजेन्ट_चलाउनुहोस्` is OS-only.
+- **Already done, do not redo:** optional `भनौँ` parentheses, Devanagari digits (typing and
+  `NEPALI_DIGITS` output), Nepali-only AI prompt. Note `NEPALI_DIGITS` must be set for the
+  `nepali studio` child processes and the ISO shell the same way `studio.py`/`nepali-shell` do now.
+- **Verification budget.** ISO rebuilds and real-model runs are slow and costly; batch them at
+  the end of WP8, and prefer automated tests for WP1-WP6.
+
 ## Decisions the user still owns (ask, do not assume)
 
 - Apple signing/notarization and a Windows code-signing certificate (cost and accounts).
