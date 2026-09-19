@@ -222,6 +222,69 @@ Each: what, files, acceptance test. Commit each separately.
 - **Verification budget.** ISO rebuilds and real-model runs are slow and costly; batch them at
   the end of WP8, and prefer automated tests for WP1-WP6.
 
+## WP9 - Standard library gaps and the AI's understanding of the language
+
+Found by the user asking "take a date as input and return the difference till today" and
+getting a useless AI answer.
+
+**Facts, verified 2026-09-19 with the real binary and the real Qwen2.5-1.5B:**
+- **No date/time builtins exist.** No `आज()`, no date parsing, no difference. There is also **no
+  keyboard/stdin input builtin** in the language (only the shell reads lines).
+- **Works today, only through the JS bridge** (QuickJS `Date`; allowed in sandbox mode, and it
+  has no host access). Output checked by hand: `2000-05-14` -> 26 years and 2026-01-01 -> 261
+  days on 2026-09-19.
+```
+काम उमेर_वर्ष(जन्ममिति) {
+  पठाउँ जेएस_चलाउनुहोस्("var b = new Date('" + जन्ममिति + "'); var t = new Date(); var y = t.getFullYear() - b.getFullYear(); if (t.getMonth() < b.getMonth() || (t.getMonth() == b.getMonth() && t.getDate() < b.getDate())) { y = y - 1; } y")।
+}
+काम दिन_फरक(मिति) {
+  पठाउँ जेएस_चलाउनुहोस्("Math.floor((new Date() - new Date('" + मिति + "')) / 86400000)")।
+}
+भनौँ("उमेर:", उमेर_वर्ष("2000-05-14"), "वर्ष")।
+```
+  Caveat: the date text is concatenated into JS source, so untrusted input can inject JS
+  (contained by QuickJS, but still wrong). Replace with real builtins (below).
+- **Which AI answered the user's question:** the Studio's AI pane runs `nepali ask`, i.e. the
+  local Qwen2.5 GGUF (1.5B via `dev.sh`/ISO bundle, 0.5B otherwise), grounded by
+  `crates/nepali-core/src/grounding.rs`. The `काम जोड` + even/odd program it returned is not
+  written by the model at all: it is the verbatim retrieved recipes (`जोड` and "if and else: even
+  or odd") pasted together. No recipe covers dates, so it had nothing correct to copy, and a 1.5B
+  model cannot invent Devanagari code reliably. The user's own program also shows the model
+  never learned that `पठाउँ` needs a value and that a function call needs matching argument counts.
+
+**To build (small, do in this order):**
+1. Builtins in `interpreter.rs` (pure, no host needed, `no_std`-safe where possible; "today"
+   needs a host clock: add `HostClock` next to the other host traits, real impl `SystemTime`,
+   allowed in sandbox mode because it is not OS access): `आज()` -> `[वर्ष, महिना, दिन]`,
+   `मिति_बनाउनुहोस्(वर्ष, महिना, दिन)`, `मिति_पढ्नुहोस्("2000-05-14")` (ISO text, and Devanagari
+   digits `२०००-०५-१४`), `दिन_फरक(क, ख)`, `उमेर(जन्ममिति)` (whole years today), `हप्ताको_दिन(मिति)`.
+   Add Roman aliases (`ROMAN_BUILTIN_ALIASES` in `lexer.rs`, keep `translit.py` in sync; the
+   test in `os-image/tests/test_translit.py` checks it) and register in the `BUILTINS` list and
+   `resolver.rs` arity table. Errors for impossible dates (`2026-02-30`) must be real errors.
+   Bikram Sambat (the Nepali calendar) conversion is a separate, larger item: needs a verified
+   year-length table (BS month lengths are not computable). Do not guess the table; source it
+   and test against known dates, or leave it out and say so.
+2. Input: `इनपुट("प्रश्न")` reading one line from stdin (CLI), a text box in the Studios
+   (browser: `prompt`-style field posted with the run request; GTK: a dialog). Not in the WASM
+   build unless the page supplies it. Tests: pipe stdin into the CLI.
+3. Recipes in `grounding.rs` `RECIPES` (each is parsed, resolved and run by the tests): date
+   difference, age from birth date, input then print, a function with a missing-return mistake,
+   `पठाउँ` with a value. Add them only after the builtins exist so they run for real.
+4. AI understanding, measured not assumed: build a fixed question set (30+ in Nepali and English:
+   dates, input, functions, strings, arrays, loops, errors), run it against the real model, execute
+   the returned code with the real binary, and record the pass rate in `CLAUDE.md` before and after
+   every change (the earlier measure was 3/6 for 0.5B and 5/6 for 1.5B on 6 questions). Then:
+   - give `किन`/error explanations the exact parser/runtime message plus the guide, so it stops
+     guessing (it once blamed "undefined variable" for a missing parenthesis);
+   - when the answer's code fails to parse, retry once with the parse error appended, before
+     showing anything to the user;
+   - show the user which recipes were retrieved, so a pasted recipe is not mistaken for invention;
+   - try a bigger GGUF (Qwen2.5 3B/7B, `NEPALI_AI_MODEL_PATH`) on the same question set, and ask
+     the user before bundling it (size and speed).
+5. Add the date and input examples to `examples/` with `.expected` files (tests in
+   `tests/examples_collection.rs` pick them up); dates need a fixed "today" for tests, so add a
+   `NEPALI_TODAY=2026-09-19` override used only in tests.
+
 ## Decisions the user still owns (ask, do not assume)
 
 - Apple signing/notarization and a Windows code-signing certificate (cost and accounts).
