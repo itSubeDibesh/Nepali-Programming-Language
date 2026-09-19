@@ -89,7 +89,7 @@ box, scrolledwindow, viewport { background: #0a0e1e; }
 
 # This window can draw Devanagari properly, so ask `nepali` for it even though the session
 # runs with TERM=linux (which would otherwise switch the shell to its Roman fallback).
-CHILD_ENV = {**os.environ, "NEPALI_SCRIPT": "devanagari"}
+CHILD_ENV = {**os.environ, "NEPALI_SCRIPT": "devanagari", "NEPALI_DIGITS": "devanagari"}
 
 
 def strip_ansi(s):
@@ -185,6 +185,10 @@ class PhoneticTyper:
                 self.reset()
             return True
         self.reset()
+        if ch and ch in "0123456789":
+            self.drop_selection()
+            self.replace(self.cursor(), 0, translit.to_devanagari_digit(ch))
+            return True
         if ch == "|":
             self.drop_selection()
             pos = self.cursor()

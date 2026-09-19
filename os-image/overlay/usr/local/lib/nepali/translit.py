@@ -39,6 +39,12 @@ BUILTINS = {
 ALL_KEYWORDS = {**KEYWORDS, **BUILTINS}
 
 HALANT = "्"
+DEV_DIGITS = "०१२३४५६७८९"
+
+
+def to_devanagari_digit(ch):
+    """'5' -> '५'; anything else unchanged."""
+    return DEV_DIGITS[int(ch)] if len(ch) == 1 and ch in "0123456789" else ch
 
 # longest first within each table
 CONSONANTS = [

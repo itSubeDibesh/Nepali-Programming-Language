@@ -41,6 +41,10 @@ class Transliteration(unittest.TestCase):
     def test_digits_and_symbols_pass_through(self):
         self.assertEqual(translit.transliterate("a1+b"), "अ1+ब")
 
+    def test_digits_type_as_devanagari_digits(self):
+        self.assertEqual("".join(translit.to_devanagari_digit(c) for c in "2025"), "२०२५")
+        self.assertEqual(translit.to_devanagari_digit("a"), "a")
+
     def test_typed_keywords_are_real_language_keywords(self):
         """Every romanized keyword/builtin here is one the lexer really accepts,
         and maps to the same Devanagari - so the table cannot drift."""

@@ -50,6 +50,7 @@ fn main() -> ExitCode {
         match a.as_str() {
             "--roman" if i > 0 => env::set_var("NEPALI_SCRIPT", "roman"),
             "--devanagari" if i > 0 => env::set_var("NEPALI_SCRIPT", "devanagari"),
+            "--digits" if i > 0 => env::set_var("NEPALI_DIGITS", "devanagari"),
             _ => args.push(a),
         }
     }
@@ -195,14 +196,14 @@ fn run_script(path: &str) -> ExitCode {
     let mut interp = new_interpreter();
     if let Err(e) = interp.run(&program) {
         for line in &interp.output {
-            say!("{line}");
+            say!("{}", roman::digits(line));
         }
         warn_!("चलाउँदा त्रुटि: {e}");
         return ExitCode::FAILURE;
     }
 
     for line in &interp.output {
-        say!("{line}");
+        say!("{}", roman::digits(line));
     }
     ExitCode::SUCCESS
 }
@@ -418,7 +419,7 @@ fn try_run_as_nepali(interp: &mut Interpreter, line: &str) -> NepaliOutcome {
     interp.output.clear();
     let result = interp.run(&program);
     for out_line in &interp.output {
-        say!("{out_line}");
+        say!("{}", roman::digits(out_line));
     }
     match result {
         Ok(()) => NepaliOutcome::Ran,

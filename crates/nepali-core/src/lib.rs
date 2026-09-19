@@ -802,3 +802,35 @@ mod array_index_tests {
         assert!(bytecode(src).unwrap_err().contains("whole number"));
     }
 }
+
+#[cfg(test)]
+mod print_without_parens_tests {
+    use super::*;
+    use alloc::string::ToString;
+
+    fn run(src: &str) -> alloc::vec::Vec<alloc::string::String> {
+        let mut parser = Parser::new(src);
+        let program = parser.parse_program().unwrap();
+        Resolver::resolve(&program).unwrap();
+        let mut interp = Interpreter::new();
+        interp.run(&program).unwrap();
+        interp.output
+    }
+
+    #[test]
+    fn print_works_without_parentheses() {
+        let out = run("राखौँ नाम = \"दिबेश\"। राखौँ अभिवादन = \"नमस्ते \" + नाम + \"!\"। भनौँ अभिवादन।");
+        assert_eq!(out, alloc::vec!["नमस्ते दिबेश!".to_string()]);
+    }
+
+    #[test]
+    fn print_without_parentheses_takes_several_values() {
+        assert_eq!(run("राखौँ x = 2। भनौँ \"x\", x * 3।"), alloc::vec!["x 6".to_string()]);
+        assert_eq!(run("bhana 1 + 1।"), alloc::vec!["2".to_string()]);
+    }
+
+    #[test]
+    fn print_with_parentheses_still_works() {
+        assert_eq!(run("भनौँ(\"a\", 1)।"), alloc::vec!["a 1".to_string()]);
+    }
+}

@@ -167,6 +167,27 @@ pub fn roman_mode() -> bool {
     })
 }
 
+/// Program output with ASCII digits shown as Devanagari digits (`25` -> `२५`) when
+/// `NEPALI_DIGITS=devanagari` (or `nepali`). Off by default so plain scripts stay
+/// byte-identical; the Studios and the ISO shell turn it on. Never in Roman mode.
+pub fn digits(s: &str) -> Cow<'_, str> {
+    static ON: OnceLock<bool> = OnceLock::new();
+    let on = *ON.get_or_init(|| {
+        matches!(env::var("NEPALI_DIGITS").ok().as_deref(), Some("devanagari" | "nepali"))
+    });
+    if !on || roman_mode() || !s.bytes().any(|b| b.is_ascii_digit()) {
+        return Cow::Borrowed(s);
+    }
+    Cow::Owned(
+        s.chars()
+            .map(|c| match c.to_digit(10) {
+                Some(d) if c.is_ascii_digit() => char::from_u32('०' as u32 + d).unwrap(),
+                _ => c,
+            })
+            .collect(),
+    )
+}
+
 /// Text as it should be shown: unchanged normally, Roman on terminals without Devanagari.
 pub fn show(s: &str) -> Cow<'_, str> {
     if roman_mode() {
@@ -189,6 +210,12 @@ mod tests {
         ] {
             assert_eq!(to_roman(dev), roman, "{dev}");
         }
+    }
+
+    #[test]
+    fn digits_are_left_alone_unless_enabled() {
+        // NEPALI_DIGITS is unset in the test environment.
+        assert_eq!(digits("उमेर 25"), "उमेर 25");
     }
 
     #[test]

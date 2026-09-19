@@ -1205,6 +1205,21 @@ feature: keywords and builtins already have Latin names, so programs can be type
 in ASCII anywhere. The studio server's token is now a per-user file
 (`~/.nepali/studio-token`, mode 600) so restarts and reloads no longer give 403.
 
+## Natural syntax and Devanagari digits
+
+`भनौँ` no longer needs parentheses: `भनौँ अभिवादन।` and `भनौँ "x", x * 3।` parse (the old
+`भनौँ(...)` form still works; `भनौँ (1+2)*3` is read as the call form, write
+`भनौँ ((1+2)*3)`). Found when the Studio's AI "fixed" a program by returning the same code:
+the real cause was the missing parentheses. Digits: Devanagari digits were already accepted as
+input; now phonetic typing (browser and GTK Studio) types `५` for `5`, and program output shows
+Devanagari digits when `NEPALI_DIGITS=devanagari` (or `--digits`; the Studios and the ISO shell
+set it, plain CLI keeps ASCII, Roman mode always ASCII). It converts every digit in program
+output, including inside strings. Tests: `print_without_parens_tests` in `lib.rs`, the digit
+test in `os-image/tests/test_translit.py`; the digit output path was run by hand, and digit
+typing in the browser was only checked at the function level, not clicked through.
+The next work order (run modes so the language alone cannot run OS commands, releases that need
+no Rust, a Studio with no browser or Python) is in `PROGRESS.md`.
+
 ## ARM64 ISO (UEFI/GRUB, native on Apple Silicon)
 
 The x86_64 ISO is emulated on an M-series Mac, so the AI was unusably slow there.

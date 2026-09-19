@@ -39,7 +39,7 @@ def run_nepali(args, timeout, cwd=None):
     try:
         r = subprocess.run([Config.nepali] + args, capture_output=True, text=True, encoding="utf-8",
                            timeout=timeout, cwd=cwd or Config.workdir,
-                           env={**os.environ, "NEPALI_SCRIPT": "devanagari"})
+                           env={**os.environ, "NEPALI_SCRIPT": "devanagari", "NEPALI_DIGITS": "devanagari"})
         return {"stdout": r.stdout, "stderr": r.stderr, "rc": r.returncode}
     except subprocess.TimeoutExpired:
         return {"stdout": "", "stderr": f"समय सकियो ({timeout} सेकेन्ड)", "rc": 124}

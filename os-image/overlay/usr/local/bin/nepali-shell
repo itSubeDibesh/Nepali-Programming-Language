@@ -1,3 +1,4 @@
 #!/bin/sh
+export NEPALI_DIGITS=devanagari
 cat /etc/motd
 exec /usr/local/bin/nepali

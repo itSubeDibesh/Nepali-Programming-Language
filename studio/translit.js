@@ -80,6 +80,9 @@ function convertWord(word) {
   return kw !== undefined ? kw : transliterate(word);
 }
 
+const DEV_DIGITS = "०१२३४५६७८९";
+function toDevanagariDigit(ch) { return /^[0-9]$/.test(ch) ? DEV_DIGITS[+ch] : ch; }
+
 const LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
 
 // Phonetic typing for a <textarea> / <input>: Latin letters typed as a word show as
@@ -120,8 +123,9 @@ class PhoneticTyper {
       return;
     }
     this.reset();
+    if (/^[0-9]$/.test(k)) { e.preventDefault(); this.replace(this.el.selectionStart, this.el.selectionEnd - this.el.selectionStart, toDevanagariDigit(k)); return; }
     if (k === "|") { e.preventDefault(); this.replace(this.el.selectionStart, this.el.selectionEnd - this.el.selectionStart, "।"); }
   }
 }
 
-if (typeof module !== "undefined") module.exports = { transliterate, convertWord, KEYWORDS };
+if (typeof module !== "undefined") module.exports = { transliterate, convertWord, toDevanagariDigit, KEYWORDS };

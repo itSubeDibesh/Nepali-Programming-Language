@@ -123,9 +123,19 @@ impl Parser {
 
     fn parse_print(&mut self) -> ParseResult<Stmt> {
         self.expect(TokenType::Print)?;
-        self.expect(TokenType::LParen)?;
         let mut args = Vec::new();
-        if !self.check(&TokenType::RParen) {
+        if self.matches(&TokenType::LParen) {
+            if !self.check(&TokenType::RParen) {
+                loop {
+                    args.push(self.parse_expr()?);
+                    if !self.matches(&TokenType::Comma) {
+                        break;
+                    }
+                }
+            }
+            self.expect(TokenType::RParen)?;
+        } else {
+            // Natural form without parentheses: भनौँ a, b।
             loop {
                 args.push(self.parse_expr()?);
                 if !self.matches(&TokenType::Comma) {
@@ -133,7 +143,6 @@ impl Parser {
                 }
             }
         }
-        self.expect(TokenType::RParen)?;
         Ok(Stmt::Print(args))
     }
 
