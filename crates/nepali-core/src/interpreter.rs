@@ -8,6 +8,33 @@ use core::cell::RefCell;
 
 pub type EvalResult<T> = Result<T, String>;
 
+/// Two run modes: `Sandbox` (default everywhere except Nepali OS) denies
+/// OS-reaching builtins; `Os` allows everything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    Sandbox,
+    Os,
+}
+
+/// Builtins denied in sandbox mode, with the Nepali error message shown
+/// when a user tries to call them.
+fn sandbox_denied(name: &str) -> Option<&'static str> {
+    match name {
+        "आदेश_चलाउनुहोस्" => Some("यो सुविधा नेपाली OS मा मात्र चल्छ (`--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्)।"),
+        "ओएस_लेख्नुहोस्" | "ओएस_पढ्नुहोस्" | "ओएस_सूची" => Some("यो सुविधा नेपाली OS मा मात्र चल्छ (`--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्)।"),
+        "प्रक्रिया_सूची" | "नयाँ_प्रक्रिया" => Some("यो सुविधा नेपाली OS मा मात्र चल्छ (`--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्)।"),
+        "नयाँ_च्यानल" | "च्यानल_पठाउनुहोस्" | "च्यानल_पाउनुहोस्" => Some("यो सुविधा नेपाली OS मा मात्र चल्छ (`--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्)।"),
+        "डाटाबेस_चलाउनुहोस्" | "डाटाबेस_सोध्नुहोस्" => Some("यो सुविधा नेपाली OS मा मात्र चल्छ (`--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्)।"),
+        "पाइथन_चलाउनुहोस्" => Some("यो सुविधा नेपाली OS मा मात्र चल्छ (`--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्)।"),
+        "रस्ट_चलाउनुहोस्" | "गो_चलाउनुहोस्" => Some("यो सुविधा नेपाली OS मा मात्र चल्छ (`--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्)।"),
+        "क्यास_राख्नुहोस्" | "क्यास_ल्याउनुहोस्" | "क्यास_हटाउनुहोस्" => Some("यो सुविधा नेपाली OS मा मात्र चल्छ (`--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्)।"),
+        "एजेन्ट_चलाउनुहोस्" => Some("यो सुविधा नेपाली OS मा मात्र चल्छ (`--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्)।"),
+        "सम्झना_राख्नुहोस्" | "सम्झना_ल्याउनुहोस्" => Some("यो सुविधा नेपाली OS मा मात्र चल्छ (`--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्)।"),
+        // जेएस_चलाउनुहोस्/टिएस_चलाउनुहोस्: QuickJS has no host access, allowed in sandbox.
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
     Number(f64),
@@ -340,6 +367,7 @@ pub trait HostAi {
 pub struct Interpreter {
     pub output: Vec<String>,
     globals: Env,
+    mode: Mode,
     host_fs: Option<Rc<dyn HostFs>>,
     host_process: Option<Rc<dyn HostProcess>>,
     host_channel: Option<Rc<dyn HostChannel>>,
@@ -360,6 +388,7 @@ impl Interpreter {
         Interpreter {
             output: Vec::new(),
             globals: new_scope(None),
+            mode: Mode::Os,
             host_fs: None,
             host_process: None,
             host_channel: None,
@@ -382,6 +411,12 @@ impl Interpreter {
     pub fn set_limits(&mut self, max_steps: u64, max_call_depth: u32) {
         self.fuel = Some(max_steps);
         self.max_call_depth = Some(max_call_depth);
+    }
+
+    /// Sets the run mode. `Sandbox` denies OS-reaching builtins with a
+    /// clear Nepali error; `Os` allows everything.
+    pub fn set_mode(&mut self, mode: Mode) {
+        self.mode = mode;
     }
 
     /// Gives this interpreter a real filesystem to reach through
@@ -655,6 +690,11 @@ impl Interpreter {
     /// once args are already evaluated, rather than three separate
     /// call sites each re-deciding which category `name` falls into.
     fn dispatch_builtin(&mut self, name: &str, args: &[Value]) -> EvalResult<Value> {
+        if self.mode == Mode::Sandbox {
+            if let Some(msg) = sandbox_denied(name) {
+                return Err(msg.to_string());
+            }
+        }
         if is_host_fs_builtin(name) {
             return self.call_host_fs_builtin(name, args);
         }
@@ -1981,6 +2021,78 @@ mod agent_safety_tests {
         assert!(system_path_write_reason("/home/nepali/notes.txt").is_none());
         assert!(system_path_write_reason("/tmp/scratch.txt").is_none());
         assert!(system_path_write_reason("relative/path.txt").is_none());
+    }
+
+    #[test]
+    fn sandbox_mode_denies_os_command_builtin() {
+        struct StubCommand;
+        impl HostCommand for StubCommand {
+            fn run(&self, _: &str, _: &[String]) -> Result<(i32, String, String), String> {
+                panic!("should not reach host in sandbox mode");
+            }
+        }
+        let mut interp = Interpreter::new();
+        interp.set_mode(Mode::Sandbox);
+        interp.set_host_command(Rc::new(StubCommand));
+        let result = crate::Parser::new("आदेश_चलाउनुहोस्(\"echo\", [\"hi\"])")
+            .parse_program()
+            .unwrap();
+        let err = interp.run(&result).unwrap_err();
+        assert!(err.contains("नेपाली OS मा मात्र चल्छ"), "{err}");
+    }
+
+    #[test]
+    fn os_mode_allows_os_command_builtin() {
+        struct StubCommand;
+        impl HostCommand for StubCommand {
+            fn run(&self, _: &str, _: &[String]) -> Result<(i32, String, String), String> {
+                Ok((0, "hi".into(), String::new()))
+            }
+        }
+        let mut interp = Interpreter::new();
+        interp.set_mode(Mode::Os);
+        interp.set_host_command(Rc::new(StubCommand));
+        let program = crate::Parser::new("भनौँ(आदेश_चलाउनुहोस्(\"echo\", [\"hi\"])[1])।")
+            .parse_program()
+            .unwrap();
+        interp.run(&program).unwrap();
+        assert_eq!(interp.output, alloc::vec!["hi".to_string()]);
+    }
+
+    #[test]
+    fn sandbox_mode_denies_file_write() {
+        let mut interp = Interpreter::new();
+        interp.set_mode(Mode::Sandbox);
+        let program = crate::Parser::new("ओएस_लेख्नुहोस्(\"/tmp/test.txt\", \"data\")")
+            .parse_program()
+            .unwrap();
+        let err = interp.run(&program).unwrap_err();
+        assert!(err.contains("नेपाली OS मा मात्र चल्छ"), "{err}");
+    }
+
+    #[test]
+    fn sandbox_mode_allows_js() {
+        // QuickJS has no host access — allowed in sandbox.
+        #[cfg(feature = "js-interop")]
+        {
+            struct StubJs;
+            impl HostJs for StubJs {
+                fn eval(&self, code: &str) -> Result<Value, String> {
+                    Ok(Value::Str(code.to_string()))
+                }
+                fn eval_ts(&self, code: &str) -> Result<Value, String> {
+                    Ok(Value::Str(code.to_string()))
+                }
+            }
+            let mut interp = Interpreter::new();
+            interp.set_mode(Mode::Sandbox);
+            interp.set_host_js(Rc::new(StubJs));
+            let program = crate::Parser::new("भनौँ(जेएस_चलाउनुहोस्(\"1+1\"))।")
+                .parse_program()
+                .unwrap();
+            interp.run(&program).unwrap();
+            assert_eq!(interp.output, alloc::vec!["1+1".to_string()]);
+        }
     }
 }
 

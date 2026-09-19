@@ -62,6 +62,7 @@ fn every_example_prints_exactly_its_expected_output() {
         };
 
         let out = Command::new(env!("CARGO_BIN_EXE_nepali-core-cli"))
+            .arg("--mode").arg("os")
             .arg(&name)
             .current_dir(&dir)
             .env("NEPALI_DB", &db)

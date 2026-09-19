@@ -1388,3 +1388,72 @@ numeric-only subset, the VM's name-keyed-vs-slot-indexed variables,
 LSP's line-1-only resolver diagnostics, the formatter's re-indentation-
 only scope) - each a deliberate, documented boundary, not something
 silently left broken.
+
+## Shipping the language (WP1-8)
+
+Modes, bundling, studio, TUI, WASM, native window, ISO overlay, docs.
+
+### WP1: Modes and capability gating — done
+
+`Mode::Sandbox` / `Mode::Os` enum in `interpreter.rs`, `sandbox_denied()`
+for every host-facing builtin, `dispatch_builtin()` gates before calling
+any host trait. `--mode os|sandbox` CLI flag, `NEPALI_MODE` env var,
+`detect_mode()` via `/etc/nepali-os-release`. JS/TS and AI allowed in
+sandbox; filesystem/commands/processes/channels/DB/Python/Rust/Go/cache/
+agent/memory denied. 16 acceptance tests in `tests/sandbox.rs`.
+
+### WP2: Release binaries without Rust — done
+
+`.github/workflows/release.yml`: Linux musl x86_64/aarch64, macOS
+arm64/x86_64, Windows x86_64; SHA256SUMS; `softprops/action-gh-release@v2`.
+`install.sh`: downloads prebuilt release binary from GitHub (with SHA256
+verification), falls back to cargo build; `NEPALI_BUILD=source` for
+build-from-source mode. Portable feature set verified compiles on macOS
+arm64 (Mach-O binary).
+
+### WP3: `nepali bundle` subcommand — done
+
+Trailer format: `[source][4 bytes LE len][16 bytes "NEPALI_BUNDLE_v1"]`.
+Copies binary, appends source; startup detection reads last 8KB, finds
+magic, extracts source, runs in sandbox. Existing-bundle check only looks
+at end of file (avoids false positive from magic in code segment).
+Verified: bundled binary runs after source deletion; sandbox enforced.
+
+### WP4: `nepali studio` embedded server — done
+
+`studio.rs`: `tiny_http`-based HTTP server, embedded `index.html`/
+`translit.js` via `include_bytes!`. Token auth (`X-Token` header),
+Host header validation (127.0.0.1/localhost only). Endpoints: `GET /`,
+`GET /translit.js`, `GET /api/examples`, `GET /api/example?name=`,
+`POST /api/run`, `POST /api/ask`. `dev.sh` updated to use Rust studio.
+
+### WP5: Studio TUI and headless — done
+
+`translit.rs`: Roman→Devanagari phonetic typing (port of `translit.py`/
+`translit.js`), 40-word parity test + keyword tables match test.
+`--tui` flag: simple stdin/stdout REPL with phonetic typing, blank line
+runs code, `?` asks AI.
+
+### WP6: WASM Studio — done
+
+`crates/nepali-wasm`: `wasm32-unknown-unknown` target, `wasm-bindgen`
+bindings. `run()` and `check()` functions exposed. `wasm.html` static
+page using the embedded WASM. 10/10 pure-language tour tests pass in
+Node. `rusqlite` made optional (`db` feature) to avoid C compilation
+for WASM.
+
+### WP7: Native window front — done
+
+`gui` feature with `wry`+`tao`. `--window` flag opens a native WebView
+showing the embedded Studio HTML. Not in default features (requires
+WebKitGTK on Linux). Verified compiles on macOS arm64.
+
+### WP8: ISO wiring and docs — done
+
+`docs/NEPALI_OS.md` updated with modes, bundling, studio, TUI, WASM,
+CLI reference table, `NEPALI_MODE` config. `README.md` project layout
+updated with `nepali-wasm`, studio, modes, bundle. ISO overlay rebuild
+not run in this session (requires Docker Desktop with sufficient disk;
+existing overlay carries the old binary). To rebuild: `ARCH=arm64
+NEPALI_BUNDLE_MODEL=~/.nepali-ai/llm-large/model.gguf
+./os-image/build-overlay.sh ...`.

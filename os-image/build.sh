@@ -151,6 +151,8 @@ echo 'NEPALI_AI_TTS_MODEL_PATH=/usr/local/share/nepali-ai/tts/model' >> /etc/env
 echo 'NEPALI_AI_TTS_VOCODER_PATH=/usr/local/share/nepali-ai/tts/vocoder' >> /etc/environment
 echo 'NEPALI_AI_TTS_SPEAKER_EMBEDDING_PATH=/usr/local/share/nepali-ai/tts/speaker.npy' >> /etc/environment
 echo 'NEPALI_AI_TTS_OUTPUT_DIR=/home/nepali/.nepali/tts-output' >> /etc/environment
+# Mode marker: presence tells `nepali` this is Nepali OS (full OS mode).
+echo 'nepali-os=1' > /etc/nepali-os-release
 EOF
 chmod +x config/hooks/live/0100-nepali-user.hook.chroot
 

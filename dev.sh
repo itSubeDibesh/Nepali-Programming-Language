@@ -9,7 +9,12 @@
 # The AI models live in ~/.nepali-ai (llm-large = Qwen2.5-1.5B, llm-small = 0.5B).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-(cd "$ROOT/crates/nepali-core" && cargo build --release --features ai-interop -q)
+STUDIO=""
+if [ "${1:-}" = "studio" ]; then
+  STUDIO=",studio"
+  shift
+fi
+(cd "$ROOT/crates/nepali-core" && cargo build --release --features "ai-interop${STUDIO}" -q)
 MODEL=${NEPALI_AI_MODEL_DIR:-$HOME/.nepali-ai/llm-large}
 if [ -f "$MODEL/model.gguf" ]; then
   export NEPALI_AI_MODEL_PATH="$MODEL/model.gguf" NEPALI_AI_TOKENIZER_PATH="$MODEL/tokenizer.json"
@@ -17,8 +22,7 @@ fi
 mkdir -p "$HOME/.nepali"
 export NEPALI_DB=${NEPALI_DB:-$HOME/.nepali/os.db}
 BIN="$ROOT/crates/nepali-core/target/release/nepali-core-cli"
-if [ "${1:-}" = "studio" ]; then
-  shift
-  NEPALI_BIN="$BIN" exec python3 "$ROOT/studio/studio.py" "$@"
+if [ -n "$STUDIO" ]; then
+  exec "$BIN" studio --nepali "$BIN" "$@"
 fi
 exec "$BIN" "$@"

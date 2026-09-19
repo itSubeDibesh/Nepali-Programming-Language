@@ -3,11 +3,14 @@
 //! bare-metal kernel had, just real `std::fs` and a real SQLite database
 //! (via `rusqlite`, bundled/statically-linked C SQLite - a real, audited
 //! engine, not a hand-rolled one; see CLAUDE.md's non-goals).
-use nepali_core::{HostCommand, HostDb, HostFs, Value};
+use nepali_core::{HostCommand, HostFs, Value};
+#[cfg(feature = "db")]
+use nepali_core::HostDb;
 use std::cell::RefCell;
 use std::fs;
 use std::process::Command;
 use std::rc::Rc;
+#[cfg(feature = "db")]
 use std::sync::Mutex;
 
 pub struct LinuxFs;
@@ -38,10 +41,12 @@ impl HostFs for LinuxFs {
 /// this interpreter is single-threaded, so a `Mutex` is only needed to
 /// get `&self` (not `&mut self`) methods on the trait, not for real
 /// concurrent access.
+#[cfg(feature = "db")]
 pub struct SqliteDb {
     conn: Mutex<rusqlite::Connection>,
 }
 
+#[cfg(feature = "db")]
 impl SqliteDb {
     pub fn open(path: &str) -> Result<Self, String> {
         let conn = rusqlite::Connection::open(path)
@@ -50,6 +55,7 @@ impl SqliteDb {
     }
 }
 
+#[cfg(feature = "db")]
 impl HostDb for SqliteDb {
     fn execute(&self, sql: &str) -> Result<f64, String> {
         let conn = self.conn.lock().map_err(|_| "database lock poisoned".to_string())?;
@@ -157,6 +163,7 @@ mod tests {
         assert!(fs.read_file("/definitely/does/not/exist.txt").is_err());
     }
 
+    #[cfg(feature = "db")]
     #[test]
     fn real_sqlite_create_insert_select_round_trip() {
         let path = std::env::temp_dir().join("nepali_core_test_db.sqlite");
@@ -186,6 +193,7 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    #[cfg(feature = "db")]
     #[test]
     fn real_sqlite_persists_across_reopening_the_same_file() {
         let path = std::env::temp_dir().join("nepali_core_test_db_persist.sqlite");
@@ -204,6 +212,7 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    #[cfg(feature = "db")]
     #[test]
     fn invalid_sql_is_a_real_error() {
         let path = std::env::temp_dir().join("nepali_core_test_db_badsql.sqlite");

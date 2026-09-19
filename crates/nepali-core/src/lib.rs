@@ -20,7 +20,7 @@ pub use bytecode::Compiler;
 pub use formatter::format;
 pub use interpreter::{
     HostAi, HostCache, HostChannel, HostCommand, HostDb, HostFs, HostJs, HostProcess, HostPython,
-    HostRust, Interpreter, Value,
+    HostRust, Interpreter, Mode, Value,
 };
 pub use lexer::Lexer;
 pub use parser::Parser;

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ne">
+<head>
+<meta charset="utf-8">
+<title>नेपाली स्टुडियो (WASM)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#0a0e1e; --panel:#0f1530; --out:#070a17; --line:#26336e; --text:#f2f2f2; --dim:#8fa0d8;
+          --red:#dc143c; --blue:#003893; --ok:#7bd88f; --err:#ff6b81; }
+  * { box-sizing: border-box; }
+  html, body { height:100%; margin:0; background:var(--bg); color:var(--text);
+    font-family:"Noto Sans Devanagari","Kohinoor Devanagari","Devanagari Sangam MN",-apple-system,"Segoe UI",sans-serif; }
+  body { display:grid; grid-template-rows:auto 1fr auto; height:100vh; padding:10px; gap:8px; }
+  .bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  button { background:#1b2450; color:#fff; border:1px solid var(--blue); border-radius:6px; padding:8px 14px;
+    font:inherit; font-size:15px; cursor:pointer; }
+  button:hover { background:#26336e; }
+  button.run { background:var(--red); border-color:var(--red); font-weight:700; }
+  button.run:hover { background:#f0264d; }
+  .main { display:grid; grid-template-columns:1fr 1fr; gap:10px; min-height:0; }
+  textarea#code, pre#out { background:var(--panel); color:var(--text); border:1px solid var(--line);
+    border-radius:8px; margin:0; padding:12px; overflow:auto; min-height:0; }
+  textarea#code { resize:none; width:100%; height:100%; outline:none; tab-size:2; white-space:pre;
+    font-family:Menlo,"SF Mono","Kohinoor Devanagari","Devanagari Sangam MN",monospace; font-size:18px; line-height:1.55; }
+  textarea#code:focus { border-color:var(--red); }
+  pre#out { background:var(--out); font-family:inherit; font-size:17px; white-space:pre-wrap; }
+  .err { color:var(--err); } .ok { color:var(--ok); }
+  .footer { text-align:center; color:var(--dim); font-size:13px; padding:4px 0; }
+  .examples { display:flex; gap:6px; flex-wrap:wrap; }
+  .examples button { font-size:13px; padding:4px 10px; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <b>नेपाली स्टुडियो (WASM)</b>
+  <button class="run" onclick="runCode()">F5 चलाउनुहोस्</button>
+  <button onclick="clearOutput()">खाली गर्नुहोस्</button>
+  <div class="examples" id="examples"></div>
+</div>
+<div class="main">
+  <textarea id="code" placeholder="यहाँ नेपाली कोड लेख्नुहोस्...">भनौँ "नमस्ते संसार!" ।</textarea>
+  <pre id="out">WASM लोड हुँदैछ...</pre>
+</div>
+<div class="footer">nepali-wasm — pure language, no server needed</div>
+
+<script type="module">
+  import init, { run, check } from './wasm-pkg/nepali_wasm.js';
+
+  let ready = false;
+
+  async function startup() {
+    try {
+      await init();
+      ready = true;
+      document.getElementById('out').textContent = 'तयार!';
+    } catch (e) {
+      document.getElementById('out').innerHTML = '<span class="err">WASM load failed: ' + e + '</span>';
+    }
+  }
+  startup();
+
+  window.runCode = function() {
+    if (!ready) return;
+    const code = document.getElementById('code').value;
+    const out = document.getElementById('out');
+    try {
+      const result = run(code);
+      out.innerHTML = '';
+      out.textContent = result || '(no output)';
+      out.classList.add('ok');
+      out.classList.remove('err');
+    } catch (e) {
+      out.innerHTML = '<span class="err">' + e.message + '</span>';
+      out.classList.remove('ok');
+      out.classList.add('err');
+    }
+  };
+
+  window.clearOutput = function() {
+    document.getElementById('out').textContent = '';
+  };
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'F5') { e.preventDefault(); window.runCode(); }
+  });
+</script>
+</body>
+</html>

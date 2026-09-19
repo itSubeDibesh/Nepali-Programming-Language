@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            archive: nepali-{version}-x86_64-linux.tar.gz
+            use_musl: true
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            archive: nepali-{version}-aarch64-linux.tar.gz
+            use_musl: true
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: nepali-{version}-aarch64-macos.tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-13
+            archive: nepali-{version}-x86_64-macos.tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: nepali-{version}-x86_64-windows.zip
+
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.target }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux musl)
+        if: matrix.use_musl
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y musl-tools
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build (release, portable features)
+        run: >
+          cargo build --release
+          --target ${{ matrix.target }}
+          --manifest-path crates/nepali-core/Cargo.toml
+          --no-default-features --features rust-interop,js-interop
+
+      - name: Rename binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          BIN="crates/nepali-core/target/${{ matrix.target }}/release/nepali-core-cli"
+          VERSION="${GITHUB_REF_NAME#v}"
+          ARCHIVE="${{ matrix.archive }}"
+          ARCHIVE="${ARCHIVE/\{version\}/$VERSION}"
+          cp "$BIN" nepali
+          tar czf "$ARCHIVE" nepali
+          echo "ASSET=$ARCHIVE" >> "$GITHUB_ENV"
+
+      - name: Rename binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bin = "crates/nepali-core/target/${{ matrix.target }}/release/nepali-core-cli.exe"
+          $version = "${GITHUB_REF_NAME#v}"
+          $archive = "${{ matrix.archive }}".Replace("{version}", $version)
+          Copy-Item $bin nepali.exe
+          Compress-Archive -Path nepali.exe -DestinationPath $archive
+          echo "ASSET=$archive" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: ${{ env.ASSET }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        working-directory: artifacts
+        run: sha256sum * > SHA256SUMS
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

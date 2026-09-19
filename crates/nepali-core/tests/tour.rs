@@ -33,12 +33,19 @@ fn every_tour_example_prints_exactly_its_expected_output() {
         let expected = std::fs::read_to_string(&expected_path)
             .unwrap_or_else(|_| panic!("missing expected output {}", expected_path.display()));
 
-        let output = Command::new(env!("CARGO_BIN_EXE_nepali-core-cli"))
-            .arg(&file)
+        // OS-dependent examples need --mode os to access filesystem/commands/database/interop.
+        let needs_os = file.file_name().map_or(false, |f| {
+            let s = f.to_string_lossy();
+            s.starts_with("12_") || s.starts_with("13_")
+        });
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_nepali-core-cli"));
+        cmd.arg(&file)
             .current_dir(tour_dir())
-            .env("NEPALI_DB", db_dir.join("tour.db"))
-            .output()
-            .expect("run nepali-core-cli");
+            .env("NEPALI_DB", db_dir.join("tour.db"));
+        if needs_os {
+            cmd.arg("--mode").arg("os");
+        }
+        let output = cmd.output().expect("run nepali-core-cli");
 
         assert!(
             output.status.success(),

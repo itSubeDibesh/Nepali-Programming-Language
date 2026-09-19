@@ -88,7 +88,10 @@ is the guide to running the OS and what it can do.
 
 - `crates/nepali-core/` — the language: lexer, parser, interpreter,
   bytecode VM, and all host-integration bridges (filesystem, database,
-  Python/Rust/Go/JS interop, AI, real command execution).
+  Python/Rust/Go/JS interop, AI, real command execution). Modes
+  (`sandbox`/`os`), `bundle` subcommand, `studio` embedded server,
+  `--tui` terminal REPL, native `--window` (wry+tao).
+- `crates/nepali-wasm/` — WebAssembly build for the browser (no server).
 - `crates/nepali-plugin-abi/` — the stable C-ABI shared between the
   language and native Rust/Go plugins it can load at runtime.
 - `crates/nepali-fileserver/`, `crates/nepali-dnsserver/` — real,
@@ -99,7 +102,8 @@ is the guide to running the OS and what it can do.
   native compiler (`native/`), and a Next.js hosting proof.
 - `os-image/` — tooling for building the bootable ISO.
 - `Dockerfile` — the full OS image, AI included.
-- `install.sh` — standalone language installer.
+- `install.sh` — standalone language installer (downloads prebuilt
+  binaries or builds from source; never downloads AI models).
 
 ## Status
 

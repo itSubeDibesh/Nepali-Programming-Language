@@ -47,7 +47,7 @@ fn run_nepali_source(code: &str) -> anyhow::Result<String> {
     let mut tmp = tempfile_path();
     tmp.push_str(".nep");
     std::fs::File::create(&tmp)?.write_all(code.as_bytes())?;
-    let output = Command::new(nepali_bin()).arg(&tmp).output();
+    let output = Command::new(nepali_bin()).arg("--mode").arg("sandbox").arg(&tmp).output();
     let _ = std::fs::remove_file(&tmp);
     let output = output?;
     let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();

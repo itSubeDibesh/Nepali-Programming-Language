@@ -37,7 +37,7 @@ class Config:
 
 def run_nepali(args, timeout, cwd=None):
     try:
-        r = subprocess.run([Config.nepali] + args, capture_output=True, text=True, encoding="utf-8",
+        r = subprocess.run([Config.nepali, "--mode", "sandbox"] + args, capture_output=True, text=True, encoding="utf-8",
                            timeout=timeout, cwd=cwd or Config.workdir,
                            env={**os.environ, "NEPALI_SCRIPT": "devanagari", "NEPALI_DIGITS": "devanagari"})
         return {"stdout": r.stdout, "stderr": r.stderr, "rc": r.returncode}

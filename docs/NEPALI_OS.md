@@ -122,10 +122,27 @@ How a line is handled:
    a program has the same name as one of your variables.
 
 Run a file with `nepali file.nep`. Format one with `nepali fmt file.nep`
-(`--check` only reports). To learn the language, work through
+(`--check` only reports). List examples with `nepali examples/`.
+To learn the language, work through
 [`examples/tour/`](../examples/tour/README.md), then
 [`examples/conditions/`](../examples/conditions/README.md) for every
 condition and every error message.
+
+| Command | What |
+|---|---|
+| `nepali file.nep` | run a Nepali program |
+| `nepali file.nep --mode sandbox` | run in sandbox mode (no host access) |
+| `nepali fmt file.nep` | format (re-indent) a program |
+| `nepali fmt --check file.nep` | check if formatting is correct (exit 1 if not) |
+| `nepali bundle <binary> <program.nep> -o <out>` | embed program into a binary |
+| `nepali studio` | start the web editor at http://localhost:8765 |
+| `nepali studio --tui` | terminal REPL with phonetic typing |
+| `nepali studio --window` | native desktop window (requires **gui** feature) |
+| `nepali ask "question"` | ask the local AI |
+| `nepali agent "goal" 10` | run an AI agent loop (max 10 steps) |
+| `nepali --roman` | force Roman (ASCII) output |
+| `nepali --devanagari` | force Devanagari output |
+| `nepali --digits` | show all digits as Devanagari (०१२३...) |
 
 ## What you can do
 
@@ -212,9 +229,56 @@ own; your own scripts can still call `आदेश_चलाउनुहोस�
 | Tool | What |
 |---|---|
 | `nepali fmt` | formatter (in the `nepali` binary) |
+| `nepali studio` | embedded HTTP server (no Python needed) with the editor, translit, AI pane |
+| `nepali studio --tui` | terminal-only phonetic typing REPL (no browser needed) |
+| `nepali studio --window` | native desktop window via wry+tao (**gui** feature, not in default build) |
+| `nepali bundle` | make a self-running binary (embeds a `.nep` program into the `nepali` binary) |
+| `nepali --mode sandbox` | language-only mode (no filesystem/commands/DB/Python/Rust) |
 | `crates/nepali-lsp` | language server: live errors and formatting in an editor |
 | `crates/nepali-mcp` | MCP server exposing run-script, ask-AI and run-agent to AI tools |
 | `crates/nepali-codegen` | compiler to machine code via LLVM, for numeric programs only |
+| `crates/nepali-wasm` | WASM build for the browser (no server needed) |
+
+### Modes (sandbox vs OS)
+
+`nepali --mode sandbox` restricts the language to pure computation: no filesystem,
+no commands, no DB, no Python/Rust/Go, no cache, no agent. JavaScript, TypeScript
+and AI are allowed (they have no host access). Bundles always run in sandbox mode.
+
+`nepali --mode os` (the default) enables everything. Auto-detected via
+`/etc/nepali-os-release` inside the Docker image or ISO; on a plain machine it
+defaults to OS mode.
+
+### Bundling
+
+Package a program into a self-running binary:
+
+```bash
+nepali bundle /usr/local/bin/nepali myprogram.nep -o myapp
+./myapp                          # runs myprogram.nep in sandbox mode
+```
+
+The program is appended to the binary as a trailer. The binary must be a
+`nepali` build (the trailer magic is `NEPALI_BUNDLE_v1`). The embedded
+program runs sandboxed regardless of the binary's compile-time features.
+
+### WASM (browser, no server)
+
+The language compiles to WebAssembly for running in a browser with zero
+backend:
+
+```bash
+cd crates/nepali-wasm
+rustup target add wasm32-unknown-unknown
+cargo build --target wasm32-unknown-unknown --release
+wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/release/nepali_wasm.wasm
+```
+
+Then open `studio/wasm.html` (or `studio/index.html` served by any static
+file server). Only pure language features work: no filesystem, no commands,
+no Python, no DB. Arithmetic, variables, closures, arrays, and text all work.
+
+Verified in Node: all 10 pure-language tour examples produce correct output.
 
 ## Configuration
 
@@ -222,6 +286,7 @@ Set with `-e NAME=value` in Docker, or in the environment.
 
 | Variable | Default | Meaning |
 |---|---|---|
+| `NEPALI_MODE` | auto (`/etc/nepali-os-release`) | `sandbox` or `os` |
 | `NEPALI_DB` | `~/.nepali/os.db` | SQLite database file |
 | `NEPALI_REDIS_URL` | `redis://127.0.0.1:6379` | Redis for the cache builtins |
 | `NEPALI_FILES_DIR` | `./files` (image: `~/.nepali/files`) | file server folder |

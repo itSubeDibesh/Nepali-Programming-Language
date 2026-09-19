@@ -31,3 +31,7 @@ npm-debug.log*
 *.log
 tmp/
 dump.rdb
+
+# WASM build artifacts
+crates/nepali-wasm/pkg/
+studio/wasm-pkg/

@@ -151,6 +151,10 @@ COPY --from=builder /build/crates/nepali-dnsserver/target/release/nepali-dnsserv
 # VM/bare-metal install later, not only `docker run`.
 RUN echo /usr/local/bin/nepali >> /etc/shells && \
     useradd -m -s /usr/local/bin/nepali nepali
+# Mode marker: its presence tells the `nepali` binary this is Nepali OS
+# (full OS mode, not sandbox). Created by the Dockerfile and the ISO
+# build; absent everywhere else (install.sh, standalone binary).
+RUN echo "nepali-os=1" > /etc/nepali-os-release
 # The data folder must already exist and belong to `nepali`: Docker copies
 # an image folder's ownership into a fresh named volume mounted over it, so
 # `-v nepali-data:/home/nepali/.nepali` keeps the database across runs. Without

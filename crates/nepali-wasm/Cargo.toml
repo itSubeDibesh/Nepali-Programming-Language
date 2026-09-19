@@ -1,0 +1,17 @@
+[package]
+name = "nepali-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "Nepali language for WebAssembly"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+nepali-core = { path = "../nepali-core", default-features = false }
+wasm-bindgen = "0.2"
+
+[profile.release]
+opt-level = "s"
+lto = true

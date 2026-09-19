@@ -27,8 +27,8 @@ path = "src/cli/main.rs"
 # implementation (src/cli/host_linux.rs) - the no_std lib itself never
 # references it. A real, audited SQLite binding (bundled, statically
 # linked C SQLite) rather than a hand-rolled database engine - see
-# CLAUDE.md's non-goals.
-rusqlite = { version = "0.31", features = ["bundled"] }
+# CLAUDE.md's non-goals. `optional`: not needed for WASM builds.
+rusqlite = { version = "0.31", features = ["bundled"], optional = true }
 
 # Real embedded CPython (via the system's real libpython, found at build
 # time) - the first of four planned real-interop bridges (Python, then
@@ -97,6 +97,16 @@ hound = { version = "3.5", optional = true }
 # already derives serde::Deserialize with matching field names).
 serde_json = { version = "1", optional = true }
 
+# Native window via wry+tao: --window flag opens a native WebView with
+# the same Studio UI. Optional: only needed for the native window front.
+wry = { version = "0.57", optional = true }
+tao = { version = "0.37", optional = true }
+
+# Studio embedded HTTP server: tiny_http is already proven in
+# nepali-fileserver (the same real, small, audited crate).  Gated
+# behind `studio` (not in default) so the language binary stays lean.
+tiny_http = { version = "0.12", optional = true }
+
 [features]
 # Every bridge above HostDb (always-on: rusqlite is bundled/statically
 # compiled already, zero portability cost) is independently optional, so
@@ -105,12 +115,15 @@ serde_json = { version = "1", optional = true }
 # statically linked already." Defaults to everything, matching this
 # crate's behavior before this feature-gating existed - existing
 # Dockerfile/os-image builds need no changes.
-default = ["python-interop", "rust-interop", "js-interop", "cache"]
+default = ["python-interop", "rust-interop", "js-interop", "cache", "studio", "db"]
 python-interop = ["dep:pyo3"]
 rust-interop = ["dep:libloading", "dep:nepali-plugin-abi"]
 js-interop = ["dep:rquickjs", "dep:swc_core"]
 cache = ["dep:redis"]
+db = ["dep:rusqlite"]
 ai-interop = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers", "dep:hound", "dep:serde_json", "dep:pyo3"]
+studio = ["dep:tiny_http", "dep:serde_json"]
+gui = ["dep:wry", "dep:tao"]
 wasm = ["wasm-bindgen"]
 
 [dependencies.wasm-bindgen]

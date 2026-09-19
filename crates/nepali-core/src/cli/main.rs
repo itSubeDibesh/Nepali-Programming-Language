@@ -1,6 +1,7 @@
-use nepali_core::{Interpreter, Parser, Resolver};
+use nepali_core::{Interpreter, Mode, Parser, Resolver};
 use std::env;
-use std::io::{self, Write};
+use std::fs;
+use std::io::{self, Read, Seek, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::rc::Rc;
@@ -18,6 +19,11 @@ mod host_python;
 mod host_rust;
 mod loader;
 mod roman;
+#[cfg(feature = "studio")]
+mod studio;
+mod translit;
+#[cfg(feature = "gui")]
+mod window;
 
 /// Print through the script filter: Devanagari normally, Roman on terminals that cannot draw it.
 macro_rules! say {
@@ -37,43 +43,400 @@ use host_ai::LocalAi;
 use host_cache::RedisCache;
 #[cfg(feature = "js-interop")]
 use host_js::QuickJsHost;
-use host_linux::{LinuxFs, RealCommand, SqliteDb};
+use host_linux::{LinuxFs, RealCommand};
+#[cfg(feature = "db")]
+use host_linux::SqliteDb;
 #[cfg(feature = "python-interop")]
 use host_python::PyHost;
 #[cfg(feature = "rust-interop")]
 use host_rust::RustPluginHost;
 
-fn main() -> ExitCode {
-    // --roman / --devanagari force how output is shown (see roman.rs); read before any output.
-    let mut args: Vec<String> = Vec::new();
-    for (i, a) in env::args().enumerate() {
-        match a.as_str() {
-            "--roman" if i > 0 => env::set_var("NEPALI_SCRIPT", "roman"),
-            "--devanagari" if i > 0 => env::set_var("NEPALI_SCRIPT", "devanagari"),
-            "--digits" if i > 0 => env::set_var("NEPALI_DIGITS", "devanagari"),
-            _ => args.push(a),
+/// Magic trailer marker: `[source][4 bytes LE len][16 bytes magic]`.
+const BUNDLE_MAGIC: &[u8; 16] = b"NEPALI_BUNDLE_v1";
+
+/// If the running executable contains an embedded program trailer,
+/// extract and return the source. Returns `None` if there's no trailer.
+fn try_load_embedded() -> Option<String> {
+    let exe = env::current_exe().ok()?;
+    let mut file = fs::File::open(&exe).ok()?;
+
+    // Read the last 8KB to find the trailer (trailer is ~16+4 bytes,
+    // but we read more to be safe about alignment).
+    let file_len = file.metadata().ok()?.len();
+    if file_len < BUNDLE_MAGIC.len() as u64 + 4 {
+        return None;
+    }
+    let read_start = file_len.saturating_sub(8192);
+    let mut buf = Vec::new();
+    file.seek(io::SeekFrom::Start(read_start)).ok()?;
+    file.read_to_end(&mut buf).ok()?;
+
+    // Find the last magic marker in `buf`.
+    let magic_pos = buf
+        .windows(BUNDLE_MAGIC.len())
+        .rposition(|w| w == BUNDLE_MAGIC)?;
+    if magic_pos < 4 {
+        return None;
+    }
+    let len_bytes: [u8; 4] = buf[magic_pos - 4..magic_pos].try_into().ok()?;
+    let src_len = u32::from_le_bytes(len_bytes) as usize;
+
+    // Source lives just before the length field. The offset into the file
+    // is: read_start + (magic_pos - 4 - src_len).
+    let src_offset = read_start + (magic_pos as u64) - 4 - src_len as u64;
+    let mut src = vec![0u8; src_len];
+    let mut f2 = fs::File::open(&exe).ok()?;
+    f2.seek(io::SeekFrom::Start(src_offset)).ok()?;
+    f2.read_exact(&mut src).ok()?;
+    String::from_utf8(src).ok()
+}
+
+/// Copies `exe_path` to `out_path`, appending the program source as a
+/// trailer so the binary runs it at startup (sandbox mode).
+fn run_bundle(exe_path: &str, source_path: &str, out_path: &str) -> ExitCode {
+    let src = match fs::read_to_string(source_path) {
+        Ok(s) => s,
+        Err(e) => {
+            warn_!("nepali bundle: {source_path}: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    // Read the source file's imports too, embedding them as a single
+    // flattened source (matching loader::load's behavior).
+    let program = match loader::load(Path::new(source_path)) {
+        Ok(p) => p,
+        Err(e) => {
+            warn_!("nepali bundle: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    if let Err(errors) = Resolver::resolve(&program) {
+        for e in &errors {
+            warn_!("nepali bundle: विश्लेषण त्रुटि: {e}");
+        }
+        return ExitCode::FAILURE;
+    }
+
+    // For the embedded source, use the raw file content (imports
+    // resolve at runtime against the CWD, which is the normal behavior).
+    let src_bytes = src.as_bytes();
+    let len_bytes = (src_bytes.len() as u32).to_le_bytes();
+
+    let exe = match fs::read(exe_path) {
+        Ok(b) => b,
+        Err(e) => {
+            warn_!("nepali bundle: {exe_path}: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    // Check it doesn't already have a bundle trailer (only at the very end).
+    let trailer_len = 4 + BUNDLE_MAGIC.len();
+    if exe.len() >= trailer_len {
+        let end = &exe[exe.len() - trailer_len..];
+        if end.ends_with(BUNDLE_MAGIC) {
+            warn_!("nepali bundle: {exe_path} already has an embedded program");
+            return ExitCode::FAILURE;
         }
     }
+
+    let mut out = Vec::with_capacity(exe.len() + src_bytes.len() + 4 + BUNDLE_MAGIC.len());
+    out.extend_from_slice(&exe);
+    out.extend_from_slice(src_bytes);
+    out.extend_from_slice(&len_bytes);
+    out.extend_from_slice(BUNDLE_MAGIC);
+
+    if let Err(e) = fs::write(out_path, &out) {
+        warn_!("nepali bundle: {out_path}: {e}");
+        return ExitCode::FAILURE;
+    }
+
+    // Make the output executable.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(out_path, fs::Permissions::from_mode(0o755));
+    }
+
+    say!("{out_path}");
+    ExitCode::SUCCESS
+}
+
+fn main() -> ExitCode {
+    // Check for an embedded program first (nepali bundle).
+    if let Some(src) = try_load_embedded() {
+        return run_embedded(&src);
+    }
+
+    // --roman / --devanagari force how output is shown (see roman.rs); read before any output.
+    // --mode os|sandbox controls which builtins are available (see WP1).
+    let raw_args: Vec<String> = env::args().collect();
+    let mut args: Vec<String> = Vec::new();
+    // Preserve argv[0] so indexing matches the original: args[0]=binary, args[1]=first user arg.
+    args.push(raw_args[0].clone());
+    let mut mode_override: Option<Mode> = None;
+    let mut i = 1;
+    while i < raw_args.len() {
+        match raw_args[i].as_str() {
+            "--roman" => env::set_var("NEPALI_SCRIPT", "roman"),
+            "--devanagari" => env::set_var("NEPALI_SCRIPT", "devanagari"),
+            "--digits" => env::set_var("NEPALI_DIGITS", "devanagari"),
+            "--mode" => {
+                i += 1;
+                if i < raw_args.len() {
+                    mode_override = Some(match raw_args[i].as_str() {
+                        "sandbox" => Mode::Sandbox,
+                        "os" => Mode::Os,
+                        other => {
+                            eprintln!("nepali: अमान्य मोड '{other}' (--mode os वा --mode sandbox प्रयोग गर्नुहोस्)");
+                            return ExitCode::FAILURE;
+                        }
+                    });
+                } else {
+                    eprintln!("nepali: --mode लाई मान चाहिन्छ (os वा sandbox)");
+                    return ExitCode::FAILURE;
+                }
+            }
+            _ => args.push(raw_args[i].clone()),
+        }
+        i += 1;
+    }
+    let mode = mode_override
+        .or_else(|| match env::var("NEPALI_MODE").ok().as_deref() {
+            Some("sandbox") => Some(Mode::Sandbox),
+            Some("os") => Some(Mode::Os),
+            Some(other) => {
+                eprintln!("nepali: अमान्य NEPALI_MODE '{other}' (os वा sandbox हुनुपर्छ)");
+                None
+            }
+            None => None,
+        })
+        .unwrap_or_else(detect_mode);
     match args.get(1).map(String::as_str) {
         Some("fmt") => run_fmt(&args[2..]),
-        Some(kind @ ("ask" | "agent")) => run_ai_command(kind, &args[2..].join(" ")),
-        Some(_) => run_script(&args[1]),
+        Some("bundle") => {
+            if args.len() < 5 {
+                warn_!("usage: nepali bundle <nepali-binary> <program.nep> -o <output>");
+                return ExitCode::FAILURE;
+            }
+            let out = if args[4] == "-o" { &args[5] } else { &args[4] };
+            run_bundle(&args[2], &args[3], out)
+        }
+        #[cfg(feature = "studio")]
+        Some("studio") => {
+            let mut port: u16 = 8765;
+            let mut no_open = false;
+            let mut tui = false;
+            #[cfg(feature = "gui")]
+            let mut window = false;
+            let mut nepali_bin: Option<String> = None;
+            let mut i = 2;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--port" => {
+                        i += 1;
+                        if let Some(p) = args.get(i) {
+                            port = p.parse().unwrap_or(8765);
+                        }
+                    }
+                    "--no-open" => no_open = true,
+                    "--tui" => tui = true,
+                    #[cfg(feature = "gui")]
+                    "--window" => window = true,
+                    "--nepali" => {
+                        i += 1;
+                        nepali_bin = args.get(i).cloned();
+                    }
+                    other => {
+                        warn_!("nepali studio: unknown option '{other}'");
+                        return ExitCode::FAILURE;
+                    }
+                }
+                i += 1;
+            }
+            if tui {
+                run_tui(mode)
+            } else {
+                #[cfg(feature = "gui")]
+                if window {
+                    window::run_window(port);
+                    ExitCode::SUCCESS
+                } else {
+                    studio::run_studio(port, no_open, nepali_bin.as_deref());
+                    ExitCode::SUCCESS
+                }
+                #[cfg(not(feature = "gui"))]
+                {
+                    studio::run_studio(port, no_open, nepali_bin.as_deref());
+                    ExitCode::SUCCESS
+                }
+            }
+        }
+        Some(kind @ ("ask" | "agent")) => run_ai_command(kind, &args[2..].join(" "), mode),
+        Some(_) => run_script(&args[1], mode),
         // No argument: this is how a login shell is invoked (the shell
         // field in /etc/passwd is run with no arguments, not "-i") - so
         // no-args means "be an interactive shell", not "print usage".
-        None => run_shell(),
+        None => run_shell(mode),
+    }
+}
+
+/// Runs an embedded program (from `nepali bundle`) in sandbox mode.
+fn run_embedded(src: &str) -> ExitCode {
+    let mut parser = Parser::new(src);
+    let program = match parser.parse_program() {
+        Ok(p) => p,
+        Err(e) => {
+            warn_!("बन्डल त्रुटि (वाक्य रचना): {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    if let Err(errors) = Resolver::resolve(&program) {
+        for e in &errors {
+            warn_!("बन्डल त्रुटि (विश्लेषण): {e}");
+        }
+        return ExitCode::FAILURE;
+    }
+
+    let mut interp = Interpreter::new();
+    interp.set_mode(Mode::Sandbox);
+    interp.set_host_fs(Rc::new(LinuxFs));
+    if let Some(db) = open_host_db() {
+        interp.set_host_db(db);
+    }
+    #[cfg(feature = "js-interop")]
+    interp.set_host_js(Rc::new(QuickJsHost));
+
+    if let Err(e) = interp.run(&program) {
+        for line in &interp.output {
+            say!("{}", roman::digits(line));
+        }
+        warn_!("बन्डल त्रुटि (चलाउँदा): {e}");
+        return ExitCode::FAILURE;
+    }
+    for line in &interp.output {
+        say!("{}", roman::digits(line));
+    }
+    ExitCode::SUCCESS
+}
+
+/// TUI mode: simple stdin/stdout REPL with phonetic typing.
+/// Type Roman, get Devanagari. End with `?` to ask the AI, or a blank line to run.
+fn run_tui(mode: Mode) -> ExitCode {
+    use std::io::BufRead;
+    let stdin = io::stdin();
+    let mut interp = Interpreter::new();
+    interp.set_mode(mode);
+    interp.set_host_fs(Rc::new(host_linux::LinuxFs));
+    if let Some(db) = open_host_db() {
+        interp.set_host_db(db);
+    }
+    #[cfg(feature = "js-interop")]
+    interp.set_host_js(Rc::new(host_js::QuickJsHost));
+
+    say!("नेपाली स्टुडियो (TUI) — रोमनमा टाइप गर्नुहोस्, नेपाली पाउनुहोस्।");
+    say!("खाली लाइन = चलाउनुहोस्, `?` = AI सोध्नुहोस्, Ctrl+C = बाहिर।");
+
+    let mut buffer = String::new();
+    loop {
+        say_no_nl!("nep> ");
+        let mut line = String::new();
+        match stdin.lock().read_line(&mut line) {
+            Ok(0) => break, // EOF
+            Ok(_) => {}
+            Err(_) => break,
+        }
+        let line = line.trim_end().to_string();
+        if line.is_empty() && !buffer.is_empty() {
+            // Run the buffered code.
+            let code = std::mem::take(&mut buffer);
+            let mut parser = Parser::new(&code);
+            match parser.parse_program() {
+                Ok(program) => {
+                    if let Err(errors) = Resolver::resolve(&program) {
+                        for e in &errors {
+                            warn_!("विश्लेषण त्रुटि: {e}");
+                        }
+                        continue;
+                    }
+                    interp.output.clear();
+                    if let Err(e) = interp.run(&program) {
+                        for line in &interp.output {
+                            say!("{}", roman::digits(line));
+                        }
+                        warn_!("त्रुटि: {e}");
+                    } else {
+                        for line in &interp.output {
+                            say!("{}", roman::digits(line));
+                        }
+                    }
+                }
+                Err(e) => warn_!("वाक्य रचना त्रुटि: {e}"),
+            }
+            continue;
+        }
+        if line == "?" {
+            // AI question.
+            let q = buffer.trim().to_string();
+            buffer.clear();
+            if q.is_empty() {
+                warn_!("प्रश्न खाली छ।");
+                continue;
+            }
+            let result = run_ai_command_str("ask", &q, &mode);
+            say!("{result}");
+            continue;
+        }
+        // Transliterate Roman to Devanagari and buffer.
+        let dev = translit::transliterate_line(&line);
+        buffer.push_str(&dev);
+        buffer.push('\n');
+        say!("  → {dev}");
+    }
+    ExitCode::SUCCESS
+}
+
+/// Run an AI command and return the result as a string (for TUI use).
+fn run_ai_command_str(kind: &str, text: &str, _mode: &Mode) -> String {
+    let args = vec!["--mode", "sandbox", kind, text];
+    match Command::new(env::current_exe().unwrap_or_default())
+        .args(&args)
+        .output()
+    {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+            let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+            if !stderr.is_empty() {
+                format!("{stdout}\n{stderr}")
+            } else {
+                stdout
+            }
+        }
+        Err(e) => format!("nepali चलाउन सकिएन: {e}"),
+    }
+}
+
+/// Detects whether we're on Nepali OS by checking for `/etc/nepali-os-release`.
+/// If the file exists, the OS was created by this project's Dockerfile or
+/// ISO build and has full OS capabilities. Otherwise, sandbox mode.
+fn detect_mode() -> Mode {
+    if Path::new("/etc/nepali-os-release").exists() {
+        Mode::Os
+    } else {
+        Mode::Sandbox
     }
 }
 
 /// `nepali ask "question"` - one grounded answer from the local AI;
 /// `nepali agent "goal"` - lets the AI agent act. Non-interactive, prints
 /// only the answer (used by the Studio editor and by scripts).
-fn run_ai_command(kind: &str, text: &str) -> ExitCode {
+fn run_ai_command(kind: &str, text: &str, mode: Mode) -> ExitCode {
     if text.trim().is_empty() {
         warn_!("प्रयोग: nepali {kind} \"...\"");
         return ExitCode::FAILURE;
     }
-    let mut interp = new_interpreter();
+    let mut interp = new_interpreter(mode);
     let result = if kind == "ask" {
         interp.ask_assistant(text)
     } else {
@@ -139,7 +502,8 @@ fn database_path() -> PathBuf {
     PathBuf::from(home).join(".nepali").join("os.db")
 }
 
-fn open_host_db() -> Option<Rc<SqliteDb>> {
+#[cfg(feature = "db")]
+fn open_host_db() -> Option<Rc<dyn nepali_core::HostDb>> {
     let path = database_path();
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -152,9 +516,14 @@ fn open_host_db() -> Option<Rc<SqliteDb>> {
         }
     }
 }
+#[cfg(not(feature = "db"))]
+fn open_host_db() -> Option<Rc<dyn nepali_core::HostDb>> {
+    None
+}
 
-fn new_interpreter() -> Interpreter {
+fn new_interpreter(mode: Mode) -> Interpreter {
     let mut interp = Interpreter::new();
+    interp.set_mode(mode);
     interp.set_host_fs(Rc::new(LinuxFs));
     interp.set_host_command(Rc::new(RealCommand));
     if let Some(db) = open_host_db() {
@@ -177,7 +546,7 @@ fn new_interpreter() -> Interpreter {
     interp
 }
 
-fn run_script(path: &str) -> ExitCode {
+fn run_script(path: &str, mode: Mode) -> ExitCode {
     let program = match loader::load(Path::new(path)) {
         Ok(p) => p,
         Err(e) => {
@@ -193,7 +562,7 @@ fn run_script(path: &str) -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    let mut interp = new_interpreter();
+    let mut interp = new_interpreter(mode);
     if let Err(e) = interp.run(&program) {
         for line in &interp.output {
             say!("{}", roman::digits(line));
@@ -229,8 +598,8 @@ fn run_script(path: &str) -> ExitCode {
 /// stated gap, not a silent one. Prefix a line with `!` to force
 /// external execution regardless (e.g. to shadow a `.nep` function with
 /// the same name as a real binary).
-fn run_shell() -> ExitCode {
-    let mut interp = new_interpreter();
+fn run_shell(mode: Mode) -> ExitCode {
+    let mut interp = new_interpreter(mode);
     let stdin = io::stdin();
     let mut last_error: Option<(String, String)> = None;
 
@@ -258,7 +627,11 @@ fn run_shell() -> ExitCode {
         }
 
         if let Some(forced) = line.strip_prefix('!') {
-            run_external(forced.trim());
+            if mode == Mode::Sandbox {
+                warn_!("बाहिरी आदेश चलाउन सकिँदैन (sandbox मोडमा)। `--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्।");
+            } else {
+                run_external(forced.trim());
+            }
             continue;
         }
 
@@ -281,7 +654,9 @@ fn run_shell() -> ExitCode {
             continue;
         }
         if let Some(goal) = strip_command(line, &["गर्नुहोस्", "gara", "agent"]) {
-            if goal.is_empty() {
+            if mode == Mode::Sandbox {
+                warn_!("एजेन्ट सुविधा नेपाली OS मा मात्र चल्छ (`--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्)।");
+            } else if goal.is_empty() {
                 say!("प्रयोग: गर्नुहोस् तपाईंको लक्ष्य");
             } else {
                 ask_ai(&mut interp, "एजेन्ट काम गर्दै छ…", |i| i.run_agent_goal(goal, 6));
@@ -304,7 +679,11 @@ fn run_shell() -> ExitCode {
 
         let first_word = line.split_whitespace().next().unwrap_or("");
         if is_real_executable(first_word) {
-            run_external(line);
+            if mode == Mode::Sandbox {
+                warn_!("बाहिरी आदेश चलाउन सकिँदैन (sandbox मोडमा)। `--mode os` वा NEPALI_MODE=os सेट गर्नुहोस्।");
+            } else {
+                run_external(line);
+            }
             continue;
         }
 
@@ -316,7 +695,9 @@ fn run_shell() -> ExitCode {
                 ask_ai(&mut interp, "सोच्दै छु…", |i| i.ask_assistant(line));
             }
             NepaliOutcome::NotNepali(parse_error) => {
-                if !run_external(line) {
+                if mode == Mode::Sandbox {
+                    warn_!("sandbox मोडमा बाहिरी आदेश चलाउन सकिँदैन: {parse_error}");
+                } else if !run_external(line) {
                     last_error = Some((
                         line.to_string(),
                         format!("not a known command, and not valid Nepali code: {parse_error}"),

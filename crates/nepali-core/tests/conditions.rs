@@ -25,6 +25,7 @@ fn nep_files(dir: &Path) -> Vec<PathBuf> {
 fn run(file: &Path) -> Output {
     let db = std::env::temp_dir().join(format!("nepali-cond-{}.db", std::process::id()));
     Command::new(env!("CARGO_BIN_EXE_nepali-core-cli"))
+        .arg("--mode").arg("os")
         .arg(file)
         .current_dir(file.parent().unwrap())
         .env("NEPALI_DB", db)
