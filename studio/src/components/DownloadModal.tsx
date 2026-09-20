@@ -140,7 +140,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
                 </p>
               </div>
               <a
-                href={`${releasesUrl}/latest`}
+                href="https://github.com/itSubeDibesh/Nepali-Programming-Language/releases/download/v1.0.0/nepali-windows-x86_64.exe"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-4 flex items-center justify-center space-x-1.5 w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition-colors shadow-sm"
@@ -173,7 +173,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
                 </p>
               </div>
               <a
-                href={`${releasesUrl}/latest`}
+                href="https://github.com/itSubeDibesh/Nepali-Programming-Language/releases/download/v1.0.0/nepali-linux-x86_64.tar.gz"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-4 flex items-center justify-center space-x-1.5 w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition-colors shadow-sm"
@@ -214,6 +214,16 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
                 )}
               </button>
             </div>
+          </div>
+
+          {/* macOS Gatekeeper tip */}
+          <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+            <div className="flex items-center space-x-1.5 text-amber-400 font-semibold font-devanagari">
+              <span>💡 macOS मा एप खुल्न समस्या भएमा (Gatekeeper Note):</span>
+            </div>
+            <p className="text-slate-400 font-mono text-[10px] bg-slate-950 px-2 py-1 rounded border border-slate-800 select-all">
+              xattr -cr /Applications/&quot;Nepali Studio.app&quot;
+            </p>
           </div>
 
           {/* Features highlight */}
