@@ -1,7 +1,14 @@
 'use client';
 import React from 'react';
 import {
-  Play, Sparkles, ShieldCheck, ShieldAlert, Cpu, Share2, HelpCircle
+  Play,
+  Cpu,
+  Terminal,
+  ShieldAlert,
+  Sparkles,
+  Share2,
+  PanelLeft,
+  Layers,
 } from 'lucide-react';
 import { RunMode } from '../lib/types';
 
@@ -12,14 +19,13 @@ interface NavbarProps {
   onModeChange: (m: RunMode) => void;
   translitEnabled: boolean;
   onToggleTranslit: () => void;
-  onToggleExamples: () => void;
+  onToggleSidebar?: () => void;
+  isSidebarOpen?: boolean;
   onToggleAi: () => void;
-  onToggleInspector: () => void;
+  onToggleInspector?: () => void;
   onOpenShare: () => void;
-  onManualSave?: () => void;
   isAiOpen: boolean;
-  isExamplesOpen: boolean;
-  isInspectorOpen: boolean;
+  isInspectorOpen?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -29,15 +35,33 @@ export const Navbar: React.FC<NavbarProps> = ({
   onModeChange,
   translitEnabled,
   onToggleTranslit,
+  onToggleSidebar,
+  isSidebarOpen,
   onToggleAi,
+  onToggleInspector,
   onOpenShare,
   isAiOpen,
+  isInspectorOpen,
 }) => {
   return (
     <header className="h-14 border-b border-[#1E293B] bg-[#0B0F19]/90 backdrop-blur-md px-3 md:px-4 flex items-center justify-between select-none z-30 shadow-md">
       {/* Brand & Title */}
       <div className="flex items-center space-x-3">
-        <div className="w-8 h-9 flex items-center justify-center filter drop-shadow-md select-none">
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            className={`p-1.5 rounded-lg border transition-colors ${
+              isSidebarOpen
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-[#0F172A] border-[#1E293B] text-slate-400 hover:text-slate-200'
+            }`}
+            title="साइडबार खोल्नुहोस् / बन्द गर्नुहोस् (Toggle Sidebar - Ctrl+B)"
+          >
+            <PanelLeft className="w-4 h-4" />
+          </button>
+        )}
+
+        <div className="w-7 h-8 flex items-center justify-center filter drop-shadow-md select-none">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 50" className="w-full h-full">
             <polygon points="0,0 36,24 16,24 36,48 0,48" fill="#003893"/>
             <polygon points="3,4 30,22 13,22 30,44 3,44" fill="#DC143C"/>
@@ -81,53 +105,55 @@ export const Navbar: React.FC<NavbarProps> = ({
           {isRunning ? (
             <>
               <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-              <span>चल्दैछ...</span>
+              <span className="font-devanagari">चल्दैछ...</span>
             </>
           ) : (
             <>
               <Play className="w-3.5 h-3.5 fill-current" />
-              <span>चलाउनुहोस्</span>
+              <span className="font-devanagari">चलाउनुहोस्</span>
               <kbd className="hidden md:inline-block text-[10px] bg-emerald-600/60 text-slate-950 px-1.5 py-0.5 rounded font-mono font-bold">
-                ⌘↵
+                Ctrl+↵
               </kbd>
             </>
           )}
         </button>
 
-        {/* Mode Selector */}
-        <div className="flex items-center bg-[#060911] border border-[#1E293B] rounded-lg p-0.5 text-xs">
+        {/* Runtime Mode Selector */}
+        <div className="flex items-center bg-[#060911] border border-[#1E293B] rounded-lg p-0.5 shadow-inner">
           <button
             onClick={() => onModeChange('wasm')}
-            className={`px-2.5 py-1 rounded-md transition-colors flex items-center space-x-1.5 ${
+            className={`px-2.5 py-1 rounded text-xs font-mono flex items-center space-x-1.5 transition-all ${
               mode === 'wasm'
-                ? 'bg-[#0F172A] text-emerald-400 font-bold shadow-sm'
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm font-semibold'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="ब्राउजर WASM मोड — द्रुत गति, अफलाइन"
+            title="द्रुत इन-ब्राउजर Wasm इन्जिन (Instant In-Browser Wasm)"
           >
             <Cpu className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">WASM</span>
           </button>
+
           <button
             onClick={() => onModeChange('sandbox')}
-            className={`px-2.5 py-1 rounded-md transition-colors flex items-center space-x-1.5 ${
+            className={`px-2.5 py-1 rounded text-xs font-mono flex items-center space-x-1.5 transition-all ${
               mode === 'sandbox'
-                ? 'bg-[#0F172A] text-sky-400 font-bold shadow-sm'
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm font-semibold'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="स्यान्डबक्स मोड — सुरक्षित होस्ट कार्यान्वयन"
+            title="सुरक्षित क्लाउड स्यान्डबक्स (Secure Cloud Sandbox)"
           >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">स्यान्डबक्स</span>
+            <Terminal className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Sandbox</span>
           </button>
+
           <button
             onClick={() => onModeChange('os')}
-            className={`px-2.5 py-1 rounded-md transition-colors flex items-center space-x-1.5 ${
+            className={`px-2.5 py-1 rounded text-xs font-mono flex items-center space-x-1.5 transition-all ${
               mode === 'os'
-                ? 'bg-[#0F172A] text-amber-400 font-bold shadow-sm'
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-sm font-semibold'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="OS मोड — पूर्ण प्रणाली पहुँच (फाइल, कमान्ड, SQLite)"
+            title="नेटिभ ओएस मोड (Full Native CLI Runtime)"
           >
             <ShieldAlert className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">OS</span>
@@ -145,7 +171,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           title="रोमनबाट नेपाली टाइप रूपान्तरण टगल गर्नुहोस् (F2)"
         >
           <span className="font-devanagari font-bold">क</span>
-          <span className="hidden sm:inline">{translitEnabled ? 'नेपाली' : 'English'}</span>
+          <span className="hidden sm:inline font-devanagari">{translitEnabled ? 'नेपाली' : 'English'}</span>
           <kbd className="text-[10px] bg-[#0F172A] px-1 py-0.5 rounded border border-[#1E293B] font-mono">
             F2
           </kbd>
@@ -154,6 +180,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Side Action Panels & Sharing */}
       <div className="flex items-center space-x-1">
+        {onToggleInspector && (
+          <button
+            onClick={onToggleInspector}
+            className={`p-2 rounded-lg transition-colors text-xs flex items-center space-x-1 border ${
+              isInspectorOpen
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-semibold'
+                : 'border-transparent text-slate-400 hover:bg-[#0F172A] hover:text-slate-200'
+            }`}
+            title="निरीक्षक प्यानल (AST & Bytecode Inspector)"
+          >
+            <Layers className="w-4 h-4" />
+            <span className="hidden xl:inline text-xs">निरीक्षक</span>
+          </button>
+        )}
+
         {/* Share Button */}
         <button
           onClick={onOpenShare}
@@ -161,20 +202,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           title="प्रोग्राम साझेदारी गर्नुहोस् (Share Code URL)"
         >
           <Share2 className="w-4 h-4 text-emerald-400" />
-          <span className="hidden lg:inline text-xs font-medium">साझेदारी</span>
+          <span className="hidden lg:inline text-xs font-medium font-devanagari">साझेदारी</span>
         </button>
 
         <button
           onClick={onToggleAi}
-          className={`p-2 rounded-lg transition-colors text-xs flex items-center space-x-1 ${
+          className={`p-2 rounded-lg transition-colors text-xs flex items-center space-x-1 border ${
             isAiOpen
               ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-semibold'
-              : 'text-slate-400 hover:bg-[#0F172A] hover:text-slate-200'
+              : 'border-transparent text-slate-400 hover:bg-[#0F172A] hover:text-slate-200'
           }`}
-          title="नेपाली एआई सहायक (AI Assistant)"
+          title="नेपाली एआई सहायक (AI Assistant - Toggle)"
         >
           <Sparkles className="w-4 h-4 text-indigo-400" />
-          <span className="hidden lg:inline">एआई सहायक</span>
+          <span className="hidden lg:inline font-devanagari">एआई सहायक</span>
         </button>
       </div>
     </header>

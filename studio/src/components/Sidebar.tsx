@@ -37,7 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  if (!activeTab || activeTab === 'ai' || activeTab === 'inspector') {
+  if (!activeTab) {
     return null;
   }
 

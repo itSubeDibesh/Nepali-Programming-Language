@@ -3,11 +3,15 @@ import React from 'react';
 import { Files, BookOpen, Sparkles, Layers, HelpCircle, Play } from 'lucide-react';
 import { RunMode } from '../lib/types';
 
-export type ActiveSidebarTab = 'files' | 'examples' | 'cheatsheet' | 'ai' | 'inspector' | null;
+export type ActiveSidebarTab = 'files' | 'examples' | 'cheatsheet' | null;
 
 interface ActivityBarProps {
   activeTab: ActiveSidebarTab;
   onSelectTab: (tab: ActiveSidebarTab) => void;
+  isAiOpen: boolean;
+  onToggleAi: () => void;
+  isInspectorOpen: boolean;
+  onToggleInspector: () => void;
   onRun: () => void;
   isRunning: boolean;
   mode: RunMode;
@@ -17,10 +21,14 @@ interface ActivityBarProps {
 export const ActivityBar: React.FC<ActivityBarProps> = ({
   activeTab,
   onSelectTab,
+  isAiOpen,
+  onToggleAi,
+  isInspectorOpen,
+  onToggleInspector,
   onRun,
   isRunning,
 }) => {
-  const toggle = (tab: ActiveSidebarTab) => {
+  const toggleTab = (tab: 'files' | 'examples' | 'cheatsheet') => {
     onSelectTab(activeTab === tab ? null : tab);
   };
 
@@ -30,13 +38,13 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
       <div className="flex flex-col items-center space-y-2 w-full">
         {/* Files Explorer Tab */}
         <button
-          onClick={() => toggle('files')}
+          onClick={() => toggleTab('files')}
           className={`p-2.5 rounded-xl transition-all relative ${
             activeTab === 'files'
               ? 'bg-emerald-500/10 text-emerald-400 font-semibold'
               : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
           }`}
-          title="फाइल अन्वेषक (Files Explorer)"
+          title="फाइल अन्वेषक (Files Explorer - Toggle)"
         >
           {activeTab === 'files' && (
             <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-emerald-500 rounded-r-full shadow-lg shadow-emerald-500/50" />
@@ -46,13 +54,13 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
 
         {/* Examples Catalog Tab */}
         <button
-          onClick={() => toggle('examples')}
+          onClick={() => toggleTab('examples')}
           className={`p-2.5 rounded-xl transition-all relative ${
             activeTab === 'examples'
               ? 'bg-emerald-500/10 text-emerald-400 font-semibold'
               : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
           }`}
-          title="उदाहरण पुस्तकालय (Examples Library)"
+          title="उदाहरण पुस्तकालय (Examples Library - Toggle)"
         >
           {activeTab === 'examples' && (
             <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-emerald-500 rounded-r-full shadow-lg shadow-emerald-500/50" />
@@ -62,13 +70,13 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
 
         {/* Cheatsheet / Reference Tab */}
         <button
-          onClick={() => toggle('cheatsheet')}
+          onClick={() => toggleTab('cheatsheet')}
           className={`p-2.5 rounded-xl transition-all relative ${
             activeTab === 'cheatsheet'
               ? 'bg-emerald-500/10 text-emerald-400 font-semibold'
               : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
           }`}
-          title="भाषा सन्दर्भ र कुञ्जीशब्दहरू (Language Cheatsheet)"
+          title="भाषा सन्दर्भ र कुञ्जीशब्दहरू (Language Cheatsheet - Toggle)"
         >
           {activeTab === 'cheatsheet' && (
             <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-emerald-500 rounded-r-full shadow-lg shadow-emerald-500/50" />
@@ -78,15 +86,15 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
 
         {/* AI Assistant Tab */}
         <button
-          onClick={() => toggle('ai')}
+          onClick={onToggleAi}
           className={`p-2.5 rounded-xl transition-all relative ${
-            activeTab === 'ai'
-              ? 'bg-indigo-500/10 text-indigo-400 font-semibold'
+            isAiOpen
+              ? 'bg-indigo-500/20 text-indigo-300 font-semibold'
               : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
           }`}
-          title="नेपाली एआई सहायक (AI Assistant)"
+          title="नेपाली एआई सहायक (AI Assistant - Toggle)"
         >
-          {activeTab === 'ai' && (
+          {isAiOpen && (
             <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-indigo-500 rounded-r-full shadow-lg shadow-indigo-500/50" />
           )}
           <Sparkles className="w-5 h-5 text-indigo-400" />
@@ -94,15 +102,15 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
 
         {/* AST & Bytecode Inspector Tab */}
         <button
-          onClick={() => toggle('inspector')}
+          onClick={onToggleInspector}
           className={`p-2.5 rounded-xl transition-all relative ${
-            activeTab === 'inspector'
+            isInspectorOpen
               ? 'bg-emerald-500/10 text-emerald-400 font-semibold'
               : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
           }`}
-          title="AST र बाइटकोड निरीक्षक (AST & Bytecode)"
+          title="AST र बाइटकोड निरीक्षक (AST & Bytecode - Toggle)"
         >
-          {activeTab === 'inspector' && (
+          {isInspectorOpen && (
             <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-emerald-500 rounded-r-full shadow-lg shadow-emerald-500/50" />
           )}
           <Layers className="w-5 h-5" />
@@ -110,21 +118,21 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
       </div>
 
       {/* Bottom Run Action Button */}
-      <div className="flex flex-col items-center space-y-2 w-full pb-1">
+      <div className="flex flex-col items-center w-full space-y-2">
         <button
           onClick={onRun}
           disabled={isRunning}
-          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-95 ${
+          className={`p-2.5 rounded-xl transition-all shadow-md active:scale-95 ${
             isRunning
-              ? 'bg-amber-600 text-white cursor-wait animate-pulse'
+              ? 'bg-amber-600 text-white animate-pulse'
               : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30'
           }`}
-          title="प्रोग्राम चलाउनुहोस् (Ctrl+Enter / ⌘↵)"
+          title="प्रोग्राम चलाउनुहोस् (Ctrl+Enter)"
         >
           {isRunning ? (
             <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
           ) : (
-            <Play className="w-4 h-4 fill-current ml-0.5" />
+            <Play className="w-4 h-4 fill-current" />
           )}
         </button>
       </div>
