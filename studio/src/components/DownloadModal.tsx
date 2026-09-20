@@ -107,7 +107,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
                 </p>
               </div>
               <a
-                href={`${releasesUrl}/latest`}
+                href="https://github.com/itSubeDibesh/Nepali-Programming-Language/releases/download/v1.0.0/Nepali.Studio-1.0.0-macOS.dmg"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-4 flex items-center justify-center space-x-1.5 w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition-colors shadow-sm"
