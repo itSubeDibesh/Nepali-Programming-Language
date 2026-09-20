@@ -44,7 +44,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
 sudo apt install -y nodejs
 # Nginx + Certbot
-sudo apt install -y nginx certbot python3-certbot-nginx
+sudo apt install -y build-essential python3-dev nginx certbot python3-certbot-nginx
 ```
 
 ### Step 1: Run automated deploy
