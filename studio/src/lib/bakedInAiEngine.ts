@@ -493,6 +493,77 @@ ${contextSection}`;
 }
 
 /**
+ * Deep semantic explanation generator for Nepali code.
+ */
+export function explainNepaliCodeSemantics(code: string, activeFileName: string): string {
+  const lines = code.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//'));
+  const declaredVars: string[] = [];
+  const definedFns: string[] = [];
+  let hasLoop = false;
+  let hasInput = false;
+  let hasArrayPush = false;
+  let hasPrint = false;
+  let hasCondition = false;
+  let loopCondition = '';
+
+  for (const l of lines) {
+    const varMatch = l.match(/^(?:राखौँ|राखौं|मानौँ|let|var|const)\s+([a-zA-Z_\u0900-\u097F][a-zA-Z0-9_\u0900-\u097F]*)/);
+    if (varMatch) declaredVars.push(varMatch[1]);
+
+    const fnMatch = l.match(/^(?:काम|function|kaam|def|fn)\s+([a-zA-Z_\u0900-\u097F][a-zA-Z0-9_\u0900-\u097F]*)/);
+    if (fnMatch) definedFns.push(fnMatch[1]);
+
+    if (/^भएसम्म|while\s+/.test(l)) {
+      hasLoop = true;
+      const condMatch = l.match(/^भएसम्म\s+(.*?)\s*\{/);
+      if (condMatch) loopCondition = condMatch[1];
+    }
+    if (/इनपुट\s*\(|input\s*\(/.test(l)) hasInput = true;
+    if (/थप्नुहोस्\s*\(|जोड्नुहोस्\s*\(|push\s*\(/.test(l)) hasArrayPush = true;
+    if (/भनौँ\s*\(|भनौ\s*\(|print\s*\(/.test(l)) hasPrint = true;
+    if (/^यदि\s+|if\s+/.test(l)) hasCondition = true;
+  }
+
+  const steps: string[] = [];
+  if (declaredVars.length > 0) {
+    steps.push(`1. **चर घोषणा (Variable Initialization):** \`${declaredVars.join(', ')}\` चरहरू सुरुवाती मानका साथ परिभाषित गरिएका छन्।`);
+  }
+  if (hasLoop) {
+    const condText = loopCondition ? `(सर्त: \`${loopCondition}\`)` : '';
+    steps.push(`2. **पुनरावृत्ति (Loop Execution):** \`भएसम्म\` लुपले सर्त नसकिँदासम्म कोड ब्लकलाई दोहोर्याएर चलाउँछ ${condText}।`);
+  }
+  if (hasInput && hasArrayPush) {
+    steps.push(`3. **अन्तर्क्रियात्मक इनपुट र एरे भण्डारण:** \`इनपुट()\` फङ्क्सनले प्रयोगकर्ताबाट डेटा लिन्छ र \`थप्नुहोस्()\` बिल्ट-इनले सो डेटालाई एरेमा थप्दै जान्छ।`);
+  } else if (hasInput) {
+    steps.push(`3. **प्रयोगकर्ता इनपुट:** \`इनपुट()\` फङ्क्सनले प्रयोगकर्तासँग संवाद गरी इनपुट प्राप्त गर्छ।`);
+  }
+  if (hasCondition) {
+    steps.push(`4. **सर्त जाँच (Conditional Logic):** \`यदि/नत्र\` सर्त अनुसार कार्यक्रमको प्रवाह निर्धारण हुन्छ।`);
+  }
+  if (hasPrint) {
+    steps.push(`5. **कन्सोल आउटपुट:** \`भनौँ()\` प्रकार्यले प्रशोधन गरिएको अन्तिम नतिजा कन्सोलमा प्रदर्शन गर्दछ।`);
+  }
+
+  const summary = hasInput && hasArrayPush && hasLoop
+    ? 'यो कार्यक्रमले लुप चलाएर प्रयोगकर्ताबाट नाम/मान इनपुट लिन्छ, एरेमा सङ्कलन गर्छ, र अन्त्यमा सम्पूर्ण सूची कन्सोलमा देखाउँछ।'
+    : hasLoop
+    ? 'यो कार्यक्रमले निर्दिष्ट सर्त अनुसार लुप चलाएर गणना र कार्यान्वयन सम्पन्न गर्छ।'
+    : 'यो कार्यक्रमले दिएका निर्देशनहरू क्रमैसँग कार्यान्वयन गर्दछ।';
+
+  return `### 📄 \`${activeFileName}\` कोड विश्लेषण तथा कार्यप्रणाली:
+
+**उद्देश्य:** ${summary}
+
+**विस्तृत चरणहरू (Step-by-Step Logic Breakdown):**
+${steps.join('\n')}
+
+- **परिभाषित फङ्क्सनहरू:** ${definedFns.length > 0 ? definedFns.map(f => `\`${f}\``).join(', ') : 'मुख्य ब्लक'}
+- **सक्रिय चरहरू:** ${declaredVars.length > 0 ? declaredVars.map(v => `\`${v}\``).join(', ') : 'कुनै छैन'}
+
+**कोड चलाउन:** माथिको **▶ चलाउनुहोस् (Ctrl+Enter)** बटन थिचेर सिधै यसको नतिजा हेर्न सक्नुहुन्छ।`;
+}
+
+/**
  * Intelligent Local Semantic Reasoner (Offline / Fallback)
  */
 export function queryBakedInAi(
@@ -504,11 +575,14 @@ export function queryBakedInAi(
   const activeName = activeFileName || 'main.nep';
   const cleanQ = question.trim();
 
-  // If there is active code context, diagnose and reason on it directly
-  if (codeContext && codeContext.trim()) {
-    const diag = diagnoseAndFixNepaliCode(codeContext, cleanQ);
+  // If the user's question contains multi-line Nepali code itself, treat that as code context
+  const hasCodeInQuestion = /^(?:राखौँ|राखौं|मानौँ|काम|भएसम्म|यदि|भनौँ)/m.test(cleanQ);
+  const targetCode = hasCodeInQuestion ? cleanQ : (codeContext && codeContext.trim() ? codeContext : undefined);
 
-    // If issues were found in the current code
+  if (targetCode) {
+    const diag = diagnoseAndFixNepaliCode(targetCode, cleanQ);
+
+    // If concrete syntax or declaration issues were found in the code
     if (diag.issues.length > 0) {
       const issueDetails = diag.issues.map((iss, idx) => `${idx + 1}. **लाइन ${iss.line}:** ${iss.message}`).join('\n');
 
@@ -523,43 +597,12 @@ ${issueDetails}
       };
     }
 
-    // Check if the user is asking about errors, issues, verification, or why it works/failed
-    const isErrorOrCheckQuery = /समस|samasya|problem|issue|bug|error|त्रुटि|गलत|मिस्टेक|wrong|fault|किन|kina|why|हेर|check|जाँच|के भयो|के छ|सुधार|सच्या|चलेन|chalena|ठीक|सही/i.test(cleanQ);
-
-    if (isErrorOrCheckQuery) {
-      const fns = diag.definedFns.length > 0 ? diag.definedFns.map(f => `\`${f}\``).join(', ') : 'मुख्य कोड ब्लक';
-      const vars = diag.declaredVars.length > 0 ? diag.declaredVars.map(v => `\`${v}\``).join(', ') : 'कुनै चर छैन';
-
-      return {
-        answer: `### ✅ \`${activeName}\` कोड पूर्ण रूपमा सही छ!
-
-तपाईंको सक्रिय फाइल \`${activeName}\` मा कुनै सिन्ट्याक्स वा व्याकरण त्रुटि (Syntax Error) फेला परेन।
-
-- **परिभाषित फङ्क्सनहरू:** ${fns}
-- **सक्रिय चरहरू:** ${vars}
-
-**कोड चलाउन:** माथिको **▶ चलाउनुहोस् (Ctrl+Enter)** बटन थिच्नुहोस्।`,
-        codeSnippet: codeContext,
-        engine: `नेपाली सिमान्टिक एआई (${activeName})`,
-      };
-    }
-
-    // If user is asking an explanation of the current code
-    if (/व्याख्या|explain|सम्झा|के गर्छ|कसरी चल्छ|काम/i.test(cleanQ)) {
-      const fns = diag.definedFns.length > 0 ? diag.definedFns.map(f => `\`${f}\``).join(', ') : 'मुख्य कोड ब्लक';
-      const vars = diag.declaredVars.length > 0 ? diag.declaredVars.map(v => `\`${v}\``).join(', ') : 'कुनै चर छैन';
-
-      return {
-        answer: `### 📄 \`${activeName}\` कोड विश्लेषण:
-
-- **परिभाषित फङ्क्सनहरू:** ${fns}
-- **प्रयोग गरिएका चरहरू:** ${vars}
-
-यो कोडले दिएका निर्देशनहरू क्रमैसँग कार्यान्वयन गर्दछ। तपाईं यसलाई **▶ चलाउनुहोस्** थिचेर सिधै चलाउन सक्नुहुन्छ।`,
-        codeSnippet: codeContext,
-        engine: `नेपाली सिमान्टिक एआई (${activeName})`,
-      };
-    }
+    // When the code is completely valid, provide a full intelligent semantic breakdown
+    return {
+      answer: explainNepaliCodeSemantics(targetCode, activeName),
+      codeSnippet: targetCode,
+      engine: `नेपाली सिमान्टिक एआई (${activeName})`,
+    };
   }
 
   // Otherwise synthesize customized code for the specific topic
