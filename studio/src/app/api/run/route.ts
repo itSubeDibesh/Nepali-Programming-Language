@@ -4,6 +4,35 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
+function findNepaliBinary(): string | null {
+  if (process.env.NEPALI_BIN && fs.existsSync(process.env.NEPALI_BIN)) {
+    return process.env.NEPALI_BIN;
+  }
+
+  const candidates = [
+    path.resolve(process.cwd(), '../../MacOS/nepali'),
+    path.resolve(process.cwd(), '../MacOS/nepali'),
+    path.resolve(process.cwd(), '../bin/nepali'),
+    path.resolve(process.cwd(), 'nepali'),
+    path.resolve(process.cwd(), '../crates/nepali-core/target/release/nepali-core-cli'),
+    path.resolve(process.cwd(), '../crates/nepali-core/target/debug/nepali-core-cli'),
+    path.resolve(process.cwd(), 'crates/nepali-core/target/release/nepali-core-cli'),
+    path.resolve(process.cwd(), 'crates/nepali-core/target/debug/nepali-core-cli'),
+    path.join(os.homedir(), '.cargo/bin/nepali'),
+    path.join(os.homedir(), '.local/bin/nepali'),
+    '/usr/local/bin/nepali',
+    '/opt/homebrew/bin/nepali',
+  ];
+
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return c;
+    }
+  }
+
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { code, mode, inputs } = await req.json();
@@ -27,9 +56,23 @@ export async function POST(req: NextRequest) {
     fs.writeFileSync(scriptFile, code, 'utf8');
 
     const projectRoot = path.resolve(process.cwd(), '..');
-    const debugBin = path.join(projectRoot, 'crates/nepali-core/target/debug/nepali-core-cli');
-    const releaseBin = path.join(projectRoot, 'crates/nepali-core/target/release/nepali-core-cli');
-    const cliBin = fs.existsSync(releaseBin) ? releaseBin : fs.existsSync(debugBin) ? debugBin : null;
+    const cliBin = findNepaliBinary();
+
+    const envPath = [
+      path.join(os.homedir(), '.cargo/bin'),
+      path.join(os.homedir(), '.local/bin'),
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+      process.env.PATH || ''
+    ].join(':');
+
+    const spawnEnv = {
+      ...process.env,
+      PATH: envPath,
+      PYO3_USE_ABI3_FORWARD_COMPATIBILITY: '1',
+      NEPALI_SCRIPT: 'devanagari',
+      NEPALI_DIGITS: 'devanagari',
+    };
 
     return new Promise<NextResponse>((resolve) => {
       let child;
@@ -38,12 +81,7 @@ export async function POST(req: NextRequest) {
       if (cliBin) {
         child = spawn(cliBin, ['--mode', effectiveMode, scriptFile], {
           cwd: spawnCwd,
-          env: {
-            ...process.env,
-            PYO3_USE_ABI3_FORWARD_COMPATIBILITY: '1',
-            NEPALI_SCRIPT: 'devanagari',
-            NEPALI_DIGITS: 'devanagari',
-          },
+          env: spawnEnv,
         });
       } else {
         child = spawn(
@@ -51,12 +89,7 @@ export async function POST(req: NextRequest) {
           ['run', '--quiet', '--manifest-path', path.join(projectRoot, 'crates/nepali-core/Cargo.toml'), '--', '--mode', effectiveMode, scriptFile],
           {
             cwd: spawnCwd,
-            env: {
-              ...process.env,
-              PYO3_USE_ABI3_FORWARD_COMPATIBILITY: '1',
-              NEPALI_SCRIPT: 'devanagari',
-              NEPALI_DIGITS: 'devanagari',
-            },
+            env: spawnEnv,
           }
         );
       }
@@ -64,69 +97,67 @@ export async function POST(req: NextRequest) {
       let stdout = '';
       let stderr = '';
 
-      child.stdout.on('data', (data) => {
+      child.stdout?.on('data', (data) => {
         stdout += data.toString();
       });
 
-      child.stderr.on('data', (data) => {
+      child.stderr?.on('data', (data) => {
         stderr += data.toString();
       });
 
       // If interactive inputs were provided, write them to stdin
-      if (Array.isArray(inputs) && inputs.length > 0) {
+      if (Array.isArray(inputs) && inputs.length > 0 && child.stdin) {
         child.stdin.write(inputs.join('\n') + '\n');
       }
-      child.stdin.end();
+      if (child.stdin) {
+        child.stdin.end();
+      }
 
+      // Safety timeout after 15 seconds
       const timer = setTimeout(() => {
-        child.kill();
-        // Clean up ephemeral sandbox
-        try {
-          fs.rmSync(sessionDir, { recursive: true, force: true });
-        } catch (_) {}
-
+        child.kill('SIGKILL');
+        try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (_) {}
         resolve(
           NextResponse.json({
-            stdout: stdout ? stdout.split('\n').filter(Boolean) : [],
-            stderr: 'समय समाप्त भयो (Execution timed out after 15 seconds)',
+            output: stdout,
+            error: stderr ? `${stderr}\nसमय सकियो (Execution timed out after 15s)` : 'समय सकियो (Execution timed out after 15s)',
             exitCode: 124,
+            mode: effectiveMode,
           })
         );
       }, 15000);
 
-      child.on('close', (code) => {
+      child.on('error', (err) => {
         clearTimeout(timer);
-        // Clean up ephemeral sandbox
-        try {
-          fs.rmSync(sessionDir, { recursive: true, force: true });
-        } catch (_) {}
-
+        try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (_) {}
         resolve(
           NextResponse.json({
-            stdout: stdout ? stdout.split('\n').filter((l) => l.trim().length > 0) : [],
-            stderr: stderr && stderr.trim().length > 0 ? stderr.trim() : undefined,
-            exitCode: code || 0,
+            output: stdout,
+            error: `इन्जिन चलाउन सकिएन (Failed to spawn engine): ${err.message}`,
+            exitCode: 1,
+            mode: effectiveMode,
           })
         );
       });
 
-      child.on('error', (err) => {
+      child.on('close', (code) => {
         clearTimeout(timer);
-        // Clean up ephemeral sandbox
-        try {
-          fs.rmSync(sessionDir, { recursive: true, force: true });
-        } catch (_) {}
-
+        try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (_) {}
         resolve(
           NextResponse.json({
-            stdout: [],
-            stderr: err.message || String(err),
-            exitCode: 1,
+            output: stdout,
+            error: stderr || undefined,
+            exitCode: code ?? 0,
+            mode: effectiveMode,
           })
         );
       });
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json(
+      { error: `सर्भरमा त्रुटि (Internal Server Error): ${message}` },
+      { status: 500 }
+    );
   }
 }

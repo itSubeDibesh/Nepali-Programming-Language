@@ -34,25 +34,14 @@ export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 export NODE_ENV=production
 export PORT=$PORT
 
-SERVER_PID=""
-
-# 1. Start Modern Next.js Studio Standalone Server
+# 1. Start Modern Next.js Studio Standalone Server in background
 if [ -n "$NODE_BIN" ] && [ -f "$STUDIO_SERVER_DIR/server.js" ]; then
   cd "$STUDIO_SERVER_DIR" || exit 1
-  "$NODE_BIN" server.js >/tmp/nepali_studio_server.log 2>&1 &
-  SERVER_PID=$!
+  nohup "$NODE_BIN" server.js >/tmp/nepali_studio_server.log 2>&1 &
 elif [ -d "$APP_DIR/../../studio" ] && [ -n "$NODE_BIN" ]; then
   cd "$APP_DIR/../../studio" || exit 1
-  PORT=$PORT "$NODE_BIN" node_modules/.bin/next start >/tmp/nepali_studio_server.log 2>&1 &
-  SERVER_PID=$!
+  nohup "$NODE_BIN" node_modules/.bin/next start >/tmp/nepali_studio_server.log 2>&1 &
 fi
-
-cleanup() {
-  if [ -n "$SERVER_PID" ]; then
-    kill "$SERVER_PID" 2>/dev/null || true
-  fi
-}
-trap cleanup EXIT INT TERM
 
 # Wait up to 2 seconds for server to bind port
 for _ in {1..20}; do
@@ -62,7 +51,7 @@ for _ in {1..20}; do
   sleep 0.1
 done
 
-# 2. Launch Native WebKit Desktop Window
+# 2. Find nepali binary
 if [ -x "$DIR/nepali" ]; then
   EXEC_BIN="$DIR/nepali"
 elif [ -x "$HOME/.local/bin/nepali" ]; then
@@ -71,8 +60,11 @@ else
   EXEC_BIN="nepali"
 fi
 
+export NEPALI_BIN="$EXEC_BIN"
+
+# 3. Exec into native binary so LaunchServices associates NSApplication with the .app bundle (stops bouncing)
 if [ -n "$TARGET_FILE" ] && [ -f "$TARGET_FILE" ]; then
-  "$EXEC_BIN" studio --window --port "$PORT" "$TARGET_FILE"
+  exec "$EXEC_BIN" studio --window --port "$PORT" "$TARGET_FILE"
 else
-  "$EXEC_BIN" studio --window --port "$PORT"
+  exec "$EXEC_BIN" studio --window --port "$PORT"
 fi

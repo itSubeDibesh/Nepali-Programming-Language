@@ -1,63 +1,131 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { spawn } from 'child_process';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+
+function findNepaliBinary(): string | null {
+  if (process.env.NEPALI_BIN && fs.existsSync(process.env.NEPALI_BIN)) {
+    return process.env.NEPALI_BIN;
+  }
+
+  const candidates = [
+    path.resolve(process.cwd(), '../../MacOS/nepali'),
+    path.resolve(process.cwd(), '../MacOS/nepali'),
+    path.resolve(process.cwd(), '../bin/nepali'),
+    path.resolve(process.cwd(), 'nepali'),
+    path.resolve(process.cwd(), '../crates/nepali-core/target/release/nepali-core-cli'),
+    path.resolve(process.cwd(), '../crates/nepali-core/target/debug/nepali-core-cli'),
+    path.resolve(process.cwd(), 'crates/nepali-core/target/release/nepali-core-cli'),
+    path.resolve(process.cwd(), 'crates/nepali-core/target/debug/nepali-core-cli'),
+    path.join(os.homedir(), '.cargo/bin/nepali'),
+    path.join(os.homedir(), '.local/bin/nepali'),
+    '/usr/local/bin/nepali',
+    '/opt/homebrew/bin/nepali',
+  ];
+
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return c;
+    }
+  }
+
+  return null;
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { question } = await req.json();
-    if (!question || typeof question !== 'string') {
-      return NextResponse.json({ error: 'प्रश्न खाली छ' }, { status: 400 });
+    const { q } = await req.json();
+    if (!q || typeof q !== 'string') {
+      return NextResponse.json({ error: 'प्रश्न खाली छ (Question is empty)' }, { status: 400 });
     }
 
-    const q = question.toLowerCase();
+    const projectRoot = path.resolve(process.cwd(), '..');
+    const cliBin = findNepaliBinary();
 
-    // Match grounded recipes
-    if (q.includes('उमेर') || q.includes('age') || q.includes('जन्म')) {
-      return NextResponse.json({
-        answer: 'नेपाली भाषामा उमेर गणना गर्न उमेर("YYYY-MM-DD") वा दिन_फरक(आज(), जन्ममिति) प्रयोग गर्न सकिन्छ।',
-        codeSnippet: '// उमेर गणना गर्ने तरिका\nराखौँ जन्म = "2000-05-14"।\nराखौँ वर्ष = उमेर(जन्म)।\nभनौँ("उमेर:", वर्ष, "वर्ष")।'
+    const envPath = [
+      path.join(os.homedir(), '.cargo/bin'),
+      path.join(os.homedir(), '.local/bin'),
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+      process.env.PATH || ''
+    ].join(':');
+
+    const spawnEnv = {
+      ...process.env,
+      PATH: envPath,
+      PYO3_USE_ABI3_FORWARD_COMPATIBILITY: '1',
+      NEPALI_SCRIPT: 'devanagari',
+      NEPALI_DIGITS: 'devanagari',
+    };
+
+    return new Promise<NextResponse>((resolve) => {
+      let child;
+
+      if (cliBin) {
+        child = spawn(cliBin, ['ask', q], {
+          cwd: projectRoot,
+          env: spawnEnv,
+        });
+      } else {
+        child = spawn(
+          'cargo',
+          ['run', '--quiet', '--manifest-path', path.join(projectRoot, 'crates/nepali-core/Cargo.toml'), '--', 'ask', q],
+          {
+            cwd: projectRoot,
+            env: spawnEnv,
+          }
+        );
+      }
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout?.on('data', (data) => {
+        stdout += data.toString();
       });
-    }
 
-    if (q.includes('मिति') || q.includes('date') || q.includes('आज') || q.includes('दिन')) {
-      return NextResponse.json({
-        answer: 'मिति सम्बन्धी काम गर्न आज(), दिन_फरक(मिति२, मिति१), र हप्ताको_दिन(मिति) उपलब्ध छन्।',
-        codeSnippet: 'राखौँ आजको = आज()।\nभनौँ("आजको मिति:", आजको)।\nभनौँ("आजको बार:", हप्ताको_दिन(आजको))।\nराखौँ अन्तर = दिन_फरक("2026-12-31", "2026-01-01")।\nभनौँ("दिन अन्तर:", अन्तर)।'
+      child.stderr?.on('data', (data) => {
+        stderr += data.toString();
       });
-    }
 
-    if (q.includes('इनपुट') || q.includes('input') || q.includes('सोध्नु')) {
-      return NextResponse.json({
-        answer: 'प्रयोगकर्ताबाट इनपुट लिन इनपुट("प्रश्न") प्रयोग गरिन्छ।',
-        codeSnippet: 'राखौँ नाम = इनपुट("तपाईंको नाम के हो? ")।\nभनौँ("नमस्ते,", नाम)।'
+      // AI queries might consult large offline index or call local LLM (timeout 900s)
+      const timer = setTimeout(() => {
+        child.kill('SIGKILL');
+        resolve(
+          NextResponse.json({
+            error: 'AI जवाफ समय सकियो (AI response timed out)',
+          }, { status: 504 })
+        );
+      }, 900000);
+
+      child.on('error', (err) => {
+        clearTimeout(timer);
+        resolve(
+          NextResponse.json({
+            error: `AI इन्जिन चलाउन सकिएन: ${err.message}`,
+          }, { status: 500 })
+        );
       });
-    }
 
-    if (q.includes('लुप') || q.includes('loop') || q.includes('while') || q.includes('दोहोर')) {
-      return NextResponse.json({
-        answer: 'नेपाली भाषामा लुपको लागि भएसम्म condition { ... } प्रयोग हुन्छ।',
-        codeSnippet: 'राखौँ i = 1।\nभएसम्म i <= 5 {\n  भनौँ("अंक:", i)।\n  i = i + 1।\n}'
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        if (code === 0) {
+          resolve(NextResponse.json({ text: stdout }));
+        } else {
+          resolve(
+            NextResponse.json({
+              error: stderr || stdout || 'AI जवाफ प्राप्त हुन सकेन (Failed to get AI response)',
+            }, { status: 500 })
+          );
+        }
       });
-    }
-
-    if (q.includes('फाइल') || q.includes('file') || q.includes('पढ्ने') || q.includes('लेख्ने')) {
-      return NextResponse.json({
-        answer: 'फाइल पढ्न ओएस_पढ्नुहोस्(path) र लेख्न ओएस_लेख्नुहोस्(path, content) प्रयोग गर्नुहोस् (OS मोडमा मात्र चल्छ)।',
-        codeSnippet: 'ओएस_लेख्नुहोस्("test.txt", "नमस्ते नेपाल")।\nराखौँ सामग्री = ओएस_पढ्नुहोस्("test.txt")।\nभनौँ("फाइलको सामग्री:", सामग्री)।'
-      });
-    }
-
-    if (q.includes('डाटाबेस') || q.includes('database') || q.includes('sqlite')) {
-      return NextResponse.json({
-        answer: 'डाटाबेस चलाउन डाटाबेस_चलाउनुहोस्(db, query) र सोध्न डाटाबेस_सोध्नुहोस्(db, query) प्रयोग गर्नुहोस्।',
-        codeSnippet: 'डाटाबेस_चलाउनुहोस्("store.db", "CREATE TABLE IF NOT EXISTS items (id INTEGER, name TEXT);")।\nडाटाबेस_चलाउनुहोस्("store.db", "INSERT INTO items VALUES (1, \'कलम\');")।\nराखौँ डेटा = डाटाबेस_सोध्नुहोस्("store.db", "SELECT * FROM items;")।\nभनौँ(डेटा)।'
-      });
-    }
-
-    // General explanation
-    return NextResponse.json({
-      answer: 'नेपाली प्रोग्रामिङ भाषामा:\n- भेरिएबल: राखौँ नाम = मान।\n- फङ्सन: काम नाम(प्यारामिटर) { पठाउँ मान। }\n- सर्त: यदि सर्त { ... } नत्र { ... }\n- प्रिन्ट: भनौँ(मान)।\n- मिति: आज(), दिन_फरक(), उमेर()\n- इनपुट: इनपुट("प्रश्न")',
-      codeSnippet: '// सामान्य ढाँचा\nकाम जोड(क, ख) {\n  पठाउँ क + ख।\n}\nभनौँ("जोडफल:", जोड(10, 20))।'
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json(
+      { error: `सर्भरमा त्रुटि (Internal Server Error): ${message}` },
+      { status: 500 }
+    );
   }
 }
