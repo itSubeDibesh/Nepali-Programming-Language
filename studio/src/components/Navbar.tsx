@@ -13,10 +13,12 @@ import {
   Layers,
   Folder,
   FolderOpen,
+  CloudDownload,
 } from 'lucide-react';
 import { RunMode } from '../lib/types';
 import { getI18n } from '../lib/i18n';
 import { getAvailableModes, isDesktopApp } from '../lib/env';
+import { CURRENT_STUDIO_VERSION } from '../lib/updateChecker';
 
 interface NavbarProps {
   onRun: () => void;
@@ -93,11 +95,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>{i18n.title}</span>
               <button
                 onClick={onOpenUpdate}
-                className="text-[10px] bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 px-1.5 py-0.5 rounded font-mono font-medium border border-emerald-500/30 transition-all flex items-center space-x-1"
-                title="सफ्टवेयर अपडेट जाँच्नुहोस्"
+                className="text-[10px] bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full font-mono font-medium border border-emerald-500/30 transition-all flex items-center space-x-1 cursor-pointer"
+                title="सफ्टवेयर संस्करण तथा अपडेट जानकारी (Software Version & Updates)"
               >
-                <span>v1.1.0</span>
-                {hasUpdate && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                <span>v{CURRENT_STUDIO_VERSION}</span>
+                {hasUpdate && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
               </button>
             </div>
           </div>
@@ -248,35 +250,34 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        {/* Download Desktop App (Web) or Check Updates (Desktop) */}
-        {isDesktopApp() ? (
-          onOpenUpdate && (
-            <button
-              onClick={onOpenUpdate}
-              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition-colors shadow-sm font-medium ${
-                hasUpdate
-                  ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-300 animate-pulse'
-                  : 'bg-[#060911] hover:bg-[#0F172A] border-[#1E293B] text-slate-300'
-              }`}
-              title="सफ्टवेयर अपडेट जाँच गर्नुहोस् (Check for Updates)"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline font-devanagari">
-                {hasUpdate ? 'नयाँ अपडेट' : 'अपडेट'}
-              </span>
-            </button>
-          )
-        ) : (
-          onOpenDownload && (
-            <button
-              onClick={onOpenDownload}
-              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 text-xs transition-colors shadow-sm font-medium"
-              title="डेस्कटप एप डाउनलोड गर्नुहोस् (Download Desktop App)"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline font-devanagari">डाउनलोड</span>
-            </button>
-          )
+        {/* Software Version & Updates */}
+        {onOpenUpdate && (
+          <button
+            onClick={onOpenUpdate}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition-colors shadow-sm font-medium ${
+              hasUpdate
+                ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-300 animate-pulse'
+                : 'bg-[#060911] hover:bg-[#0F172A] border-[#1E293B] text-slate-300'
+            }`}
+            title="सफ्टवेयर संस्करण तथा अपडेट (Software Version & Updates)"
+          >
+            <CloudDownload className={`w-3.5 h-3.5 ${hasUpdate ? 'text-amber-400' : 'text-emerald-400'}`} />
+            <span className="hidden sm:inline font-devanagari">
+              {hasUpdate ? 'नयाँ अपडेट' : 'अपडेट'}
+            </span>
+          </button>
+        )}
+
+        {/* Download Desktop App (Web only) */}
+        {!isDesktopApp() && onOpenDownload && (
+          <button
+            onClick={onOpenDownload}
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 text-xs transition-colors shadow-sm font-medium"
+            title="डेस्कटप एप डाउनलोड गर्नुहोस् (Download Desktop App)"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline font-devanagari">डाउनलोड</span>
+          </button>
         )}
         {/* GitHub Repository Link */}
         <a

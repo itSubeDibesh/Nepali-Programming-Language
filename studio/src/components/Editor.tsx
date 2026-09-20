@@ -27,7 +27,9 @@ import {
   Columns2,
   Rows2,
   Split,
+  CloudDownload,
 } from 'lucide-react';
+import { CURRENT_STUDIO_VERSION } from '../lib/updateChecker';
 
 interface EditorProps {
   files: CodeFile[];
@@ -50,6 +52,8 @@ interface EditorProps {
   onOpenAi?: () => void;
   isAiAvailable?: boolean;
   onOpenExplorer?: () => void;
+  onOpenUpdate?: () => void;
+  hasUpdate?: boolean;
 }
 
 
@@ -92,6 +96,8 @@ export const Editor: React.FC<EditorProps> = ({
   onOpenAi,
   isAiAvailable = false,
   onOpenExplorer,
+  onOpenUpdate,
+  hasUpdate = false,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlighterRef = useRef<HTMLPreElement>(null);
@@ -1208,7 +1214,7 @@ export const Editor: React.FC<EditorProps> = ({
           <span className="text-slate-500 hidden sm:inline">Spaces: {translitEnabled ? '२' : '2'}</span>
         </div>
 
-        {/* Open Source & Author Credit */}
+        {/* Open Source & Author Credit & Version Info */}
         <div className="hidden lg:flex items-center space-x-2 text-[10px] text-slate-400">
           <a
             href="https://github.com/itSubeDibesh/Nepali-Programming-Language"
@@ -1230,6 +1236,24 @@ export const Editor: React.FC<EditorProps> = ({
           >
             दिबेश राज सुवेदी (dibe.sh)
           </a>
+          {onOpenUpdate && (
+            <>
+              <span className="text-slate-600">•</span>
+              <button
+                onClick={onOpenUpdate}
+                className="flex items-center space-x-1 hover:text-emerald-400 transition-colors cursor-pointer text-slate-400"
+                title="सफ्टवेयर संस्करण र अपडेट जानकारी हेर्नुहोस् (View Version & Update Info)"
+              >
+                <CloudDownload className={`w-3.5 h-3.5 ${hasUpdate ? 'text-amber-400 animate-pulse' : 'text-emerald-400'}`} />
+                <span className="font-mono text-slate-300 hover:text-white">v{CURRENT_STUDIO_VERSION}</span>
+                {hasUpdate && (
+                  <span className="px-1 py-0.2 text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded font-devanagari">
+                    अपडेट
+                  </span>
+                )}
+              </button>
+            </>
+          )}
         </div>
 
         <div className="flex items-center space-x-3">

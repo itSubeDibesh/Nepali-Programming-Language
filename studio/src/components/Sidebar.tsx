@@ -30,6 +30,7 @@ import {
   Check,
   Copy,
   ArrowDownUp,
+  CloudDownload,
 } from 'lucide-react';
 import React, { useState, useMemo } from 'react';
 import { ActiveSidebarTab } from './ActivityBar';
@@ -37,6 +38,7 @@ import { CodeFile, RecipeItem } from '../lib/types';
 import { isDesktopApp } from '../lib/env';
 import { EXAMPLES, EXAMPLE_CATEGORIES } from '../lib/examples';
 import { DOCS_CATALOG } from '../lib/docs';
+import { CURRENT_STUDIO_VERSION } from '../lib/updateChecker';
 
 interface SidebarProps {
   activeTab: ActiveSidebarTab;
@@ -797,28 +799,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-[10px] text-slate-500 font-devanagari">
               {i18n.autoSaveDesc}
             </p>
-            {isDesktopApp() ? (
-              <div className="w-full mt-2 flex items-center justify-between py-1.5 px-2.5 rounded-md bg-[#040711] text-slate-300 border border-[#1E293B] text-[10px]">
-                <span className="font-mono text-emerald-400">नेपाली स्टुडियो डेस्कटप v1.1.0</span>
-                {onOpenUpdate && (
-                  <button
-                    onClick={onOpenUpdate}
-                    className="text-amber-400 hover:text-amber-300 font-devanagari transition-colors font-medium"
-                  >
-                    अपडेट
-                  </button>
-                )}
+            {/* Version Info & Software Update */}
+            <div className="w-full mt-2 flex items-center justify-between py-1.5 px-2.5 rounded-md bg-[#040711] text-slate-300 border border-[#1E293B] text-[10px]">
+              <div className="flex items-center space-x-1.5 font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span className="text-emerald-400 font-semibold">नेपाली स्टुडियो v{CURRENT_STUDIO_VERSION}</span>
               </div>
-            ) : (
-              onOpenDownload && (
+              {onOpenUpdate && (
                 <button
-                  onClick={onOpenDownload}
-                  className="w-full mt-2 flex items-center justify-center space-x-1.5 py-1.5 px-2 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 text-[10px] font-devanagari transition-colors font-medium shadow-sm"
+                  onClick={onOpenUpdate}
+                  className="flex items-center space-x-1 text-amber-400 hover:text-amber-300 font-devanagari transition-colors font-medium cursor-pointer"
+                  title="सफ्टवेयर संस्करण तथा अपडेट विवरण"
                 >
-                  <Download className="w-3 h-3" />
-                  <span>{translitEnabled ? 'डेस्कटप एप डाउनलोड गर्नुहोस्' : 'Download Desktop App'}</span>
+                  <CloudDownload className="w-3 h-3 text-amber-400" />
+                  <span>अपडेट</span>
                 </button>
-              )
+              )}
+            </div>
+
+            {!isDesktopApp() && onOpenDownload && (
+              <button
+                onClick={onOpenDownload}
+                className="w-full mt-1.5 flex items-center justify-center space-x-1.5 py-1.5 px-2 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 text-[10px] font-devanagari transition-colors font-medium shadow-sm"
+              >
+                <Download className="w-3 h-3" />
+                <span>{translitEnabled ? 'डेस्कटप एप डाउनलोड गर्नुहोस्' : 'Download Desktop App'}</span>
+              </button>
             )}
           </div>
         </div>

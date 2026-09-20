@@ -952,6 +952,8 @@ export default function StudioWorkspace() {
                 onOpenAi={() => handleSetIsAiOpen(true)}
                 isAiAvailable={isAiAvailable}
                 onOpenExplorer={() => handleSetActiveSidebarTab('files')}
+                onOpenUpdate={() => setIsUpdateOpen(true)}
+                hasUpdate={Boolean(updateInfo?.hasUpdate)}
               />
             </main>
 

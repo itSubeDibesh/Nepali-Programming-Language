@@ -9,6 +9,7 @@ import {
   Terminal,
   Play,
   Layers,
+  CloudDownload,
 } from 'lucide-react';
 import { RunMode } from '../lib/types';
 import { getI18n } from '../lib/i18n';
@@ -135,31 +136,33 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
           </button>
         )}
 
-        {/* Download Desktop App (Web) or Check Updates (Desktop) */}
-        {isDesktopApp() ? (
-          onOpenUpdate && (
-            <button
-              onClick={onOpenUpdate}
-              className={`p-2.5 rounded-xl transition-all relative group ${
-                hasUpdate
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
-              }`}
-              title="सफ्टवेयर अपडेट जाँच गर्नुहोस् (Check for Updates)"
-            >
-              <Sparkles className="w-5 h-5 text-amber-400" />
-            </button>
-          )
-        ) : (
-          onOpenDownload && (
-            <button
-              onClick={onOpenDownload}
-              className="p-2.5 rounded-xl transition-all text-slate-400 hover:text-emerald-400 hover:bg-[#0F172A] relative group"
-              title="डेस्कटप एप डाउनलोड गर्नुहोस् (Download Desktop App)"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-          )
+        {/* Software Version & Updates */}
+        {onOpenUpdate && (
+          <button
+            onClick={onOpenUpdate}
+            className={`p-2.5 rounded-xl transition-all relative group ${
+              hasUpdate
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
+            }`}
+            title="सफ्टवेयर संस्करण तथा अपडेट (Software Version & Updates)"
+          >
+            <CloudDownload className={`w-5 h-5 ${hasUpdate ? 'text-amber-400' : 'text-emerald-400'}`} />
+            {hasUpdate && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+            )}
+          </button>
+        )}
+
+        {/* Download Desktop App (Web only) */}
+        {!isDesktopApp() && onOpenDownload && (
+          <button
+            onClick={onOpenDownload}
+            className="p-2.5 rounded-xl transition-all text-slate-400 hover:text-emerald-400 hover:bg-[#0F172A] relative group"
+            title="डेस्कटप एप डाउनलोड गर्नुहोस् (Download Desktop App)"
+          >
+            <Download className="w-5 h-5" />
+          </button>
         )}
         {/* Bottom Inspector / Terminal Toggle */}
         <button

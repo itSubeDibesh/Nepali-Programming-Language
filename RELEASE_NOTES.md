@@ -31,6 +31,8 @@ This release brings real physical directory linking, zero-state workspace suppor
 - **Multi-Model Generative AI**: Supports resilient fallback across `openai`, `qwen-coder`, and `mistral` endpoints with local semantic AST reasoning fallback.
 
 ### 5. Editor & UI Enhancements
+- **Comprehensive Current Version & System Info**: Full system specifications card (Nepali Studio App, Core Engine v0.1.0, WASM Runtime v0.1.0, Compiler modes, Platform/OS, Architecture, Storage bridge, and active features) accessible from Navbar, ActivityBar, Sidebar, and the Editor footer status bar.
+- **Redesigned Software Update Icon**: Software updates now use the dedicated `CloudDownload` cloud-download icon across Navbar, ActivityBar, Sidebar, Editor status bar, and Update Modal, replacing ambiguous generic icons with clear, standard update branding and live update status badges.
 - **Devanagari Numerals**: Line numbers now render authentic Devanagari numerals (`१, २, ३...`) when Nepali script mode is active.
 - **Universal Clipboard Support**: Reliable copy/paste actions across Web Studio and Tauri Desktop via native IPC clipboard bridge (`xclip`/`pbpaste`/Tauri API).
 - **Dynamic Bytecode Disassembly**: Real-time VM disassembly compiled on-the-fly for any user program instead of static placeholders.
