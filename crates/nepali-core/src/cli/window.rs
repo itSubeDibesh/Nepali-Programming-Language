@@ -159,5 +159,6 @@ pub fn run_window(port: u16, nepali_bin: Option<&str>) -> ExitCode {
         }
     });
 
+    #[allow(unreachable_code)]
     ExitCode::SUCCESS
 }
