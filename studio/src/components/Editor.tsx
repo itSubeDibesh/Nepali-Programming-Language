@@ -9,6 +9,7 @@ import { toNepaliDigits } from '../lib/numbers';
 import { getI18n } from '../lib/i18n';
 import { formatNepaliCode } from '../lib/formatter';
 import { copyToClipboard, readFromClipboard } from '../lib/clipboard';
+import { getAutoSuggestions, SuggestionItem, SuggestionResult } from '../lib/autocomplete';
 import { ContextMenu } from './ContextMenu';
 import { TabContextMenu, TabContextMenuState } from './TabContextMenu';
 import {
@@ -271,6 +272,65 @@ export const Editor: React.FC<EditorProps> = ({
     start: 0,
   });
 
+  const [suggestions, setSuggestions] = useState<SuggestionResult | null>(null);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [suggestionPos, setSuggestionPos] = useState<{ top: number; left: number }>({ top: 40, left: 60 });
+
+  const updateSuggestions = (content: string, cursorOffset: number) => {
+    const res = getAutoSuggestions(content, cursorOffset, translitEnabled);
+    if (res && res.items.length > 0) {
+      setSuggestions(res);
+      setSelectedSuggestionIndex(0);
+
+      if (textareaRef.current) {
+        const textBefore = content.substring(0, cursorOffset);
+        const lines = textBefore.split('\n');
+        const lineIdx = lines.length - 1;
+        const colIdx = lines[lineIdx].length;
+
+        const lineHeight = 24;
+        const charWidth = 8.5;
+        const paddingTop = 14;
+        const paddingLeft = 14;
+
+        const scrollTop = textareaRef.current.scrollTop;
+        const scrollLeft = textareaRef.current.scrollLeft;
+
+        const top = paddingTop + (lineIdx + 1) * lineHeight - scrollTop;
+        const left = Math.min(
+          paddingLeft + colIdx * charWidth - scrollLeft,
+          (textareaRef.current.clientWidth || 500) - 290
+        );
+
+        setSuggestionPos({
+          top: Math.max(top, 30),
+          left: Math.max(left, 16),
+        });
+      }
+    } else {
+      setSuggestions(null);
+    }
+  };
+
+  const applySuggestion = (item: SuggestionItem) => {
+    if (!suggestions || !activeFile || !textareaRef.current) return;
+    const target = textareaRef.current;
+    const val = target.value;
+    const { replaceStart, replaceEnd } = suggestions;
+
+    const newVal = val.substring(0, replaceStart) + item.insertText + val.substring(replaceEnd);
+    onUpdateContent(activeFile.id, newVal);
+    setSuggestions(null);
+    resetPhonetic();
+
+    const newCursor = replaceStart + (item.cursorOffset ?? item.insertText.length);
+    setTimeout(() => {
+      target.focus();
+      target.selectionStart = target.selectionEnd = newCursor;
+      handleCursorMove();
+    }, 0);
+  };
+
   const resetPhonetic = () => {
     phoneticRef.current = { word: '', shown: '', start: 0 };
   };
@@ -307,6 +367,43 @@ export const Editor: React.FC<EditorProps> = ({
       e.preventDefault();
       resetPhonetic();
       handleFormatCode();
+      return;
+    }
+
+    // Suggestion Navigation & Selection
+    if (suggestions && suggestions.items.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestionIndex((prev) => (prev + 1) % suggestions.items.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestionIndex((prev) => (prev - 1 + suggestions.items.length) % suggestions.items.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        const selected = suggestions.items[selectedSuggestionIndex] || suggestions.items[0];
+        if (selected) {
+          applySuggestion(selected);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSuggestions(null);
+        return;
+      }
+    }
+
+    // Ctrl+Space or Cmd+Space: Trigger suggestions explicitly
+    if ((e.ctrlKey || e.metaKey) && (e.code === 'Space' || e.key === ' ')) {
+      e.preventDefault();
+      const target = textareaRef.current;
+      if (target && activeFile) {
+        updateSuggestions(activeFile.content, target.selectionStart);
+      }
       return;
     }
 
@@ -390,6 +487,7 @@ export const Editor: React.FC<EditorProps> = ({
         setTimeout(() => {
           target.selectionStart = target.selectionEnd = newCursor;
           handleCursorMove();
+          updateSuggestions(newVal, newCursor);
         }, 0);
         return;
       }
@@ -414,10 +512,12 @@ export const Editor: React.FC<EditorProps> = ({
           setTimeout(() => {
             target.selectionStart = target.selectionEnd = newCursor;
             handleCursorMove();
+            updateSuggestions(newVal, newCursor);
           }, 0);
         } else {
           const newVal = currentVal.substring(0, start) + currentVal.substring(start + oldLen);
           resetPhonetic();
+          setSuggestions(null);
           onUpdateContent(activeFile.id, newVal);
           setTimeout(() => {
             target.selectionStart = target.selectionEnd = start;
@@ -1033,20 +1133,32 @@ export const Editor: React.FC<EditorProps> = ({
               ref={textareaRef}
               value={activeContent}
               onChange={(e) => {
+                const val = e.target.value;
+                const cur = e.target.selectionStart;
                 if (activeFile) {
-                  onUpdateContent(activeFile.id, e.target.value);
+                  onUpdateContent(activeFile.id, val);
                 }
                 handleCursorMove();
+                setTimeout(() => updateSuggestions(val, cur), 10);
               }}
               onScroll={handleScroll}
               onKeyDown={handleKeyDown}
-              onPaste={() => resetPhonetic()}
+              onPaste={() => {
+                resetPhonetic();
+                setSuggestions(null);
+              }}
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
-              onMouseDown={resetPhonetic}
+              onMouseDown={() => {
+                resetPhonetic();
+                setSuggestions(null);
+              }}
               onMouseUp={handleCursorMove}
               onSelect={handleCursorMove}
-              onBlur={resetPhonetic}
+              onBlur={() => {
+                resetPhonetic();
+                setTimeout(() => setSuggestions(null), 200);
+              }}
               onClick={handleCursorMove}
               onKeyUp={handleCursorMove}
               spellCheck={false}
@@ -1058,6 +1170,81 @@ export const Editor: React.FC<EditorProps> = ({
               }}
               className="absolute inset-0 w-full h-full p-3 m-0 bg-transparent text-transparent font-mono text-sm leading-6 resize-none outline-none border-none whitespace-pre overflow-auto font-devanagari caret-emerald-400 selection:bg-emerald-500/30"
             />
+
+            {/* Live Syntax Auto-Suggestion IntelliSense Box */}
+            {suggestions && suggestions.items.length > 0 && (
+              <div
+                style={{
+                  top: `${suggestionPos.top}px`,
+                  left: `${suggestionPos.left}px`,
+                  zIndex: 40,
+                }}
+                className="absolute w-80 max-w-[calc(100%-32px)] max-h-72 bg-[#0A0F1D]/95 border border-emerald-500/40 shadow-2xl rounded-lg overflow-hidden flex flex-col font-sans backdrop-blur-md animate-in fade-in zoom-in-95 duration-100"
+              >
+                <div className="px-2.5 py-1.5 bg-[#060911] border-b border-[#1E293B] flex items-center justify-between text-[10px] text-slate-400 select-none">
+                  <span className="flex items-center space-x-1 font-semibold text-emerald-400">
+                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                    <span>स्वतः सुझाव (IntelliSense)</span>
+                  </span>
+                  <span className="text-[9px] text-slate-500 font-mono">Tab / Enter</span>
+                </div>
+
+                <div className="overflow-y-auto max-h-48 py-1 divide-y divide-[#1E293B]/40">
+                  {suggestions.items.map((item, idx) => {
+                    const isSelected = idx === selectedSuggestionIndex;
+                    let badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                    let badgeLabel = 'किवर्ड';
+
+                    if (item.category === 'builtin') {
+                      badgeColor = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30';
+                      badgeLabel = 'बिल्ट-इन';
+                    } else if (item.category === 'function') {
+                      badgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+                      badgeLabel = 'फङ्क्सन';
+                    } else if (item.category === 'variable') {
+                      badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+                      badgeLabel = 'चर';
+                    } else if (item.category === 'snippet') {
+                      badgeColor = 'bg-rose-500/10 text-rose-400 border-rose-500/30';
+                      badgeLabel = 'स्निपेट';
+                    }
+
+                    return (
+                      <div
+                        key={item.id}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          applySuggestion(item);
+                        }}
+                        onMouseEnter={() => setSelectedSuggestionIndex(idx)}
+                        className={`px-2.5 py-1.5 flex items-center justify-between cursor-pointer transition-colors ${
+                          isSelected ? 'bg-emerald-500/20 border-l-2 border-emerald-400' : 'hover:bg-slate-800/40'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded border font-mono font-medium flex-shrink-0 ${badgeColor}`}>
+                            {badgeLabel}
+                          </span>
+                          <span className="font-mono text-xs text-slate-100 font-semibold truncate font-devanagari">
+                            {item.label}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-mono truncate ml-2 max-w-[110px]">
+                          {item.detail}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Description Preview Footer */}
+                {suggestions.items[selectedSuggestionIndex] && (
+                  <div className="px-2.5 py-1.5 bg-[#060A14] border-t border-[#1E293B] text-[10px] text-slate-300 font-devanagari line-clamp-2">
+                    {suggestions.items[selectedSuggestionIndex].description}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
