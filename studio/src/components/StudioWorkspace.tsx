@@ -556,7 +556,7 @@ export default function StudioWorkspace() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#060911] text-slate-100 selection:bg-emerald-500/30">
+    <div className="flex flex-col h-full w-full overflow-hidden bg-[#060911] text-slate-100 selection:bg-emerald-500/30">
       {/* Top Navbar */}
       <Navbar
         onRun={handleRun}

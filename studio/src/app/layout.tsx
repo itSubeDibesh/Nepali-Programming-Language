@@ -64,7 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       >
         {/* Web Studio banner — shown only on nepali.dibe.sh (client-side only, no SSR flash) */}
         <WebStudioBanner />
-        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <div className="flex-1 flex flex-col h-full w-full overflow-hidden min-h-0">
           {children}
         </div>
       </body>
