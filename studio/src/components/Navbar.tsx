@@ -11,6 +11,8 @@ import {
   Share2,
   PanelLeft,
   Layers,
+  Folder,
+  FolderOpen,
 } from 'lucide-react';
 import { RunMode } from '../lib/types';
 import { getI18n } from '../lib/i18n';
@@ -34,6 +36,9 @@ interface NavbarProps {
   onOpenDownload?: () => void;
   onOpenUpdate?: () => void;
   hasUpdate?: boolean;
+  onOpenRealFolder?: () => void;
+  linkedDirectory?: { rootPath: string; rootName: string; isNativeDisk: boolean } | null;
+  onUnlinkFolder?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -54,6 +59,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenDownload,
   onOpenUpdate,
   hasUpdate,
+  onOpenRealFolder,
+  linkedDirectory,
+  onUnlinkFolder,
 }) => {
   const i18n = getI18n(translitEnabled).navbar;
 
@@ -170,6 +178,28 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Right: Transliteration Toggle, Drawers & Share */}
       <div className="flex items-center space-x-2">
+        {/* Open Real Folder Button */}
+        {onOpenRealFolder && (
+          <button
+            onClick={onOpenRealFolder}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition-all font-medium ${
+              linkedDirectory
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-sm'
+                : 'bg-[#060911] border-[#1E293B] text-slate-300 hover:text-white hover:border-slate-700'
+            }`}
+            title={
+              linkedDirectory
+                ? `लिङ्क गरिएको वास्तविक फोल्डर: ${linkedDirectory.rootPath}`
+                : 'कम्प्युटरबाट वास्तविक डाइरेक्टरी खोल्नुहोस्'
+            }
+          >
+            <Folder className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline font-devanagari">
+              {linkedDirectory ? linkedDirectory.rootName : (translitEnabled ? 'फोल्डर खोल्नुहोस्' : 'Open Folder')}
+            </span>
+          </button>
+        )}
+
         {/* Devanagari Translit Switch */}
         <button
           onClick={onToggleTranslit}

@@ -25,6 +25,7 @@ import { ensureNepaliExtension } from '../lib/fileUtils';
 import { toNepaliDigits } from '../lib/numbers';
 import { getI18n } from '../lib/i18n';
 import { getAvailableModes, isLocalEnvironment } from '../lib/env';
+import { openRealDirectory, saveRealFile, deleteRealItem, LinkedDirectoryInfo } from '../lib/nativeFs';
 
 const DEFAULT_CODE = `// नेपाली भाषामा पहिलो कार्यक्रम (Your First Program)
 राखौँ सन्देश = "नमस्ते, नेपाल !"।
@@ -48,6 +49,7 @@ const STORAGE_KEYS = {
   AI_OPEN: 'nepali_studio_ai_open_v1',
   TERMINAL_OPEN: 'nepali_studio_terminal_open_v1',
   LAST_RESULT: 'nepali_studio_last_result_v1',
+  LINKED_DIR: 'nepali_studio_linked_dir_v1',
 };
 
 // Synchronous initial state getters (zero-flicker on reload)
@@ -66,9 +68,9 @@ function getInitialFiles(): CodeFile[] {
       }];
     }
     const saved = localStorage.getItem(STORAGE_KEYS.FILES);
-    if (saved) {
+    if (saved !== null) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
@@ -76,8 +78,8 @@ function getInitialFiles(): CodeFile[] {
   return [{ id: '1', name: 'main.nep', content: DEFAULT_CODE, isMain: true }];
 }
 
-
 function getInitialOpenTabs(initialFiles: CodeFile[]): string[] {
+  if (initialFiles.length === 0) return [];
   if (typeof window === 'undefined') {
     return initialFiles.map((f) => f.id);
   }
@@ -85,13 +87,11 @@ function getInitialOpenTabs(initialFiles: CodeFile[]): string[] {
     const shared = decodeCodeFromUrl();
     if (shared) return ['shared'];
     const saved = localStorage.getItem(STORAGE_KEYS.OPEN_TABS);
-    if (saved) {
+    if (saved !== null) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) {
         const valid = parsed.filter((id) => initialFiles.some((f) => f.id === id));
-        if (valid.length > 0) {
-          return valid;
-        }
+        return valid;
       }
     }
   } catch {}
@@ -99,7 +99,8 @@ function getInitialOpenTabs(initialFiles: CodeFile[]): string[] {
 }
 
 function getInitialActiveFileId(initialFiles: CodeFile[]): string {
-  if (typeof window === 'undefined') return '1';
+  if (initialFiles.length === 0) return '';
+  if (typeof window === 'undefined') return initialFiles[0]?.id || '1';
   try {
     const shared = decodeCodeFromUrl();
     if (shared) return 'shared';
@@ -108,7 +109,16 @@ function getInitialActiveFileId(initialFiles: CodeFile[]): string {
       return saved;
     }
   } catch {}
-  return initialFiles[0]?.id || '1';
+  return initialFiles[0]?.id || '';
+}
+
+function getInitialLinkedDir(): LinkedDirectoryInfo | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.LINKED_DIR);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return null;
 }
 
 function getInitialMode(): RunMode {
@@ -192,6 +202,7 @@ export default function StudioWorkspace() {
       return next;
     });
   };
+  const [linkedDirectory, setLinkedDirectory] = useState<LinkedDirectoryInfo | null>(getInitialLinkedDir);
   const [translitEnabled, setTranslitEnabled] = useState<boolean>(getInitialTranslit);
   const [promptRequest, setPromptRequest] = useState<PromptRequest | null>(null);
 
@@ -423,9 +434,17 @@ export default function StudioWorkspace() {
     }
   };
 
-  const handleManualSave = () => {
+  const handleManualSave = async () => {
     saveFilesToStorage(files);
-    showToast('success', 'फाइल सुरक्षित गरियो', `"${activeFile?.name || 'फाइल'}" सफलतापूर्वक सुरक्षित गरियो।`);
+    if (linkedDirectory && activeFile) {
+      const ok = await saveRealFile(activeFile.name, activeFile.content, linkedDirectory.rootPath);
+      if (ok) {
+        setIsSaved(true);
+        showToast('success', translitEnabled ? 'डिस्कमा सुरक्षित गरियो' : 'Saved to Disk', `"${activeFile.name}" ${translitEnabled ? 'वास्तविक फाइलमा लेखियो।' : 'saved to disk file.'}`);
+        return;
+      }
+    }
+    showToast('success', translitEnabled ? 'फाइल सुरक्षित गरियो' : 'File Saved', `"${activeFile?.name || 'फाइल'}" ${translitEnabled ? 'सफलतापूर्वक सुरक्षित गरियो।' : 'saved.'}`);
   };
 
   // Keyboard Shortcuts (Ctrl+Enter to run, F2 for translit, Ctrl+B for Sidebar, Ctrl+S for save)
@@ -556,15 +575,56 @@ export default function StudioWorkspace() {
     showToast('success', translitEnabled ? 'फाइल सारियो' : 'File Moved', `"${baseName}" → ${destLabel}`);
   };
 
+  const handleOpenRealFolder = async () => {
+    try {
+      const result = await openRealDirectory();
+      if (!result) return;
+      setLinkedDirectory(result.info);
+      setFiles(result.files);
+      const tabIds = result.files.map((f) => f.id);
+      setOpenTabIds(tabIds);
+      if (result.files.length > 0) {
+        handleSetActiveFileId(result.files[0].id);
+      } else {
+        handleSetActiveFileId('');
+      }
+      saveFilesToStorage(result.files);
+      saveOpenTabsToStorage(tabIds);
+      try {
+        localStorage.setItem(STORAGE_KEYS.LINKED_DIR, JSON.stringify(result.info));
+      } catch {}
+      showToast('success', translitEnabled ? 'डाइरेक्टरी लिङ्क गरियो' : 'Directory Linked', `"${result.info.rootName}" (${toNepaliDigits(result.files.length)} ${translitEnabled ? 'फाइलहरू' : 'files'})`);
+    } catch (err: any) {
+      showToast('error', 'डाइरेक्टरी खोल्न सकिएन', err?.message || 'अज्ञात त्रुटि');
+    }
+  };
+
+  const handleUnlinkFolder = () => {
+    setLinkedDirectory(null);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.LINKED_DIR);
+    } catch {}
+    showToast('info', translitEnabled ? 'फोल्डर विच्छेद भयो' : 'Folder Unlinked', translitEnabled ? 'कार्यक्षेत्र स्थानीय मोडमा फर्कियो।' : 'Workspace returned to local mode.');
+  };
+
+  const handleSyncFolder = async () => {
+    if (!linkedDirectory) return;
+    try {
+      const result = await openRealDirectory(linkedDirectory.rootPath);
+      if (result) {
+        setFiles(result.files);
+        saveFilesToStorage(result.files);
+        showToast('success', translitEnabled ? 'पुनः सिङ्क गरियो' : 'Folder Synced', `${toNepaliDigits(result.files.length)} ${translitEnabled ? 'फाइलहरू सिङ्क भए।' : 'files synced.'}`);
+      }
+    } catch (e: any) {
+      showToast('error', 'सिङ्क असफल', e?.message || 'त्रुटि');
+    }
+  };
+
   const handleDeleteFolder = (folderPath: string) => {
     const cleanPath = folderPath.replace(/\/+$/, '');
     const targetFiles = files.filter((f) => f.name.startsWith(cleanPath + '/'));
     if (targetFiles.length === 0) return;
-
-    if (files.length <= targetFiles.length) {
-      showToast('warning', translitEnabled ? 'फोल्डर मेटाउन मिल्दैन' : 'Cannot Delete Folder', translitEnabled ? 'परियोजनामा कम्तिमा एउटा फाइल हुनैपर्छ।' : 'Workspace must have at least one file.');
-      return;
-    }
 
     const i18nModals = getI18n(translitEnabled).modals;
     setConfirmDialog({
@@ -574,7 +634,7 @@ export default function StudioWorkspace() {
       confirmLabel: i18nModals.deleteConfirm,
       cancelLabel: i18nModals.deleteCancel,
       variant: 'danger',
-      onConfirm: () => {
+      onConfirm: async () => {
         const targetIds = new Set(targetFiles.map((f) => f.id));
         const nextFiles = files.filter((f) => !targetIds.has(f.id));
         const nextOpen = openTabIds.filter((tabId) => !targetIds.has(tabId));
@@ -582,6 +642,12 @@ export default function StudioWorkspace() {
         setOpenTabIds(nextOpen);
         saveFilesToStorage(nextFiles);
         saveOpenTabsToStorage(nextOpen);
+
+        if (linkedDirectory) {
+          for (const f of targetFiles) {
+            await deleteRealItem(f.id);
+          }
+        }
 
         if (targetIds.has(activeFileId)) {
           if (nextOpen.length > 0) {
@@ -600,10 +666,6 @@ export default function StudioWorkspace() {
   };
 
   const handleDeleteFile = (id: string) => {
-    if (files.length <= 1) {
-      showToast('warning', translitEnabled ? 'फाइल मेटाउन मिल्दैन' : 'Cannot Delete File', translitEnabled ? 'परियोजनामा कम्तिमा एउटा फाइल हुनैपर्छ।' : 'Workspace must have at least one file.');
-      return;
-    }
     const targetFile = files.find((f) => f.id === id);
     if (!targetFile) return;
 
@@ -615,13 +677,17 @@ export default function StudioWorkspace() {
       confirmLabel: i18nModals.deleteConfirm,
       cancelLabel: i18nModals.deleteCancel,
       variant: 'danger',
-      onConfirm: () => {
+      onConfirm: async () => {
         const nextFiles = files.filter((f) => f.id !== id);
         const nextOpen = openTabIds.filter((tabId) => tabId !== id);
         setFiles(nextFiles);
         setOpenTabIds(nextOpen);
         saveFilesToStorage(nextFiles);
         saveOpenTabsToStorage(nextOpen);
+
+        if (linkedDirectory) {
+          await deleteRealItem(targetFile.id);
+        }
 
         if (activeFileId === id) {
           if (nextOpen.length > 0) {
@@ -684,10 +750,12 @@ export default function StudioWorkspace() {
     setConfirmDialog({
       isOpen: true,
       title: i18nModals.resetTitle,
-      message: i18nModals.resetMessage,
-      confirmLabel: i18nModals.resetConfirm,
-      cancelLabel: i18nModals.resetCancel,
-      variant: 'danger',
+      message: translitEnabled
+        ? 'कार्यक्षेत्रलाई पूर्वनिर्धारित फाइलमा फर्काउने वा पूर्ण रूपमा खाली गर्ने?'
+        : 'Restore default template files or clear workspace completely?',
+      confirmLabel: translitEnabled ? 'पूर्वनिर्धारित लोड गर्नुहोस्' : 'Restore Default',
+      cancelLabel: translitEnabled ? 'कार्यक्षेत्र खाली गर्नुहोस् (Clear)' : 'Clear Empty',
+      variant: 'warning',
       onConfirm: () => {
         const defaultFiles: CodeFile[] = [{ id: '1', name: 'main.nep', content: DEFAULT_CODE, isMain: true }];
         setFiles(defaultFiles);
@@ -696,6 +764,14 @@ export default function StudioWorkspace() {
         saveFilesToStorage(defaultFiles);
         saveOpenTabsToStorage(['1']);
         showToast('info', translitEnabled ? 'कार्यक्षेत्र रिसेट भयो' : 'Workspace Reset', translitEnabled ? 'फाइलहरू पूर्वनिर्धारित अवस्थामा फर्किए।' : 'Files restored to default.');
+      },
+      onCancel: () => {
+        setFiles([]);
+        setOpenTabIds([]);
+        handleSetActiveFileId('');
+        saveFilesToStorage([]);
+        saveOpenTabsToStorage([]);
+        showToast('info', translitEnabled ? 'कार्यक्षेत्र खाली भयो' : 'Workspace Cleared', translitEnabled ? 'सबै फाइलहरू हटाइयो।' : 'All files cleared.');
       }
     });
   };
@@ -713,6 +789,15 @@ export default function StudioWorkspace() {
     const nextFiles = files.map((f) => (f.id === id ? { ...f, content: newContent } : f));
     setFiles(nextFiles);
     saveFilesToStorage(nextFiles);
+
+    if (linkedDirectory) {
+      const target = files.find((f) => f.id === id);
+      if (target) {
+        saveRealFile(target.name, newContent, linkedDirectory.rootPath).then((ok) => {
+          if (ok) setIsSaved(true);
+        });
+      }
+    }
   };
 
   const handleSelectExample = (ex: RecipeItem, saveToFolder = false) => {
@@ -783,6 +868,9 @@ export default function StudioWorkspace() {
         onOpenDownload={() => setIsDownloadOpen(true)}
         onOpenUpdate={() => setIsUpdateOpen(true)}
         hasUpdate={Boolean(updateInfo?.hasUpdate)}
+        onOpenRealFolder={handleOpenRealFolder}
+        linkedDirectory={linkedDirectory}
+        onUnlinkFolder={handleUnlinkFolder}
       />
 
       {/* Main IDE Workspace */}
@@ -834,6 +922,10 @@ export default function StudioWorkspace() {
                 onResetWorkspace={handleResetWorkspace}
                 onOpenDownload={() => setIsDownloadOpen(true)}
                 onOpenUpdate={() => setIsUpdateOpen(true)}
+                linkedDirectory={linkedDirectory}
+                onOpenRealFolder={handleOpenRealFolder}
+                onUnlinkFolder={handleUnlinkFolder}
+                onSyncFolder={handleSyncFolder}
               />
             )}
 

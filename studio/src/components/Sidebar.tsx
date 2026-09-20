@@ -58,6 +58,10 @@ interface SidebarProps {
   onResetWorkspace: () => void;
   onOpenDownload?: () => void;
   onOpenUpdate?: () => void;
+  linkedDirectory?: { rootPath: string; rootName: string; isNativeDisk: boolean } | null;
+  onOpenRealFolder?: () => void;
+  onUnlinkFolder?: () => void;
+  onSyncFolder?: () => void;
 }
 
 interface TreeNode {
@@ -168,6 +172,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   translitEnabled = true,
   onOpenDownload,
   onOpenUpdate,
+  linkedDirectory,
+  onOpenRealFolder,
+  onUnlinkFolder,
+  onSyncFolder,
 }) => {
   const i18n = getI18n(translitEnabled).sidebar;
   const [docSearch, setDocSearchState] = useState<string>('');
@@ -586,6 +594,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* VIEW 1: FILES & FOLDER EXPLORER */}
       {activeTab === 'files' && (
         <div className="flex-1 flex flex-col overflow-hidden p-3 space-y-3">
+          {/* Linked Native Directory Status Banner */}
+          {linkedDirectory && (
+            <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs font-devanagari animate-in fade-in">
+              <div className="flex items-center space-x-2 min-w-0 pr-1">
+                <Folder className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <div className="min-w-0">
+                  <div className="font-semibold text-emerald-300 truncate text-[11px] font-mono">
+                    {linkedDirectory.rootName}
+                  </div>
+                  <div className="text-[9px] text-slate-400 truncate" title={linkedDirectory.rootPath}>
+                    {linkedDirectory.rootPath}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-1 flex-shrink-0">
+                {onSyncFolder && (
+                  <button
+                    onClick={onSyncFolder}
+                    className="p-1 hover:bg-emerald-500/20 text-emerald-400 rounded transition-colors"
+                    title="पुनः सिङ्क गर्नुहोस् (Sync)"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                  </button>
+                )}
+                {onUnlinkFolder && (
+                  <button
+                    onClick={onUnlinkFolder}
+                    className="p-1 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded transition-colors"
+                    title="फोल्डर विच्छेद गर्नुहोस् (Unlink Directory)"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400">
               परियोजना संरचना ({toNepaliDigits(files.length)})
@@ -598,6 +643,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Plus className="w-4 h-4" />
               </button>
+              {onOpenRealFolder && (
+                <button
+                  onClick={onOpenRealFolder}
+                  className="p-1 text-slate-400 hover:text-amber-400 hover:bg-[#0F172A] rounded transition-colors"
+                  title="कम्प्युटरबाट वास्तविक फोल्डर खोल्नुहोस् (Open Folder)"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                </button>
+              )}
               {onAddFolder && (
                 <button
                   onClick={() => setIsCreatingFolder(true)}
@@ -677,28 +731,62 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* Directory & File Tree with Drop Zone */}
-          <div
-            className={`flex-1 overflow-y-auto space-y-0.5 pr-1 rounded-md transition-colors ${
-              isDragOverRoot ? 'bg-[#0F172A]/50' : ''
-            }`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragOverRoot(true);
-            }}
-            onDragLeave={() => setIsDragOverRoot(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragOverRoot(false);
-              const droppedId = e.dataTransfer.getData('text/nepali-file-id') || draggedFileId;
-              if (droppedId && onMoveFile) {
-                onMoveFile(droppedId, null);
-              }
-              setDraggedFileId(null);
-            }}
-          >
-            {fileTree.map((node) => renderTreeNode(node, 0))}
-          </div>
+          {/* Empty Workspace State or Directory & File Tree with Drop Zone */}
+          {files.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-4 text-center space-y-3 bg-[#060911]/60 rounded-xl border border-[#1E293B]/60 my-auto">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <FolderOpen className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-slate-200 font-devanagari">
+                  कार्यक्षेत्र खाली छ
+                </div>
+                <div className="text-[10px] text-slate-500 font-devanagari leading-relaxed">
+                  नयाँ फाइल बनाउनुहोस् वा वास्तविक फोल्डर खोल्नुहोस्
+                </div>
+              </div>
+              <div className="flex flex-col w-full space-y-1.5 pt-1">
+                <button
+                  onClick={() => onAddFile()}
+                  className="w-full py-1.5 px-2.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium font-devanagari flex items-center justify-center space-x-1.5 shadow-sm transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>नयाँ फाइल सिर्जना (+)</span>
+                </button>
+                {onOpenRealFolder && (
+                  <button
+                    onClick={onOpenRealFolder}
+                    className="w-full py-1.5 px-2.5 rounded-md bg-[#0F172A] hover:bg-slate-800 text-slate-300 text-[11px] font-medium font-devanagari flex items-center justify-center space-x-1.5 border border-slate-700/60 transition-all"
+                  >
+                    <Folder className="w-3.5 h-3.5 text-amber-400" />
+                    <span>फोल्डर खोल्नुहोस्</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div
+              className={`flex-1 overflow-y-auto space-y-0.5 pr-1 rounded-md transition-colors ${
+                isDragOverRoot ? 'bg-[#0F172A]/50' : ''
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragOverRoot(true);
+              }}
+              onDragLeave={() => setIsDragOverRoot(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragOverRoot(false);
+                const droppedId = e.dataTransfer.getData('text/nepali-file-id') || draggedFileId;
+                if (droppedId && onMoveFile) {
+                  onMoveFile(droppedId, null);
+                }
+                setDraggedFileId(null);
+              }}
+            >
+              {fileTree.map((node) => renderTreeNode(node, 0))}
+            </div>
+          )}
 
           {/* Footer Info & Desktop Badges */}
           <div className="bg-[#060911] border border-[#1E293B] rounded-lg p-2.5 text-[11px] text-slate-400 space-y-1">

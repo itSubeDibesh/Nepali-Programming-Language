@@ -260,6 +260,202 @@ fn ask_nepali_ai(
     }))
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NativeFileItem {
+    pub id: String,
+    pub name: String,
+    pub content: String,
+    #[serde(rename = "fullPath")]
+    pub full_path: String,
+    #[serde(rename = "isFolder")]
+    pub is_folder: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NativeDirectoryResult {
+    #[serde(rename = "rootPath")]
+    pub root_path: String,
+    #[serde(rename = "rootName")]
+    pub root_name: String,
+    pub files: Vec<NativeFileItem>,
+}
+
+fn scan_dir_recursive(root: &std::path::Path, current: &std::path::Path, files: &mut Vec<NativeFileItem>) {
+    let Ok(entries) = std::fs::read_dir(current) else { return; };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if file_name.starts_with('.') || file_name == "node_modules" || file_name == "target" || file_name == ".next" || file_name == "dist" {
+            continue;
+        }
+        if path.is_dir() {
+            scan_dir_recursive(root, &path, files);
+        } else if path.is_file() {
+            if let Ok(meta) = path.metadata() {
+                if meta.len() < 2 * 1024 * 1024 {
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        if let Ok(rel) = path.strip_prefix(root) {
+                            let rel_str = rel.to_string_lossy().replace('\\', "/");
+                            files.push(NativeFileItem {
+                                id: path.to_string_lossy().to_string(),
+                                name: rel_str,
+                                content,
+                                full_path: path.to_string_lossy().to_string(),
+                                is_folder: false,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn prompt_native_folder_dialog() -> Result<std::path::PathBuf, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let script = r#"POSIX path of (choose folder with prompt "नेपाली कोडिङ कार्यक्षेत्र फोल्डर चयन गर्नुहोस्:")"#;
+        let out = Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .output()
+            .map_err(|e| format!("Folder dialog error: {e}"))?;
+        if out.status.success() {
+            let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !p.is_empty() {
+                return Ok(std::path::PathBuf::from(p));
+            }
+        }
+        return Err("प्रयोगकर्ताले फोल्डर चयन रद्द गर्नुभयो (Cancelled)".into());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use std::process::Command;
+        if let Ok(out) = Command::new("zenity")
+            .args(["--file-selection", "--directory", "--title=नेपाली कार्यक्षेत्र फोल्डर"])
+            .output()
+        {
+            if out.status.success() {
+                let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if !p.is_empty() {
+                    return Ok(std::path::PathBuf::from(p));
+                }
+            }
+        }
+        return Err("Linux folder dialog not available".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        let ps_cmd = r#"[System.Reflection.Assembly]::LoadWithPartialName("System.windows.forms") | Out-Null; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = "Select Nepali Workspace Folder"; if ($f.ShowDialog() -eq "OK") { Write-Host -NoNewline $f.SelectedPath }"#;
+        if let Ok(out) = Command::new("powershell").args(["-Command", ps_cmd]).output() {
+            if out.status.success() {
+                let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if !p.is_empty() {
+                    return Ok(std::path::PathBuf::from(p));
+                }
+            }
+        }
+        return Err("Windows folder dialog not available".into());
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        Err("Unsupported OS".into())
+    }
+}
+
+#[tauri::command]
+fn open_native_directory(path: Option<String>) -> Result<NativeDirectoryResult, String> {
+    let dir_path = if let Some(p) = path {
+        if !p.trim().is_empty() {
+            std::path::PathBuf::from(p)
+        } else {
+            prompt_native_folder_dialog()?
+        }
+    } else {
+        prompt_native_folder_dialog()?
+    };
+
+    if !dir_path.exists() || !dir_path.is_dir() {
+        return Err("चयन गरिएको डाइरेक्टरी फेला परेन (Directory not found)".into());
+    }
+
+    let root_str = dir_path.to_string_lossy().to_string();
+    let root_name = dir_path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| root_str.clone());
+
+    let mut files = Vec::new();
+    scan_dir_recursive(&dir_path, &dir_path, &mut files);
+    files.sort_by(|a, b| a.name.cmp(&b.name));
+
+    Ok(NativeDirectoryResult {
+        root_path: root_str,
+        root_name,
+        files,
+    })
+}
+
+#[tauri::command]
+fn save_native_file(full_path: String, content: String) -> Result<(), String> {
+    let p = std::path::Path::new(&full_path);
+    if let Some(parent) = p.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("डिरेक्टरी सिर्जना त्रुटि: {e}"))?;
+    }
+    std::fs::write(p, content).map_err(|e| format!("फाइल बचत त्रुटि: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn create_native_file(root_path: String, relative_path: String) -> Result<NativeFileItem, String> {
+    let full = std::path::Path::new(&root_path).join(&relative_path);
+    if let Some(parent) = full.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("डिरेक्टरी सिर्जना त्रुटि: {e}"))?;
+    }
+    if !full.exists() {
+        std::fs::write(&full, "").map_err(|e| format!("फाइल सिर्जना त्रुटि: {e}"))?;
+    }
+    let content = std::fs::read_to_string(&full).unwrap_or_default();
+    Ok(NativeFileItem {
+        id: full.to_string_lossy().to_string(),
+        name: relative_path.replace('\\', "/"),
+        content,
+        full_path: full.to_string_lossy().to_string(),
+        is_folder: false,
+    })
+}
+
+#[tauri::command]
+fn create_native_folder(root_path: String, relative_path: String) -> Result<(), String> {
+    let full = std::path::Path::new(&root_path).join(&relative_path);
+    std::fs::create_dir_all(&full).map_err(|e| format!("फोल्डर सिर्जना त्रुटि: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_native_item(full_path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&full_path);
+    if p.is_dir() {
+        std::fs::remove_dir_all(p).map_err(|e| format!("फोल्डर मेटाउन त्रुटि: {e}"))?;
+    } else if p.is_file() {
+        std::fs::remove_file(p).map_err(|e| format!("फाइल मेटाउन त्रुटि: {e}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn rename_native_item(old_path: String, new_path: String) -> Result<(), String> {
+    let old = std::path::Path::new(&old_path);
+    let new = std::path::Path::new(&new_path);
+    if let Some(parent) = new.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("डिरेक्टरी त्रुटि: {e}"))?;
+    }
+    std::fs::rename(old, new).map_err(|e| format!("नाम परिवर्तन त्रुटि: {e}"))?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -272,7 +468,13 @@ pub fn run() {
             check_for_updates,
             write_to_clipboard,
             read_from_clipboard,
-            ask_nepali_ai
+            ask_nepali_ai,
+            open_native_directory,
+            save_native_file,
+            create_native_file,
+            create_native_folder,
+            delete_native_item,
+            rename_native_item
         ])
         .run(tauri::generate_context!())
         .expect("error while running nepali studio application");
