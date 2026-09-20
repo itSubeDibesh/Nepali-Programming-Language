@@ -436,6 +436,23 @@ export default function StudioWorkspace() {
     saveOpenTabsToStorage(nextOpen);
   };
 
+  const handleCloseToRight = (id: string) => {
+    const idx = openTabIds.indexOf(id);
+    if (idx === -1) return;
+    const nextOpen = openTabIds.slice(0, idx + 1);
+    setOpenTabIds(nextOpen);
+    saveOpenTabsToStorage(nextOpen);
+    if (!nextOpen.includes(activeFileId)) {
+      handleSetActiveFileId(id);
+    }
+  };
+
+  const handleCloseAll = () => {
+    setOpenTabIds([]);
+    handleSetActiveFileId('');
+    saveOpenTabsToStorage([]);
+  };
+
   const handleResetWorkspace = () => {
     const i18nModals = getI18n(translitEnabled).modals;
     setConfirmDialog({
@@ -587,6 +604,8 @@ export default function StudioWorkspace() {
                 onRenameFile={handleRenameFile}
                 onCloseTab={handleCloseTab}
                 onCloseOthers={handleCloseOthers}
+                onCloseToRight={handleCloseToRight}
+                onCloseAll={handleCloseAll}
                 translitEnabled={translitEnabled}
                 onRun={handleRun}
                 onSave={handleManualSave}

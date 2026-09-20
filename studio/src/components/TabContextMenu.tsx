@@ -8,6 +8,10 @@ import {
   Trash2,
   FileCode,
   Download,
+  Columns2,
+  Rows2,
+  ArrowRightToLine,
+  Layers,
 } from 'lucide-react';
 import { CodeFile } from '../lib/types';
 import { getI18n } from '../lib/i18n';
@@ -23,11 +27,17 @@ interface TabContextMenuProps {
   onClose: () => void;
   onCloseTab: (id: string) => void;
   onCloseOthers?: (id: string) => void;
+  onCloseToRight?: (id: string) => void;
+  onCloseAll?: () => void;
+  onSplitRight?: (file: CodeFile) => void;
+  onSplitDown?: (file: CodeFile) => void;
   onRename: (file: CodeFile) => void;
   onDeleteFile: (id: string) => void;
   onCopyName: (name: string) => void;
   onDownload: (file: CodeFile) => void;
   canCloseOthers: boolean;
+  canCloseToRight?: boolean;
+  canCloseAll?: boolean;
   translitEnabled?: boolean;
 }
 
@@ -36,11 +46,17 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
   onClose,
   onCloseTab,
   onCloseOthers,
+  onCloseToRight,
+  onCloseAll,
+  onSplitRight,
+  onSplitDown,
   onRename,
   onDeleteFile,
   onCopyName,
   onDownload,
   canCloseOthers,
+  canCloseToRight = true,
+  canCloseAll = true,
   translitEnabled = true,
 }) => {
   const i18n = getI18n(translitEnabled).editor;
@@ -72,14 +88,14 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
   if (!menu) return null;
 
   // Keep menu inside viewport boundaries
-  const adjustedX = Math.min(menu.x, window.innerWidth - 220);
-  const adjustedY = Math.min(menu.y, window.innerHeight - 260);
+  const adjustedX = Math.min(menu.x, window.innerWidth - 240);
+  const adjustedY = Math.min(menu.y, window.innerHeight - 360);
 
   return (
     <div
       ref={menuRef}
       style={{ left: `${adjustedX}px`, top: `${adjustedY}px` }}
-      className="fixed z-50 w-56 bg-[#0B0F19]/95 backdrop-blur-xl border border-[#1E293B] rounded-xl shadow-2xl py-1.5 text-xs text-slate-200 select-none animate-in fade-in duration-100 font-sans"
+      className="fixed z-50 w-60 bg-[#0B0F19]/95 backdrop-blur-xl border border-[#1E293B] rounded-xl shadow-2xl py-1.5 text-xs text-slate-200 select-none animate-in fade-in duration-100 font-sans"
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -102,7 +118,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
             <X className="w-3.5 h-3.5 text-slate-400" />
             <span className="font-devanagari">{i18n.closeTab}</span>
           </div>
-          <span className="text-[10px] text-slate-500 font-mono">Close</span>
+          <span className="text-[10px] text-slate-500 font-mono">Ctrl+W</span>
         </button>
 
         {/* Close Other Tabs */}
@@ -122,6 +138,79 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
           </button>
         )}
 
+        {/* Close to Right */}
+        {canCloseToRight && onCloseToRight && (
+          <button
+            onClick={() => {
+              onCloseToRight(menu.file.id);
+              onClose();
+            }}
+            className="w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-[#0F172A] hover:text-emerald-400 transition-colors"
+          >
+            <div className="flex items-center space-x-2">
+              <ArrowRightToLine className="w-3.5 h-3.5 text-slate-400" />
+              <span className="font-devanagari">{i18n.closeToRight}</span>
+            </div>
+            <span className="text-[10px] text-slate-500 font-mono">Right</span>
+          </button>
+        )}
+
+        {/* Close All */}
+        {canCloseAll && onCloseAll && (
+          <button
+            onClick={() => {
+              onCloseAll();
+              onClose();
+            }}
+            className="w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-[#0F172A] hover:text-rose-400 transition-colors"
+          >
+            <div className="flex items-center space-x-2">
+              <Layers className="w-3.5 h-3.5 text-slate-400" />
+              <span className="font-devanagari">{i18n.closeAll}</span>
+            </div>
+            <span className="text-[10px] text-slate-500 font-mono">All</span>
+          </button>
+        )}
+      </div>
+
+      {/* Split Views */}
+      {(onSplitRight || onSplitDown) && (
+        <div className="border-t border-[#1E293B]/60 my-1 pt-1">
+          {onSplitRight && (
+            <button
+              onClick={() => {
+                onSplitRight(menu.file);
+                onClose();
+              }}
+              className="w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-[#0F172A] hover:text-emerald-400 transition-colors"
+            >
+              <div className="flex items-center space-x-2">
+                <Columns2 className="w-3.5 h-3.5 text-slate-400" />
+                <span className="font-devanagari">{i18n.splitRight}</span>
+              </div>
+              <span className="text-[10px] text-slate-500 font-mono">Split |</span>
+            </button>
+          )}
+
+          {onSplitDown && (
+            <button
+              onClick={() => {
+                onSplitDown(menu.file);
+                onClose();
+              }}
+              className="w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-[#0F172A] hover:text-emerald-400 transition-colors"
+            >
+              <div className="flex items-center space-x-2">
+                <Rows2 className="w-3.5 h-3.5 text-slate-400" />
+                <span className="font-devanagari">{i18n.splitDown}</span>
+              </div>
+              <span className="text-[10px] text-slate-500 font-mono">Split —</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="border-t border-[#1E293B]/60 my-1 pt-1">
         {/* Rename */}
         <button
           onClick={() => {

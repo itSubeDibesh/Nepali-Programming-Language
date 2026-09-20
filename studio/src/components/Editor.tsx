@@ -23,6 +23,9 @@ import {
   Folder,
   AlignLeft,
   Sparkles,
+  Columns2,
+  Rows2,
+  Split,
 } from 'lucide-react';
 
 interface EditorProps {
@@ -35,6 +38,8 @@ interface EditorProps {
   onRenameFile: (id: string, newName: string) => void;
   onCloseTab?: (id: string) => void;
   onCloseOthers?: (id: string) => void;
+  onCloseToRight?: (id: string) => void;
+  onCloseAll?: () => void;
   translitEnabled: boolean;
   onRun: () => void;
   onSave: () => void;
@@ -54,6 +59,8 @@ export const Editor: React.FC<EditorProps> = ({
   onRenameFile,
   onCloseTab,
   onCloseOthers,
+  onCloseToRight,
+  onCloseAll,
   translitEnabled,
   onRun,
   onSave,
@@ -83,6 +90,40 @@ export const Editor: React.FC<EditorProps> = ({
 
   const activeFile = files.find((f) => f.id === activeFileId) || files[0];
   const activeContent = activeFile ? activeFile.content : '';
+
+  // Split View State
+  const [splitFileId, setSplitFileId] = useState<string | null>(null);
+  const [splitDirection, setSplitDirection] = useState<'horizontal' | 'vertical'>('horizontal');
+  const splitTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const splitHighlighterRef = useRef<HTMLPreElement>(null);
+  const splitLineNumbersRef = useRef<HTMLDivElement>(null);
+
+  const splitFile = splitFileId ? files.find((f) => f.id === splitFileId) || null : null;
+  const splitContent = splitFile ? splitFile.content : '';
+
+  const handleSplitScroll = () => {
+    if (!splitTextareaRef.current) return;
+    const { scrollTop, scrollLeft } = splitTextareaRef.current;
+    if (splitHighlighterRef.current) {
+      splitHighlighterRef.current.scrollTop = scrollTop;
+      splitHighlighterRef.current.scrollLeft = scrollLeft;
+    }
+    if (splitLineNumbersRef.current) {
+      splitLineNumbersRef.current.scrollTop = scrollTop;
+    }
+  };
+
+  const handleToggleSplit = () => {
+    if (splitFileId) {
+      setSplitFileId(null);
+    } else {
+      const other = files.find((f) => f.id !== activeFileId) || activeFile;
+      if (other) {
+        setSplitFileId(other.id);
+        setSplitDirection('horizontal');
+      }
+    }
+  };
 
   // Synchronize scrolling between textarea, syntax highlighter, and line numbers
   const handleScroll = () => {
@@ -442,6 +483,21 @@ export const Editor: React.FC<EditorProps> = ({
 
         {/* Right Toolbar in Tab Bar */}
         <div className="flex items-center space-x-1 text-slate-400">
+                    <button
+            onClick={handleToggleSplit}
+            className={`p-1.5 rounded transition-colors text-xs flex items-center space-x-1 ${
+              splitFileId
+                ? 'text-emerald-400 bg-emerald-500/10'
+                : 'hover:text-slate-200 hover:bg-[#0F172A]'
+            }`}
+            title={splitFileId ? i18n.closeSplit : i18n.toggleSplit}
+          >
+            {splitDirection === 'vertical' ? (
+              <Rows2 className="w-3.5 h-3.5" />
+            ) : (
+              <Columns2 className="w-3.5 h-3.5" />
+            )}
+          </button>
           <button
             onClick={handleFormatCode}
             className={`p-1.5 rounded transition-colors text-xs flex items-center space-x-1 ${
@@ -546,73 +602,148 @@ export const Editor: React.FC<EditorProps> = ({
           </div>
         </div>
       ) : (
-      /* 3. Editor Code Canvas with Custom Right-Click Context Menu */
+      /* 3. Editor Code Canvas with Custom Right-Click Context Menu and Split View */
       <div
         onContextMenu={handleContextMenu}
-        className="flex-1 flex relative overflow-hidden bg-[#060911]"
+        className={`flex-1 flex relative overflow-hidden bg-[#060911] ${
+          splitDirection === 'vertical' ? 'flex-col' : 'flex-row'
+        }`}
       >
-        {/* Line Numbers Gutter */}
-        <div
-          ref={lineNumbersRef}
-          className="w-14 bg-[#080C16] border-r border-[#1E293B] py-3 text-right pr-3 select-none overflow-hidden font-mono text-xs leading-6 text-slate-600 font-devanagari"
-        >
-          {Array.from({ length: Math.max(linesCount, 1) }).map((_, i) => {
-            const lineNum = i + 1;
-            const isCurrentLine = cursorPos.line === lineNum;
-            return (
-              <div
-                key={i}
-                className={`transition-colors ${
-                  isCurrentLine
-                    ? 'text-emerald-400 font-bold bg-emerald-500/10 -mr-3 pr-3 border-r-2 border-emerald-500'
-                    : 'hover:text-slate-400'
-                }`}
-              >
-                {toNepaliDigits(lineNum)}
+        {/* Primary Editor Pane */}
+        <div className="flex-1 flex relative overflow-hidden min-w-0 min-h-0 bg-[#060911]">
+          {/* Line Numbers Gutter */}
+          <div
+            ref={lineNumbersRef}
+            className="w-14 bg-[#080C16] border-r border-[#1E293B] py-3 text-right pr-3 select-none overflow-hidden font-mono text-xs leading-6 text-slate-600 font-devanagari"
+          >
+            {Array.from({ length: Math.max(linesCount, 1) }).map((_, i) => {
+              const lineNum = i + 1;
+              const isCurrentLine = cursorPos.line === lineNum;
+              return (
+                <div
+                  key={i}
+                  className={`transition-colors ${
+                    isCurrentLine
+                      ? 'text-emerald-400 font-bold bg-emerald-500/10 -mr-3 pr-3 border-r-2 border-emerald-500'
+                      : 'hover:text-slate-400'
+                  }`}
+                >
+                  {toNepaliDigits(lineNum)}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Textarea & Syntax Highlight Layer */}
+          <div className="flex-1 relative overflow-hidden bg-[#060911]">
+            {/* Syntax Highlighter Underlay */}
+            <pre
+              ref={highlighterRef}
+              aria-hidden="true"
+              className="absolute inset-0 p-3 m-0 pointer-events-none font-mono text-sm leading-6 whitespace-pre overflow-hidden text-slate-100 select-none font-devanagari"
+              style={{ tabSize: 2 }}
+              dangerouslySetInnerHTML={{
+                __html: highlightNepaliCode(activeContent) + '\n\n',
+              }}
+            />
+
+            {/* Interactive Textarea Input */}
+            <textarea
+              ref={textareaRef}
+              value={activeContent}
+              onChange={(e) => {
+                if (activeFile) {
+                  onUpdateContent(activeFile.id, e.target.value);
+                }
+                handleCursorMove();
+              }}
+              onScroll={handleScroll}
+              onKeyDown={handleKeyDown}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+              onClick={handleCursorMove}
+              onKeyUp={handleCursorMove}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoComplete="off"
+              style={{
+                tabSize: 2,
+                WebkitTextFillColor: 'transparent',
+              }}
+              className="absolute inset-0 w-full h-full p-3 m-0 bg-transparent text-transparent font-mono text-sm leading-6 resize-none outline-none border-none whitespace-pre overflow-auto font-devanagari caret-emerald-400 selection:bg-emerald-500/30"
+            />
+          </div>
+        </div>
+
+        {/* Secondary Split Editor Pane */}
+        {splitFile && (
+          <div className={`flex-1 flex flex-col min-w-0 min-h-0 bg-[#060911] ${
+            splitDirection === 'vertical'
+              ? 'border-t-2 border-[#1E293B]'
+              : 'border-l-2 border-[#1E293B]'
+          }`}>
+            {/* Split Pane Header */}
+            <div className="h-8 bg-[#090D18] border-b border-[#1E293B] px-3 flex items-center justify-between text-xs text-slate-300 font-mono select-none flex-shrink-0">
+              <div className="flex items-center space-x-2 truncate">
+                <FileCode className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="font-semibold text-slate-200 truncate">{splitFile.name}</span>
+                <span className="text-[10px] text-slate-500 font-sans font-devanagari flex-shrink-0">
+                  ({splitDirection === 'vertical' ? 'तल विभाजित' : 'दायाँ विभाजित'})
+                </span>
               </div>
-            );
-          })}
-        </div>
+              <button
+                onClick={() => setSplitFileId(null)}
+                className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                title={i18n.closeSplit}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
-        {/* Textarea & Syntax Highlight Layer */}
-        <div className="flex-1 relative overflow-hidden bg-[#060911]">
-          {/* Syntax Highlighter Underlay */}
-          <pre
-            ref={highlighterRef}
-            aria-hidden="true"
-            className="absolute inset-0 p-3 m-0 pointer-events-none font-mono text-sm leading-6 whitespace-pre overflow-hidden text-slate-100 select-none font-devanagari"
-            style={{ tabSize: 2 }}
-            dangerouslySetInnerHTML={{
-              __html: highlightNepaliCode(activeContent) + '\n\n',
-            }}
-          />
+            {/* Split Editor Body */}
+            <div className="flex-1 flex relative overflow-hidden bg-[#060911]">
+              <div
+                ref={splitLineNumbersRef}
+                className="w-14 bg-[#080C16] border-r border-[#1E293B] py-3 text-right pr-3 select-none overflow-hidden font-mono text-xs leading-6 text-slate-600 font-devanagari"
+              >
+                {Array.from({ length: Math.max(splitContent.split('\n').length, 1) }).map((_, i) => (
+                  <div key={i} className="hover:text-slate-400">
+                    {toNepaliDigits(i + 1)}
+                  </div>
+                ))}
+              </div>
 
-          {/* Interactive Textarea Input */}
-          <textarea
-            ref={textareaRef}
-            value={activeContent}
-            onChange={(e) => {
-              if (activeFile) {
-                onUpdateContent(activeFile.id, e.target.value);
-              }
-              handleCursorMove();
-            }}
-            onScroll={handleScroll}
-            onKeyDown={handleKeyDown}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            onClick={handleCursorMove}
-            onKeyUp={handleCursorMove}
-            spellCheck={false}
-            autoCapitalize="off"
-            autoComplete="off"
-            style={{
-              tabSize: 2,
-              WebkitTextFillColor: 'transparent',
-            }}
-            className="absolute inset-0 w-full h-full p-3 m-0 bg-transparent text-transparent font-mono text-sm leading-6 resize-none outline-none border-none whitespace-pre overflow-auto font-devanagari caret-emerald-400 selection:bg-emerald-500/30"
-          />
-        </div>
+              <div className="flex-1 relative overflow-hidden bg-[#060911]">
+                <pre
+                  ref={splitHighlighterRef}
+                  aria-hidden="true"
+                  className="absolute inset-0 p-3 m-0 pointer-events-none font-mono text-sm leading-6 whitespace-pre overflow-hidden text-slate-100 select-none font-devanagari"
+                  style={{ tabSize: 2 }}
+                  dangerouslySetInnerHTML={{
+                    __html: highlightNepaliCode(splitContent) + '\n\n',
+                  }}
+                />
+
+                <textarea
+                  ref={splitTextareaRef}
+                  value={splitContent}
+                  onChange={(e) => {
+                    onUpdateContent(splitFile.id, e.target.value);
+                  }}
+                  onScroll={handleSplitScroll}
+                  spellCheck={false}
+                  autoCapitalize="off"
+                  autoComplete="off"
+                  style={{
+                    tabSize: 2,
+                    WebkitTextFillColor: 'transparent',
+                  }}
+                  className="absolute inset-0 w-full h-full p-3 m-0 bg-transparent text-transparent font-mono text-sm leading-6 resize-none outline-none border-none whitespace-pre overflow-auto font-devanagari caret-emerald-400 selection:bg-emerald-500/30"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Custom IDE Right-Click Context Menu */}
         {contextMenu && (

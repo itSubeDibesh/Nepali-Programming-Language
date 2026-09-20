@@ -51,6 +51,12 @@ export interface I18nDictionary {
   editor: {
     closeTab: string;
     closeOthers: string;
+    closeToRight: string;
+    closeAll: string;
+    splitRight: string;
+    splitDown: string;
+    toggleSplit: string;
+    closeSplit: string;
     renameTab: string;
     copyName: string;
     downloadFile: string;
@@ -154,6 +160,12 @@ export const I18N_NEPALI: I18nDictionary = {
   editor: {
     closeTab: 'ट्याब बन्द गर्नुहोस्',
     closeOthers: 'अन्य ट्याबहरू बन्द गर्नुहोस्',
+    closeToRight: 'दायाँका ट्याबहरू बन्द गर्नुहोस्',
+    closeAll: 'सबै ट्याबहरू बन्द गर्नुहोस्',
+    splitRight: 'दायाँ विभाजन गर्नुहोस् (Split Right)',
+    splitDown: 'तल विभाजन गर्नुहोस् (Split Down)',
+    toggleSplit: 'सम्पादक विभाजन (Split View)',
+    closeSplit: 'विभाजन हटाउनुहोस्',
     renameTab: 'नाम परिवर्तन गर्नुहोस्',
     copyName: 'फाइलको नाम प्रतिलिपि',
     downloadFile: 'डाउनलोड गर्नुहोस्',
@@ -257,6 +269,12 @@ export const I18N_ENGLISH: I18nDictionary = {
   editor: {
     closeTab: 'Close Tab',
     closeOthers: 'Close Other Tabs',
+    closeToRight: 'Close Tabs to the Right',
+    closeAll: 'Close All Tabs',
+    splitRight: 'Split Editor Right',
+    splitDown: 'Split Editor Down',
+    toggleSplit: 'Split View',
+    closeSplit: 'Close Split View',
     renameTab: 'Rename Tab',
     copyName: 'Copy File Name',
     downloadFile: 'Download File',
