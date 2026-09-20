@@ -26,7 +26,15 @@ const DEFAULT_CODE = `// नेपाली भाषामा पहिलो �
 }
 `;
 
-const STORAGE_KEY = 'nepali_studio_files_v1';
+const STORAGE_KEYS = {
+  FILES: 'nepali_studio_files_v1',
+  ACTIVE_FILE_ID: 'nepali_studio_active_file_id_v1',
+  MODE: 'nepali_studio_mode_v1',
+  TRANSLIT: 'nepali_studio_translit_v1',
+  SIDEBAR_TAB: 'nepali_studio_sidebar_v1',
+  AI_OPEN: 'nepali_studio_ai_open_v1',
+  TERMINAL_OPEN: 'nepali_studio_terminal_open_v1',
+};
 
 export default function StudioPage() {
   const [files, setFiles] = useState<CodeFile[]>([
@@ -64,7 +72,7 @@ export default function StudioPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Load shared code or local storage files on mount
+  // Load all persisted states on mount (or shared URL code)
   useEffect(() => {
     const shared = decodeCodeFromUrl();
     if (shared) {
@@ -81,13 +89,60 @@ export default function StudioPage() {
     }
 
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
+      // 1. Restore Files
+      const savedFilesRaw = localStorage.getItem(STORAGE_KEYS.FILES);
+      let loadedFiles: CodeFile[] = [];
+      if (savedFilesRaw) {
+        const parsed = JSON.parse(savedFilesRaw);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          loadedFiles = parsed;
           setFiles(parsed);
-          setActiveFileId(parsed[0].id);
         }
+      }
+
+      // 2. Restore Active File ID
+      const savedActiveFileId = localStorage.getItem(STORAGE_KEYS.ACTIVE_FILE_ID);
+      if (savedActiveFileId) {
+        const targetList = loadedFiles.length > 0 ? loadedFiles : files;
+        if (targetList.some((f) => f.id === savedActiveFileId)) {
+          setActiveFileId(savedActiveFileId);
+        } else if (targetList.length > 0) {
+          setActiveFileId(targetList[0].id);
+        }
+      }
+
+      // 3. Restore Run Mode
+      const savedMode = localStorage.getItem(STORAGE_KEYS.MODE) as RunMode;
+      if (savedMode && ['os', 'wasm', 'sandbox'].includes(savedMode)) {
+        setMode(savedMode);
+      }
+
+      // 4. Restore Transliteration State
+      const savedTranslit = localStorage.getItem(STORAGE_KEYS.TRANSLIT);
+      if (savedTranslit !== null) {
+        setTranslitEnabled(savedTranslit === 'true');
+      }
+
+      // 5. Restore Sidebar Active Tab
+      const savedSidebar = localStorage.getItem(STORAGE_KEYS.SIDEBAR_TAB);
+      if (savedSidebar !== null) {
+        if (savedSidebar === 'null' || savedSidebar === '') {
+          setActiveSidebarTab(null);
+        } else if (['files', 'examples', 'cheatsheet'].includes(savedSidebar)) {
+          setActiveSidebarTab(savedSidebar as ActiveSidebarTab);
+        }
+      }
+
+      // 6. Restore AI Drawer Open State
+      const savedAiOpen = localStorage.getItem(STORAGE_KEYS.AI_OPEN);
+      if (savedAiOpen !== null) {
+        setIsAiOpen(savedAiOpen === 'true');
+      }
+
+      // 7. Restore Terminal Open State
+      const savedTerminalOpen = localStorage.getItem(STORAGE_KEYS.TERMINAL_OPEN);
+      if (savedTerminalOpen !== null) {
+        setIsTerminalOpen(savedTerminalOpen === 'true');
       }
     } catch {
       // Ignore storage parse errors
@@ -96,11 +151,66 @@ export default function StudioPage() {
 
   const saveFilesToStorage = (updatedFiles: CodeFile[]) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedFiles));
+      localStorage.setItem(STORAGE_KEYS.FILES, JSON.stringify(updatedFiles));
       setIsSaved(true);
     } catch {
       // Ignore
     }
+  };
+
+  const handleSetActiveFileId = (id: string) => {
+    setActiveFileId(id);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_FILE_ID, id);
+    } catch {}
+  };
+
+  const handleSetMode = (newMode: RunMode) => {
+    setMode(newMode);
+    try {
+      localStorage.setItem(STORAGE_KEYS.MODE, newMode);
+    } catch {}
+    showToast('info', 'मोड परिवर्तन भयो', `कार्यान्वयन मोड: ${newMode.toUpperCase()}`);
+  };
+
+  const handleSetTranslitEnabled = (updater: boolean | ((prev: boolean) => boolean)) => {
+    setTranslitEnabled((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try {
+        localStorage.setItem(STORAGE_KEYS.TRANSLIT, String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleSetActiveSidebarTab = (updater: ActiveSidebarTab | ((prev: ActiveSidebarTab) => ActiveSidebarTab)) => {
+    setActiveSidebarTab((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try {
+        localStorage.setItem(STORAGE_KEYS.SIDEBAR_TAB, next || 'null');
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleSetIsAiOpen = (updater: boolean | ((prev: boolean) => boolean)) => {
+    setIsAiOpen((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try {
+        localStorage.setItem(STORAGE_KEYS.AI_OPEN, String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleSetIsTerminalOpen = (updater: boolean | ((prev: boolean) => boolean)) => {
+    setIsTerminalOpen((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try {
+        localStorage.setItem(STORAGE_KEYS.TERMINAL_OPEN, String(next));
+      } catch {}
+      return next;
+    });
   };
 
   const activeFile = files.find((f) => f.id === activeFileId) || files[0];
@@ -121,7 +231,7 @@ export default function StudioPage() {
   const handleRun = async () => {
     if (!activeFile || isRunning) return;
     setIsRunning(true);
-    setIsTerminalOpen(true);
+    handleSetIsTerminalOpen(true);
     setResult(null);
 
     try {
@@ -154,14 +264,14 @@ export default function StudioPage() {
         handleRun();
       } else if (e.key === 'F2') {
         e.preventDefault();
-        setTranslitEnabled((prev) => {
+        handleSetTranslitEnabled((prev) => {
           const next = !prev;
           showToast('info', next ? 'नेपाली टाइप मोड सक्षम गरियो' : 'English Type Mode Enabled', 'F2 थिचेर मोड बदल्न सक्नुहुन्छ');
           return next;
         });
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
         e.preventDefault();
-        setActiveSidebarTab((prev) => (prev ? null : 'files'));
+        handleSetActiveSidebarTab((prev) => (prev ? null : 'files'));
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         handleManualSave();
@@ -186,7 +296,7 @@ export default function StudioPage() {
     };
     const nextFiles = [...files, newFile];
     setFiles(nextFiles);
-    setActiveFileId(newId);
+    handleSetActiveFileId(newId);
     saveFilesToStorage(nextFiles);
     showToast('success', 'नयाँ फाइल सिर्जना गरियो', `"${newFileName}" फाइल थपियो।`);
   };
@@ -211,7 +321,7 @@ export default function StudioPage() {
         const nextFiles = files.filter((f) => f.id !== id);
         setFiles(nextFiles);
         if (activeFileId === id) {
-          setActiveFileId(nextFiles[0].id);
+          handleSetActiveFileId(nextFiles[0].id);
         }
         saveFilesToStorage(nextFiles);
         showToast('info', 'फाइल मेटाइयो', `"${targetFile.name}" हटाइयो।`);
@@ -243,7 +353,7 @@ export default function StudioPage() {
     };
     const nextFiles = [...files, newFile];
     setFiles(nextFiles);
-    setActiveFileId(newId);
+    handleSetActiveFileId(newId);
     saveFilesToStorage(nextFiles);
     showToast('success', 'उदाहरण लोड भयो', `"${ex.nepaliTitle}" नयाँ फाइलमा लोड गरियो।`);
   };
@@ -269,8 +379,12 @@ export default function StudioPage() {
           { id: '1', name: 'main.nep', content: DEFAULT_CODE, isMain: true }
         ];
         setFiles(resetFiles);
-        setActiveFileId('1');
+        handleSetActiveFileId('1');
         saveFilesToStorage(resetFiles);
+        try {
+          localStorage.removeItem(STORAGE_KEYS.FILES);
+          localStorage.removeItem(STORAGE_KEYS.ACTIVE_FILE_ID);
+        } catch {}
         showToast('warning', 'कार्यक्षेत्र रिसेट भयो', 'सबै फाइलहरू पूर्वनिर्धारित अवस्थामा फर्काइयो।');
       }
     });
@@ -283,22 +397,19 @@ export default function StudioPage() {
         onRun={handleRun}
         isRunning={isRunning}
         mode={mode}
-        onModeChange={(m) => {
-          setMode(m);
-          showToast('info', 'मोड परिवर्तन भयो', `कार्यान्वयन मोड: ${m.toUpperCase()}`);
-        }}
+        onModeChange={handleSetMode}
         translitEnabled={translitEnabled}
         onToggleTranslit={() => {
-          setTranslitEnabled((prev) => {
+          handleSetTranslitEnabled((prev) => {
             const next = !prev;
             showToast('info', next ? 'नेपाली टाइप मोड' : 'English Type Mode', 'F2 थिचेर टगल गर्नुहोस्');
             return next;
           });
         }}
-        onToggleSidebar={() => setActiveSidebarTab((prev) => (prev ? null : 'files'))}
+        onToggleSidebar={() => handleSetActiveSidebarTab((prev) => (prev ? null : 'files'))}
         isSidebarOpen={!!activeSidebarTab}
-        onToggleAi={() => setIsAiOpen((prev) => !prev)}
-        onToggleInspector={() => setIsTerminalOpen((prev) => !prev)}
+        onToggleAi={() => handleSetIsAiOpen((prev) => !prev)}
+        onToggleInspector={() => handleSetIsTerminalOpen((prev) => !prev)}
         onOpenShare={() => setIsShareOpen(true)}
         isAiOpen={isAiOpen}
         isInspectorOpen={isTerminalOpen}
@@ -309,15 +420,15 @@ export default function StudioPage() {
         {/* Left Activity Bar */}
         <ActivityBar
           activeTab={activeSidebarTab}
-          onSelectTab={setActiveSidebarTab}
+          onSelectTab={handleSetActiveSidebarTab}
           isAiOpen={isAiOpen}
-          onToggleAi={() => setIsAiOpen((prev) => !prev)}
+          onToggleAi={() => handleSetIsAiOpen((prev) => !prev)}
           isInspectorOpen={isTerminalOpen}
-          onToggleInspector={() => setIsTerminalOpen((prev) => !prev)}
+          onToggleInspector={() => handleSetIsTerminalOpen((prev) => !prev)}
           onRun={handleRun}
           isRunning={isRunning}
           mode={mode}
-          onModeChange={setMode}
+          onModeChange={handleSetMode}
         />
 
         {/* Center/Right Layout: Top Panes (Sidebar + Editor + AI) + Full-Width Bottom Terminal Dock */}
@@ -328,10 +439,10 @@ export default function StudioPage() {
             {activeSidebarTab && (
               <Sidebar
                 activeTab={activeSidebarTab}
-                onClose={() => setActiveSidebarTab(null)}
+                onClose={() => handleSetActiveSidebarTab(null)}
                 files={files}
                 activeFileId={activeFileId}
-                onSelectFile={setActiveFileId}
+                onSelectFile={handleSetActiveFileId}
                 onAddFile={handleAddFile}
                 onDeleteFile={handleDeleteFile}
                 onRenameFile={handleRenameFile}
@@ -346,7 +457,7 @@ export default function StudioPage() {
               <Editor
                 files={files}
                 activeFileId={activeFileId}
-                onSelectFile={setActiveFileId}
+                onSelectFile={handleSetActiveFileId}
                 onUpdateContent={handleUpdateContent}
                 onAddFile={handleAddFile}
                 onDeleteFile={handleDeleteFile}
@@ -355,15 +466,15 @@ export default function StudioPage() {
                 onRun={handleRun}
                 onSave={handleManualSave}
                 isSaved={isSaved}
-                onToggleTranslit={() => setTranslitEnabled((prev) => !prev)}
-                onOpenAi={() => setIsAiOpen(true)}
+                onToggleTranslit={() => handleSetTranslitEnabled((prev) => !prev)}
+                onOpenAi={() => handleSetIsAiOpen(true)}
               />
             </main>
 
             {/* Right Drawer: AI Assistant */}
             <AiAssistant
               isOpen={isAiOpen}
-              onClose={() => setIsAiOpen(false)}
+              onClose={() => handleSetIsAiOpen(false)}
               currentCode={activeFile?.content || ''}
               onInsertCode={handleInsertCode}
             />
@@ -372,7 +483,7 @@ export default function StudioPage() {
           {/* Bottom Dock: Full-Width Collapsible Terminal & Inspector (Not clogged by sidebars) */}
           <Terminal
             isOpen={isTerminalOpen}
-            onClose={() => setIsTerminalOpen(false)}
+            onClose={() => handleSetIsTerminalOpen(false)}
             result={result}
             isRunning={isRunning}
             onClear={() => {
