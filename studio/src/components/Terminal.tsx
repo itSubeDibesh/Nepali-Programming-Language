@@ -176,19 +176,19 @@ export const Terminal: React.FC<TerminalProps> = ({
         ) : activeTab === 'output' ? (
           result ? (
             <div className="space-y-1">
-              {/* Stdout with Devanagari numbers */}
+              {/* Stdout */}
               {(result.stdout || []).map((line, idx) => (
                 <div key={idx} className="text-slate-200 whitespace-pre-wrap flex items-start space-x-2">
                   <span className="text-emerald-500 select-none">&gt;</span>
-                  <span>{toNepaliDigits(line)}</span>
+                  <span>{line}</span>
                 </div>
               ))}
 
-              {/* Stderr */}
+              {/* Stderr (exact message, no mangling) */}
               {result.stderr && (
                 <div className="mt-2 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 whitespace-pre-wrap flex items-start space-x-2">
                   <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
-                  <span className="leading-snug">{toNepaliDigits(result.stderr)}</span>
+                  <span className="leading-snug">{result.stderr}</span>
                 </div>
               )}
 
@@ -213,7 +213,7 @@ export const Terminal: React.FC<TerminalProps> = ({
   statements: [
     LetBinding { name: "आजको", expr: Call("आज", []) },
     CallStatement { callee: "भनौँ", args: [String("नमस्ते नेपाल! 🇳🇵")] },
-    LetBinding { name: "नयाँ_वर्ष", expr: String("२०२६-०१-०१") },
+    LetBinding { name: "नयाँ_वर्ष", expr: String("2026-01-01") },
     CallStatement { callee: "भनौँ", args: [String("दिन फरक:"), Call("दिन_फरक", [Ident("आजको"), Ident("नयाँ_वर्ष")])] }
   ]
 }`
@@ -224,15 +224,15 @@ export const Terminal: React.FC<TerminalProps> = ({
           <div className="space-y-2 text-slate-300">
             <div className="text-cyan-400 font-bold mb-1">// संकलित भर्चुअल मेसिन बाइटकोड (Bytecode Disassembly):</div>
             <pre className="text-[11px] text-slate-400 leading-5 whitespace-pre overflow-x-auto bg-[#0B0F19] p-3 rounded-lg border border-[#1E293B]">
-              {`००००  OP_CALL_BUILTIN   आज (० args) -> R0
-०००२  OP_STORE_VAR      आजको <- R0
-०००४  OP_CONST_STR      "नमस्ते नेपाल! 🇳🇵" -> R1
-०००६  OP_PRINT_DEV      R1
-०००८  OP_CONST_STR      "२०२६-०१-०१" -> R2
-००१०  OP_LOAD_VAR       आजको -> R3
-००१२  OP_CALL_BUILTIN   दिन_फरक (R3, R2) -> R4
-००१४  OP_PRINT_MULTI    "दिन फरक:", R4
-००१६  OP_HALT`}
+              {`0000  OP_CALL_BUILTIN   आज (0 args) -> R0
+0002  OP_STORE_VAR      आजको <- R0
+0004  OP_CONST_STR      "नमस्ते नेपाल! 🇳🇵" -> R1
+0006  OP_PRINT_DEV      R1
+0008  OP_CONST_STR      "2026-01-01" -> R2
+0010  OP_LOAD_VAR       आजको -> R3
+0012  OP_CALL_BUILTIN   दिन_फरक (R3, R2) -> R4
+0014  OP_PRINT_MULTI    "दिन फरक:", R4
+0016  OP_HALT`}
             </pre>
           </div>
         ) : (
@@ -240,7 +240,7 @@ export const Terminal: React.FC<TerminalProps> = ({
             <div className="text-rose-400 font-bold">// समस्याहरू र निदान (Diagnostics):</div>
             {result?.stderr ? (
               <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-lg text-xs">
-                {toNepaliDigits(result.stderr)}
+                {result.stderr}
               </div>
             ) : (
               <div className="text-emerald-400 text-xs flex items-center space-x-2">

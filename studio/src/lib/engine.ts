@@ -17,56 +17,73 @@ export class NepaliEngine {
         }
       }
     } catch (e) {
-      console.warn('WASM initialization failed, falling back to server API:', e);
+      // WASM package optional in pure server mode
     }
     return false;
   }
 
+  // Extract prompts from code like: इनपुट("नाम के हो?") or input('age?')
+  extractPrompts(code: string): string[] {
+    const prompts: string[] = [];
+    const regex = /(?:इनपुट|input)\s*\(\s*(?:"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)')\s*\)/g;
+    let match;
+    while ((match = regex.exec(code)) !== null) {
+      prompts.push(match[1] || match[2] || 'इनपुट दिनुहोस् (Enter input):');
+    }
+    return prompts;
+  }
+
   async runCode(
     code: string,
-    mode: RunMode = 'wasm',
+    mode: RunMode = 'sandbox',
     onPrompt?: (promptText: string) => Promise<string>
   ): Promise<ExecutionResult> {
     const startTime = performance.now();
 
-    // Mode 1: WASM Client Execution
-    if (mode === 'wasm') {
+    // 1. Gather interactive inputs if the program contains इनपुट()
+    const prompts = this.extractPrompts(code);
+    const inputs: string[] = [];
+    if (prompts.length > 0 && onPrompt) {
+      for (const promptText of prompts) {
+        const userInput = await onPrompt(promptText);
+        inputs.push(userInput);
+      }
+    }
+
+    // 2. Mode 1: WASM Client Execution (if no input/OS calls needed)
+    if (mode === 'wasm' && prompts.length === 0 && !code.includes('डाटाबेस') && !code.includes('ओएस_')) {
       try {
         const ready = await this.initWasm();
-        if (ready && this.wasmModule && this.wasmModule.run_nepali) {
-          const raw = this.wasmModule.run_nepali(code);
+        if (ready && this.wasmModule && this.wasmModule.run) {
+          const raw = this.wasmModule.run(code);
           const durationMs = Math.round(performance.now() - startTime);
-          
-          if (raw && typeof raw === 'object') {
-            return {
-              stdout: raw.output || (raw.stdout ? raw.stdout.split('\n') : []),
-              stderr: raw.error || raw.stderr,
-              exitCode: raw.error ? 1 : 0,
-              durationMs,
-              mode: 'wasm'
-            };
-          }
           return {
-            stdout: typeof raw === 'string' ? raw.split('\n') : [String(raw)],
+            stdout: typeof raw === 'string' ? raw.split('\n').filter(Boolean) : [String(raw)],
             exitCode: 0,
             durationMs,
             mode: 'wasm'
           };
         }
       } catch (err: any) {
-        console.warn('WASM execution error:', err);
+        // Fall back to server sandbox runner
       }
     }
 
-    // Mode 2: Server API Execution (Local host runner)
+    // 3. Mode 2: Server API Execution with Stdin Pipe
     try {
       const resp = await fetch('/api/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, mode: mode === 'wasm' ? 'sandbox' : mode })
+        body: JSON.stringify({
+          code,
+          mode: mode === 'wasm' ? 'sandbox' : mode,
+          inputs
+        })
       });
+
       const data = await resp.json();
       const durationMs = Math.round(performance.now() - startTime);
+
       return {
         stdout: data.stdout || [],
         stderr: data.stderr || (data.error ? String(data.error) : undefined),
@@ -78,7 +95,7 @@ export class NepaliEngine {
       const durationMs = Math.round(performance.now() - startTime);
       return {
         stdout: [],
-        stderr: `Execution failed: ${apiErr.message || apiErr}`,
+        stderr: `कार्यान्वयन त्रुटि (Execution failed): ${apiErr.message || apiErr}`,
         exitCode: 1,
         durationMs,
         mode
