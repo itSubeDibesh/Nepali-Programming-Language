@@ -73,8 +73,14 @@ export async function POST(req: NextRequest) {
         NEPALI_DIGITS: 'devanagari',
       };
 
+      let prompt = question;
+      if (codeContext && codeContext.trim()) {
+        const fileLabel = activeFileName || 'active.nep';
+        prompt = `फाइल \`${fileLabel}\`:\n\`\`\`nepali\n${codeContext.trim()}\n\`\`\`\n\nप्रश्न: ${question}`;
+      }
+
       const cliResult = await new Promise<{ answer: string; codeSnippet?: string } | null>((resolve) => {
-        const child = spawn(cliBin, ['ask', question], {
+        const child = spawn(cliBin, ['ask', prompt], {
           cwd: projectRoot,
           env: spawnEnv,
         });

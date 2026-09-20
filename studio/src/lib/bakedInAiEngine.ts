@@ -104,14 +104,29 @@ export function diagnoseAndFixNepaliCode(
 
     let modified = false;
 
-    // Check for trailing stray token after statement closing (e.g. `भनौँ(...);WebAssembly।` or `);XYZ`)
-    const trailingStrayMatch = line.match(/^(\s*भनौँ\(.*?\);|\s*.*?;)\s*([a-zA-Z0-9_\u0900-\u097F]+)(?:।|;)?\s*$/);
+    // 1. Check for trailing stray token after closing parenthesis (e.g. `भनौँ(...)वसम्म्म;` or `foo()वसम्म्म`)
+    const strayAfterClosingParens = line.match(/^(\s*(?:भनौँ|print|input|[a-zA-Z_\u0900-\u097F][a-zA-Z0-9_\u0900-\u097F]*)\s*\(.*?\))\s*([a-zA-Z0-9_\u0900-\u097F]+)(?:।|;)?\s*$/);
+    if (strayAfterClosingParens) {
+      const validCall = strayAfterClosingParens[1];
+      const strayToken = strayAfterClosingParens[2];
+      issues.push({
+        line: i + 1,
+        message: `लाइन ${i + 1} मा कोष्ठक \`)\` पछि अनावश्यक वा गल्ती शब्द \`${strayToken}\` जोडिएको छ, जसले गर्दा 'undefined variable' वा सिन्ट्याक्स त्रुटि आएको हो।`,
+        severity: 'error',
+      });
+      line = `${validCall};`;
+      fixedLines.push(line);
+      continue;
+    }
+
+    // 2. Check for trailing stray token after statement closing semicolon/danda (e.g. `भनौँ(...);WebAssembly।` or `x = 5;XYZ`)
+    const trailingStrayMatch = line.match(/^(\s*.*?[;।])\s*([a-zA-Z0-9_\u0900-\u097F]+)(?:।|;)?\s*$/);
     if (trailingStrayMatch) {
       const validPrefix = trailingStrayMatch[1];
       const strayToken = trailingStrayMatch[2];
       issues.push({
         line: i + 1,
-        message: `लाइन ${i + 1} मा कथन समाप्त (;) भएपछि अनावश्यक शब्द \`${strayToken}\` जोडिएको छ, जसले गर्दा 'undefined variable' वा सिन्ट्याक्स त्रुटि आएको हो।`,
+        message: `लाइन ${i + 1} मा कथन समाप्त भएपछि अनावश्यक शब्द \`${strayToken}\` जोडिएको छ।`,
         severity: 'error',
       });
       line = validPrefix;
@@ -119,7 +134,22 @@ export function diagnoseAndFixNepaliCode(
       continue;
     }
 
-    // Check if line contains target error var as a stray standalone word
+    // 3. Check for stray token after string quote or value assignment (e.g. `नाम = "WASM"वसम्म्म;`)
+    const strayAfterQuote = line.match(/^(\s*(?:राखौँ|मानौँ|let|var|const)?\s*[a-zA-Z_\u0900-\u097F][a-zA-Z0-9_\u0900-\u097F]*\s*=\s*(?:"[^"]*"|'[^']*'|[\d\u0966-\u096F]+))\s*([a-zA-Z0-9_\u0900-\u097F]+)(?:।|;)?\s*$/);
+    if (strayAfterQuote) {
+      const validPrefix = strayAfterQuote[1];
+      const strayToken = strayAfterQuote[2];
+      issues.push({
+        line: i + 1,
+        message: `लाइन ${i + 1} मा मान पछि अनावश्यक शब्द \`${strayToken}\` जोडिएको छ।`,
+        severity: 'error',
+      });
+      line = `${validPrefix};`;
+      fixedLines.push(line);
+      continue;
+    }
+
+    // 4. Check if line contains target error var as a stray standalone word
     if (targetErrorVar && trimmed.includes(targetErrorVar)) {
       // If it's attached after a semicolon or at end of line
       if (trimmed.endsWith(targetErrorVar) || trimmed.endsWith(`${targetErrorVar}।`) || trimmed.endsWith(`${targetErrorVar};`)) {
@@ -443,31 +473,48 @@ export function queryBakedInAi(
   const activeName = activeFileName || 'main.nep';
   const cleanQ = question.trim();
 
-  // If there is active code context, diagnose it thoroughly
+  // If there is active code context, diagnose and reason on it directly
   if (codeContext && codeContext.trim()) {
     const diag = diagnoseAndFixNepaliCode(codeContext, cleanQ);
 
-    // If the question is asking about an error, bug, undefined variable, or syntax fix
-    const isErrorQuery = /त्रुटि|error|undefined|bug|fix|सच्या|मिस्टेक|चलेन|गलत|कम्पाइल|नचले/i.test(cleanQ);
-
-    if (isErrorQuery || diag.issues.length > 0) {
-      const issueDetails = diag.issues.length > 0
-        ? diag.issues.map(iss => `- **लाइन ${iss.line}:** ${iss.message}`).join('\n')
-        : 'तपाईंले उल्लेख गर्नुभएको समस्या समाधान गर्न कोडलाई परिमार्जन गरिएको छ।';
+    // If issues were found in the current code
+    if (diag.issues.length > 0) {
+      const issueDetails = diag.issues.map((iss, idx) => `${idx + 1}. **लाइन ${iss.line}:** ${iss.message}`).join('\n');
 
       return {
-        answer: `### 🔍 समस्या विश्लेषण र समाधान:
+        answer: `### 🔍 फाइल \`${activeName}\` मा समस्या विश्लेषण र समाधान:
 
 ${issueDetails}
 
-**सच्याइएको कोड:**`,
+**सच्याइएको कोड (Corrected Code):**`,
         codeSnippet: diag.fixedCode,
         engine: `नेपाली सिमान्टिक एआई (${activeName})`,
       };
     }
 
+    // Check if the user is asking about errors, issues, verification, or why it works/failed
+    const isErrorOrCheckQuery = /समस|samasya|problem|issue|bug|error|त्रुटि|गलत|मिस्टेक|wrong|fault|किन|kina|why|हेर|check|जाँच|के भयो|के छ|सुधार|सच्या|चलेन|chalena|ठीक|सही/i.test(cleanQ);
+
+    if (isErrorOrCheckQuery) {
+      const fns = diag.definedFns.length > 0 ? diag.definedFns.map(f => `\`${f}\``).join(', ') : 'मुख्य कोड ब्लक';
+      const vars = diag.declaredVars.length > 0 ? diag.declaredVars.map(v => `\`${v}\``).join(', ') : 'कुनै चर छैन';
+
+      return {
+        answer: `### ✅ \`${activeName}\` कोड पूर्ण रूपमा सही छ!
+
+तपाईंको सक्रिय फाइल \`${activeName}\` मा कुनै सिन्ट्याक्स वा व्याकरण त्रुटि (Syntax Error) फेला परेन।
+
+- **परिभाषित फङ्क्सनहरू:** ${fns}
+- **सक्रिय चरहरू:** ${vars}
+
+**कोड चलाउन:** माथिको **▶ चलाउनुहोस् (Ctrl+Enter)** बटन थिच्नुहोस्।`,
+        codeSnippet: codeContext,
+        engine: `नेपाली सिमान्टिक एआई (${activeName})`,
+      };
+    }
+
     // If user is asking an explanation of the current code
-    if (/व्याख्या|explain|सम्झा|के गर्छ|कसरी चल्छ/i.test(cleanQ)) {
+    if (/व्याख्या|explain|सम्झा|के गर्छ|कसरी चल्छ|काम/i.test(cleanQ)) {
       const fns = diag.definedFns.length > 0 ? diag.definedFns.map(f => `\`${f}\``).join(', ') : 'मुख्य कोड ब्लक';
       const vars = diag.declaredVars.length > 0 ? diag.declaredVars.map(v => `\`${v}\``).join(', ') : 'कुनै चर छैन';
 

@@ -130,6 +130,28 @@ pub fn run_window(port: u16, nepali_bin: Option<&str>) -> ExitCode {
 
     let event_loop = EventLoopBuilder::new().build();
 
+    #[cfg(target_os = "macos")]
+    {
+        let menu = muda::Menu::new();
+        let app_menu = muda::Submenu::new("Nepali Studio", true);
+        let _ = app_menu.append(&muda::PredefinedMenuItem::about(None, None));
+        let _ = app_menu.append(&muda::PredefinedMenuItem::separator());
+        let _ = app_menu.append(&muda::PredefinedMenuItem::quit(None));
+
+        let edit_menu = muda::Submenu::new("Edit", true);
+        let _ = edit_menu.append(&muda::PredefinedMenuItem::undo(None));
+        let _ = edit_menu.append(&muda::PredefinedMenuItem::redo(None));
+        let _ = edit_menu.append(&muda::PredefinedMenuItem::separator());
+        let _ = edit_menu.append(&muda::PredefinedMenuItem::cut(None));
+        let _ = edit_menu.append(&muda::PredefinedMenuItem::copy(None));
+        let _ = edit_menu.append(&muda::PredefinedMenuItem::paste(None));
+        let _ = edit_menu.append(&muda::PredefinedMenuItem::select_all(None));
+
+        let _ = menu.append(&app_menu);
+        let _ = menu.append(&edit_menu);
+        let _ = menu.init_for_nsapp();
+    }
+
     let window = WindowBuilder::new()
         .with_title("नेपाली स्टुडियो (Nepali Studio IDE)")
         .with_inner_size(LogicalSize::new(1360.0, 880.0))

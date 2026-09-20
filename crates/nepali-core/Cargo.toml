@@ -101,6 +101,7 @@ serde_json = { version = "1", optional = true }
 # the same Studio UI. Optional: only needed for the native window front.
 wry = { version = "0.57", optional = true }
 tao = { version = "0.37", optional = true }
+muda = { version = "0.15", optional = true }
 
 # Studio embedded HTTP server: tiny_http is already proven in
 # nepali-fileserver (the same real, small, audited crate).  Gated
@@ -123,7 +124,7 @@ cache = ["dep:redis"]
 db = ["dep:rusqlite"]
 ai-interop = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers", "dep:hound", "dep:serde_json", "dep:pyo3"]
 studio = ["dep:tiny_http", "dep:serde_json"]
-gui = ["dep:wry", "dep:tao"]
+gui = ["dep:wry", "dep:tao", "dep:muda"]
 wasm = ["wasm-bindgen"]
 
 [dependencies.wasm-bindgen]
