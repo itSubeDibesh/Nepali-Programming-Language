@@ -2,6 +2,7 @@
 import { ensureNepaliExtension, getFileExtensionBadgeColor, handleRenameInputKeyDown } from '../lib/fileUtils';
 import { TabContextMenu, TabContextMenuState } from './TabContextMenu';
 import { toNepaliDigits } from '../lib/numbers';
+import { getI18n } from '../lib/i18n';
 import { Eye, EyeOff, Play } from 'lucide-react';
 import React, { useState } from 'react';
 import { ActiveSidebarTab } from './ActivityBar';
@@ -55,6 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onResetWorkspace,
   translitEnabled = true,
 }) => {
+  const i18n = getI18n(translitEnabled).sidebar;
   const [docSearch, setDocSearch] = useState('');
   const [exampleSearch, setExampleSearch] = useState('');
   const [previewExampleId, setPreviewExampleId] = useState<string | null>(null);
@@ -119,9 +121,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {activeTab === 'cheatsheet' && <HelpCircle className="w-4 h-4 text-emerald-400" />}
           
           <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-            {activeTab === 'files' && 'फाइल अन्वेषक (Files)'}
-            {activeTab === 'examples' && 'उदाहरण पुस्तकालय (Examples)'}
-            {activeTab === 'cheatsheet' && 'भाषा सन्दर्भ (Docs & Reference)'}
+            {activeTab === 'files' && i18n.filesTitle}
+            {activeTab === 'examples' && i18n.examplesTitle}
+            {activeTab === 'cheatsheet' && i18n.docsTitle}
           </span>
         </div>
 
@@ -145,14 +147,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 onClick={onAddFile}
                 className="p-1 text-slate-400 hover:text-emerald-400 hover:bg-[#0F172A] rounded transition-colors"
-                title="नयाँ फाइल थप्नुहोस् (New File)"
+                title={i18n.newFile}
               >
                 <Plus className="w-4 h-4" />
               </button>
               <button
                 onClick={onResetWorkspace}
                 className="p-1 text-slate-400 hover:text-amber-400 hover:bg-[#0F172A] rounded transition-colors"
-                title="पूर्वनिर्धारितमा रिसेट गर्नुहोस् (Reset Files)"
+                title={i18n.resetFiles}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
@@ -241,10 +243,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="bg-[#060911] border border-[#1E293B] rounded-lg p-2.5 text-[11px] text-slate-400 space-y-1">
             <div className="flex items-center space-x-1 text-emerald-400 font-semibold font-devanagari">
               <Sparkles className="w-3 h-3" />
-              <span>स्वत: बचत सक्षम छ</span>
+              <span>{i18n.autoSaveEnabled}</span>
             </div>
             <p className="text-[10px] text-slate-500 font-devanagari">
-              सबै कोड ब्राउजरको लोकल स्टोरेजमा तुरुन्तै सुरक्षित हुन्छ।
+              {i18n.autoSaveDesc}
             </p>
           </div>
         </div>
@@ -260,7 +262,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               type="text"
               value={exampleSearch}
               onChange={(e) => setExampleSearch(e.target.value)}
-              placeholder="उदाहरण खोज्नुहोस् (Search)..."
+              placeholder={i18n.searchExamples}
               className="w-full pl-8 pr-3 py-1.5 bg-[#060911] border border-[#1E293B] rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-devanagari"
             />
           </div>
@@ -268,21 +270,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Category Filter Pills & Count */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[10px] text-slate-400 px-0.5 font-devanagari">
-              <span>वर्गहरू (Categories):</span>
+              <span>{i18n.categories}</span>
               <span className="text-emerald-400 font-mono font-medium">
-                {toNepaliDigits(filteredExamples.length)} उदाहरण
+                {translitEnabled ? toNepaliDigits(filteredExamples.length) + " उदाहरणहरू" : filteredExamples.length + " Recipes"}
               </span>
             </div>
             <div className="flex flex-wrap gap-1 text-[11px]">
               {[
-                { id: 'all', label: 'सबै' },
-                { id: 'basics', label: 'आधारभूत' },
-                { id: 'control', label: 'लुप/सर्त' },
-                { id: 'functions', label: 'फंक्सन' },
-                { id: 'data', label: 'डाटा' },
-                { id: 'dates', label: 'मिति' },
-                { id: 'system', label: 'प्रणाली' },
-                { id: 'interop', label: 'पाइथन' },
+                { id: 'all', label: i18n.catAll },
+                { id: 'basics', label: i18n.catBasics },
+                { id: 'control', label: i18n.catControl },
+                { id: 'functions', label: i18n.catFunctions },
+                { id: 'data', label: i18n.catData },
+                { id: 'dates', label: i18n.catDates },
+                { id: 'system', label: i18n.catSystem },
+                { id: 'interop', label: i18n.catInterop },
               ].map((cat) => (
                 <button
                   key={cat.id}
@@ -344,14 +346,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       className="flex items-center space-x-1 text-slate-400 hover:text-slate-200 px-1.5 py-0.5 rounded hover:bg-[#1E293B] transition-colors font-devanagari"
                     >
                       {isPreviewOpen ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                      <span>{isPreviewOpen ? 'लुकाउनुहोस्' : 'हेर्नुहोस्'}</span>
+                      <span>{isPreviewOpen ? i18n.hidePreview : i18n.preview}</span>
                     </button>
 
                     <button
                       onClick={() => onSelectExample(ex)}
                       className="flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all font-devanagari font-medium shadow-sm"
                     >
-                      <span>लोड गर्नुहोस्</span>
+                      <span>{i18n.load}</span>
                       <Play className="w-2.5 h-2.5 fill-emerald-400" />
                     </button>
                   </div>
@@ -372,7 +374,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               type="text"
               value={docSearch}
               onChange={(e) => setDocSearch(e.target.value)}
-              placeholder="खोज्नुहोस् (search docs)..."
+              placeholder={i18n.searchDocs}
               className="w-full pl-8 pr-3 py-1.5 bg-[#060911] border border-[#1E293B] rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-devanagari"
             />
           </div>
@@ -394,7 +396,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-300 font-devanagari leading-snug">
-                  {doc.description}
+                  {translitEnabled ? doc.description : doc.englishDescription || doc.description}
                 </p>
                 {doc.example && (
                   <div className="pt-1 flex items-center justify-between border-t border-[#1E293B]/60">
@@ -406,7 +408,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       className="text-[10px] text-emerald-400 hover:text-emerald-300 px-1.5 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 font-devanagari transition-colors"
                       title="कोडमा घुसाउनुहोस्"
                     >
-                      घुसाउनुहोस्
+                      {i18n.insertSnippet}
                     </button>
                   </div>
                 )}

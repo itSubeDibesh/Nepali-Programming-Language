@@ -15,6 +15,7 @@ import { ExecutionResult, RunMode, PromptRequest, CodeFile, RecipeItem } from '.
 import { decodeCodeFromUrl } from '../lib/share';
 import { ensureNepaliExtension } from '../lib/fileUtils';
 import { toNepaliDigits } from '../lib/numbers';
+import { getI18n } from '../lib/i18n';
 
 const DEFAULT_CODE = `// नेपाली भाषामा पहिलो कार्यक्रम (Your First Program)
 राखौँ सन्देश = "नमस्ते, नेपाल !"।
@@ -335,13 +336,13 @@ export default function StudioWorkspace() {
     const targetFile = files.find((f) => f.id === id);
     if (!targetFile) return;
 
-    // Custom non-native confirmation modal
+    const i18nModals = getI18n(translitEnabled).modals;
     setConfirmDialog({
       isOpen: true,
-      title: 'फाइल मेटाउनुहोस् (Delete File)',
-      message: `के तपाईं "${targetFile.name}" फाइल निश्चित रूपमा मेटाउन चाहनुहुन्छ? यो प्रक्रिया उल्टाउन सकिँदैन।`,
-      confirmLabel: 'मेटाउनुहोस् (Delete)',
-      cancelLabel: 'रद्द गर्नुहोस् (Cancel)',
+      title: i18nModals.deleteTitle,
+      message: i18nModals.deleteMessage(targetFile.name),
+      confirmLabel: i18nModals.deleteConfirm,
+      cancelLabel: i18nModals.deleteCancel,
       variant: 'danger',
       onConfirm: () => {
         const nextFiles = files.filter((f) => f.id !== id);
@@ -350,7 +351,7 @@ export default function StudioWorkspace() {
           handleSetActiveFileId(nextFiles[0].id);
         }
         saveFilesToStorage(nextFiles);
-        showToast('info', 'फाइल मेटाइयो', `"${targetFile.name}" हटाइयो।`);
+        showToast('info', translitEnabled ? 'फाइल मेटाइयो' : 'File Deleted', `"${targetFile.name}" ${translitEnabled ? 'हटाइयो।' : 'deleted.'}`);
       }
     });
   };
@@ -418,13 +419,13 @@ export default function StudioWorkspace() {
   };
 
   const handleResetWorkspace = () => {
-    // Custom non-native confirmation modal
+    const i18nModals = getI18n(translitEnabled).modals;
     setConfirmDialog({
       isOpen: true,
-      title: 'कार्यक्षेत्र रिसेट गर्नुहोस् (Reset Workspace)',
-      message: 'के तपाईं सबै सिर्जना गरिएका फाइलहरू हटाएर पूर्वनिर्धारित कोडमा रिसेट गर्न चाहनुहुन्छ? यो प्रक्रिया उल्टाउन सकिँदैन।',
-      confirmLabel: 'हो, रिसेट गर्नुहोस् (Reset All)',
-      cancelLabel: 'रद्द गर्नुहोस् (Cancel)',
+      title: i18nModals.resetTitle,
+      message: i18nModals.resetMessage,
+      confirmLabel: i18nModals.resetConfirm,
+      cancelLabel: i18nModals.resetCancel,
       variant: 'danger',
       onConfirm: () => {
         const resetFiles: CodeFile[] = [
@@ -437,7 +438,7 @@ export default function StudioWorkspace() {
           localStorage.removeItem(STORAGE_KEYS.FILES);
           localStorage.removeItem(STORAGE_KEYS.ACTIVE_FILE_ID);
         } catch {}
-        showToast('warning', 'कार्यक्षेत्र रिसेट भयो', 'सबै फाइलहरू पूर्वनिर्धारित अवस्थामा फर्काइयो।');
+        showToast('warning', translitEnabled ? 'कार्यक्षेत्र रिसेट भयो' : 'Workspace Reset', translitEnabled ? 'सबै फाइलहरू पूर्वनिर्धारित अवस्थामा फर्काइयो।' : 'All files restored to default state.');
       }
     });
   };
@@ -472,6 +473,7 @@ export default function StudioWorkspace() {
         {/* Left Activity Bar */}
         <ActivityBar
           activeTab={activeSidebarTab}
+          translitEnabled={translitEnabled}
           onSelectTab={handleSetActiveSidebarTab}
           isAiOpen={isAiOpen}
           onToggleAi={() => handleSetIsAiOpen((prev) => !prev)}
@@ -529,6 +531,7 @@ export default function StudioWorkspace() {
             {/* Right Drawer: AI Assistant */}
             <AiAssistant
               isOpen={isAiOpen}
+              translitEnabled={translitEnabled}
               onClose={() => handleSetIsAiOpen(false)}
               currentCode={activeFile?.content || ''}
               onInsertCode={handleInsertCode}
@@ -538,6 +541,7 @@ export default function StudioWorkspace() {
           {/* Bottom Dock: Full-Width Collapsible Terminal & Inspector */}
           <Terminal
             isOpen={isTerminalOpen}
+            translitEnabled={translitEnabled}
             onClose={() => handleSetIsTerminalOpen(false)}
             result={result}
             isRunning={isRunning}

@@ -3,12 +3,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Send, Copy, CornerRightDown, X, Trash2, Check, ArrowUp } from 'lucide-react';
 import { AiMessage } from '../lib/types';
 import { transliterateWord } from '../lib/translit';
+import { getI18n } from '../lib/i18n';
 
 interface AiAssistantProps {
   isOpen: boolean;
   onClose: () => void;
   onInsertCode: (code: string) => void;
   currentCode: string;
+  translitEnabled?: boolean;
 }
 
 export const AiAssistant: React.FC<AiAssistantProps> = ({
@@ -16,6 +18,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
   onClose,
   onInsertCode,
   currentCode,
+  translitEnabled = true,
 }) => {
   const [messages, setMessages] = useState<AiMessage[]>([
     {
@@ -25,6 +28,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
       timestamp: 'अहिले',
     }
   ]);
+  const i18n = getI18n(translitEnabled).ai;
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedSnippetId, setCopiedSnippetId] = useState<string | null>(null);
@@ -224,7 +228,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
                           title="सम्पादकमा घुसाउनुहोस्"
                         >
                           <CornerRightDown className="w-3 h-3" />
-                          <span>घुसाउनुहोस्</span>
+                          <span>{i18n.insertCode}</span>
                         </button>
                       </div>
                     </div>

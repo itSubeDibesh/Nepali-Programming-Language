@@ -10,6 +10,7 @@ import {
   Download,
 } from 'lucide-react';
 import { CodeFile } from '../lib/types';
+import { getI18n } from '../lib/i18n';
 
 export interface TabContextMenuState {
   x: number;
@@ -27,6 +28,7 @@ interface TabContextMenuProps {
   onCopyName: (name: string) => void;
   onDownload: (file: CodeFile) => void;
   canCloseOthers: boolean;
+  translitEnabled?: boolean;
 }
 
 export const TabContextMenu: React.FC<TabContextMenuProps> = ({
@@ -39,7 +41,9 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
   onCopyName,
   onDownload,
   canCloseOthers,
+  translitEnabled = true,
 }) => {
+  const i18n = getI18n(translitEnabled).editor;
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -96,7 +100,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
         >
           <div className="flex items-center space-x-2">
             <X className="w-3.5 h-3.5 text-slate-400" />
-            <span className="font-devanagari">ट्याब बन्द गर्नुहोस्</span>
+            <span className="font-devanagari">{i18n.closeTab}</span>
           </div>
           <span className="text-[10px] text-slate-500 font-mono">Close</span>
         </button>
@@ -112,7 +116,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
           >
             <div className="flex items-center space-x-2">
               <XCircle className="w-3.5 h-3.5 text-slate-400" />
-              <span className="font-devanagari">अन्य ट्याबहरू बन्द गर्नुहोस्</span>
+              <span className="font-devanagari">{i18n.closeOthers}</span>
             </div>
             <span className="text-[10px] text-slate-500 font-mono">Others</span>
           </button>
@@ -128,7 +132,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
         >
           <div className="flex items-center space-x-2">
             <Pencil className="w-3.5 h-3.5 text-slate-400" />
-            <span className="font-devanagari">नाम परिवर्तन गर्नुहोस्</span>
+            <span className="font-devanagari">{i18n.renameTab}</span>
           </div>
           <span className="text-[10px] text-slate-500 font-mono">F2</span>
         </button>
@@ -143,7 +147,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
         >
           <div className="flex items-center space-x-2">
             <Copy className="w-3.5 h-3.5 text-slate-400" />
-            <span className="font-devanagari">फाइलको नाम प्रतिलिपि</span>
+            <span className="font-devanagari">{i18n.copyName}</span>
           </div>
           <span className="text-[10px] text-slate-500 font-mono">Copy</span>
         </button>
@@ -158,7 +162,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
         >
           <div className="flex items-center space-x-2">
             <Download className="w-3.5 h-3.5 text-slate-400" />
-            <span className="font-devanagari">डाउनलोड गर्नुहोस्</span>
+            <span className="font-devanagari">{i18n.downloadFile}</span>
           </div>
           <span className="text-[10px] text-slate-500 font-mono">Save</span>
         </button>
@@ -175,7 +179,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
         >
           <div className="flex items-center space-x-2">
             <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-            <span className="font-devanagari">फाइल मेटाउनुहोस्</span>
+            <span className="font-devanagari">{i18n.deleteFile}</span>
           </div>
           <span className="text-[10px] text-rose-400/70 font-mono">Delete</span>
         </button>

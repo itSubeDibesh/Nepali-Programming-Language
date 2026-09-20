@@ -6,6 +6,7 @@ import { transliterateWord } from '../lib/translit';
 import { highlightNepaliCode } from '../lib/highlighter';
 import { getDocumentationForSymbol, DocItem } from '../lib/docs';
 import { toNepaliDigits } from '../lib/numbers';
+import { getI18n } from '../lib/i18n';
 import { formatNepaliCode } from '../lib/formatter';
 import { ContextMenu } from './ContextMenu';
 import { TabContextMenu, TabContextMenuState } from './TabContextMenu';
@@ -68,6 +69,7 @@ export const Editor: React.FC<EditorProps> = ({
   const [copied, setCopied] = useState(false);
   const [savedFeedback, setSavedFeedback] = useState(false);
   const [formattedFeedback, setFormattedFeedback] = useState(false);
+  const i18n = getI18n(translitEnabled).editor;
 
   // Custom Context Menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -609,7 +611,7 @@ export const Editor: React.FC<EditorProps> = ({
             </div>
 
             <p className="text-slate-200 font-devanagari leading-relaxed">
-              {hoverDoc.doc.description}
+              {translitEnabled ? hoverDoc.doc.description : hoverDoc.doc.englishDescription || hoverDoc.doc.description}
             </p>
 
             {hoverDoc.doc.signature && (
@@ -652,13 +654,15 @@ export const Editor: React.FC<EditorProps> = ({
 
         <div className="flex items-center space-x-3">
           <span className="font-devanagari">
-            पं. {toNepaliDigits(cursorPos.line)}, स्त. {toNepaliDigits(cursorPos.col)}
+            {translitEnabled
+              ? `पं. ${toNepaliDigits(cursorPos.line)}, स्त. ${toNepaliDigits(cursorPos.col)}`
+              : `Ln ${cursorPos.line}, Col ${cursorPos.col}`}
           </span>
 
           <span className="text-slate-600">|</span>
 
           <span className="font-devanagari">
-            {isSaved ? 'सञ्चित (Saved)' : 'परिवर्तित (Modified)'}
+            {isSaved ? i18n.statusSaved : i18n.statusUnsaved}
           </span>
         </div>
       </footer>

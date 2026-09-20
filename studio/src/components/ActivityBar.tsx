@@ -1,7 +1,15 @@
 'use client';
 import React from 'react';
-import { Files, BookOpen, Sparkles, Layers, HelpCircle, Play } from 'lucide-react';
+import {
+  FolderOpen,
+  BookOpen,
+  HelpCircle,
+  Sparkles,
+  Terminal,
+  Play,
+} from 'lucide-react';
 import { RunMode } from '../lib/types';
+import { getI18n } from '../lib/i18n';
 
 export type ActiveSidebarTab = 'files' | 'examples' | 'cheatsheet' | null;
 
@@ -16,6 +24,7 @@ interface ActivityBarProps {
   isRunning: boolean;
   mode: RunMode;
   onModeChange: (m: RunMode) => void;
+  translitEnabled?: boolean;
 }
 
 export const ActivityBar: React.FC<ActivityBarProps> = ({
@@ -27,115 +36,113 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
   onToggleInspector,
   onRun,
   isRunning,
+  translitEnabled = true,
 }) => {
-  const toggleTab = (tab: 'files' | 'examples' | 'cheatsheet') => {
-    onSelectTab(activeTab === tab ? null : tab);
+  const i18n = getI18n(translitEnabled).activityBar;
+
+  const handleTabClick = (tab: ActiveSidebarTab) => {
+    if (activeTab === tab) {
+      onSelectTab(null);
+    } else {
+      onSelectTab(tab);
+    }
   };
 
   return (
-    <aside className="w-12 bg-[#0B0F19] border-r border-[#1E293B] flex flex-col items-center py-2.5 select-none z-30 justify-between">
-      {/* Action Icons Rail */}
+    <div className="w-12 bg-[#060911] border-r border-[#1E293B] flex flex-col items-center py-3 justify-between select-none z-20 flex-shrink-0">
+      {/* Top Main Navigation Tabs */}
       <div className="flex flex-col items-center space-y-2 w-full">
-        {/* Files Explorer Tab */}
+        {/* Files Tab */}
         <button
-          onClick={() => toggleTab('files')}
-          className={`p-2.5 rounded-xl transition-all relative ${
+          onClick={() => handleTabClick('files')}
+          className={`p-2.5 rounded-xl transition-all relative group ${
             activeTab === 'files'
-              ? 'bg-emerald-500/10 text-emerald-400 font-semibold'
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
           }`}
-          title="फाइल अन्वेषक (Files Explorer - Toggle)"
+          title={i18n.files}
         >
+          <FolderOpen className="w-5 h-5" />
           {activeTab === 'files' && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-emerald-500 rounded-r-full shadow-lg shadow-emerald-500/50" />
+            <span className="absolute left-0 top-2 bottom-2 w-0.5 bg-emerald-400 rounded-r-full" />
           )}
-          <Files className="w-5 h-5" />
         </button>
 
         {/* Examples Catalog Tab */}
         <button
-          onClick={() => toggleTab('examples')}
-          className={`p-2.5 rounded-xl transition-all relative ${
+          onClick={() => handleTabClick('examples')}
+          className={`p-2.5 rounded-xl transition-all relative group ${
             activeTab === 'examples'
-              ? 'bg-emerald-500/10 text-emerald-400 font-semibold'
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
           }`}
-          title="उदाहरण पुस्तकालय (Examples Library - Toggle)"
+          title={i18n.examples}
         >
-          {activeTab === 'examples' && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-emerald-500 rounded-r-full shadow-lg shadow-emerald-500/50" />
-          )}
           <BookOpen className="w-5 h-5" />
+          {activeTab === 'examples' && (
+            <span className="absolute left-0 top-2 bottom-2 w-0.5 bg-emerald-400 rounded-r-full" />
+          )}
         </button>
 
         {/* Cheatsheet / Reference Tab */}
         <button
-          onClick={() => toggleTab('cheatsheet')}
-          className={`p-2.5 rounded-xl transition-all relative ${
+          onClick={() => handleTabClick('cheatsheet')}
+          className={`p-2.5 rounded-xl transition-all relative group ${
             activeTab === 'cheatsheet'
-              ? 'bg-emerald-500/10 text-emerald-400 font-semibold'
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
           }`}
-          title="भाषा सन्दर्भ र कुञ्जीशब्दहरू (Language Cheatsheet - Toggle)"
+          title={i18n.docs}
         >
-          {activeTab === 'cheatsheet' && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-emerald-500 rounded-r-full shadow-lg shadow-emerald-500/50" />
-          )}
           <HelpCircle className="w-5 h-5" />
-        </button>
-
-        {/* AI Assistant Tab */}
-        <button
-          onClick={onToggleAi}
-          className={`p-2.5 rounded-xl transition-all relative ${
-            isAiOpen
-              ? 'bg-indigo-500/20 text-indigo-300 font-semibold'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
-          }`}
-          title="नेपाली एआई सहायक (AI Assistant - Toggle)"
-        >
-          {isAiOpen && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-indigo-500 rounded-r-full shadow-lg shadow-indigo-500/50" />
+          {activeTab === 'cheatsheet' && (
+            <span className="absolute left-0 top-2 bottom-2 w-0.5 bg-emerald-400 rounded-r-full" />
           )}
-          <Sparkles className="w-5 h-5 text-indigo-400" />
-        </button>
-
-        {/* AST & Bytecode Inspector Tab */}
-        <button
-          onClick={onToggleInspector}
-          className={`p-2.5 rounded-xl transition-all relative ${
-            isInspectorOpen
-              ? 'bg-emerald-500/10 text-emerald-400 font-semibold'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
-          }`}
-          title="AST र बाइटकोड निरीक्षक (AST & Bytecode - Toggle)"
-        >
-          {isInspectorOpen && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-emerald-500 rounded-r-full shadow-lg shadow-emerald-500/50" />
-          )}
-          <Layers className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Bottom Run Action Button */}
-      <div className="flex flex-col items-center w-full space-y-2">
+      {/* Bottom Utility Tools (AI, Inspector, Run) */}
+      <div className="flex flex-col items-center space-y-2 w-full">
+        {/* AI Assistant Toggle */}
+        <button
+          onClick={onToggleAi}
+          className={`p-2.5 rounded-xl transition-all relative group ${
+            isAiOpen
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
+          }`}
+          title={i18n.ai}
+        >
+          <Sparkles className="w-5 h-5 text-emerald-400" />
+        </button>
+
+        {/* Bottom Inspector / Terminal Toggle */}
+        <button
+          onClick={onToggleInspector}
+          className={`p-2.5 rounded-xl transition-all relative group ${
+            isInspectorOpen
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
+          }`}
+          title={i18n.terminal}
+        >
+          <Terminal className="w-5 h-5" />
+        </button>
+
+        {/* Quick Mini Run Trigger */}
         <button
           onClick={onRun}
           disabled={isRunning}
-          className={`p-2.5 rounded-xl transition-all shadow-md active:scale-95 ${
+          className={`p-2.5 rounded-xl transition-all ${
             isRunning
-              ? 'bg-amber-600 text-white animate-pulse'
-              : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30'
+              ? 'bg-emerald-950 text-slate-500 cursor-not-allowed'
+              : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 shadow-sm'
           }`}
-          title="प्रोग्राम चलाउनुहोस् (Ctrl+Enter)"
+          title={i18n.run}
         >
-          {isRunning ? (
-            <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <Play className="w-4 h-4 fill-current" />
-          )}
+          <Play className={`w-4 h-4 fill-emerald-400 ${isRunning ? 'animate-spin' : ''}`} />
         </button>
       </div>
-    </aside>
+    </div>
   );
 };

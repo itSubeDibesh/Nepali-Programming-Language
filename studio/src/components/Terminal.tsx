@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { ExecutionResult } from '../lib/types';
+import { getI18n } from '../lib/i18n';
 import { toNepaliDigits } from '../lib/numbers';
 import {
   Terminal as TermIcon, CheckCircle2, AlertCircle, Copy, Check,
@@ -14,6 +15,7 @@ interface TerminalProps {
   onClose: () => void;
   isOpen: boolean;
   code?: string;
+  translitEnabled?: boolean;
 }
 
 type TerminalTab = 'output' | 'ast' | 'bytecode' | 'problems';
@@ -25,6 +27,7 @@ export const Terminal: React.FC<TerminalProps> = ({
   onClose,
   isOpen,
   code = '',
+  translitEnabled = true,
 }) => {
   const [activeTab, setActiveTab] = useState<TerminalTab>('output');
   const [copied, setCopied] = useState(false);
