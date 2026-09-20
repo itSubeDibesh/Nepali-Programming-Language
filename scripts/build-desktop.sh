@@ -80,6 +80,9 @@ if [ "$OS_NAME" = "Darwin" ]; then
     
     echo "✓ Built and installed modern macOS Application: ~/Applications/Nepali Studio.app"
 
+    # ── Remove raw .app from dist/ — .dmg is the distributable artifact ──
+    rm -rf "$APP_BUNDLE"
+
     # ── Build macOS .dmg installer (uses hdiutil, bundled with every macOS) ──
     DMG_NAME="Nepali Studio-1.0.0-macOS.dmg"
     DMG_OUT="$OUTPUT_DIR/$DMG_NAME"
