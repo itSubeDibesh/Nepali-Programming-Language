@@ -138,19 +138,19 @@ export function highlightNepaliCode(code: string): string {
       const isFunctionCall = peek < n && code[peek] === "(";
 
       if (VAR_KEYWORDS.has(word)) {
-        out += '<span class="text-cyan-400 font-bold font-devanagari">' + escapeHtml(word) + '</span>';
+        out += '<span data-token="' + escapeHtml(word) + '" class="text-cyan-400 font-bold font-devanagari cursor-help">' + escapeHtml(word) + '</span>';
         lastWasVarDecl = true;
       } else if (FN_KEYWORDS.has(word)) {
-        out += '<span class="text-emerald-400 font-bold font-devanagari">' + escapeHtml(word) + '</span>';
+        out += '<span data-token="' + escapeHtml(word) + '" class="text-emerald-400 font-bold font-devanagari cursor-help">' + escapeHtml(word) + '</span>';
         lastWasVarDecl = false;
       } else if (CONTROL_KEYWORDS.has(word)) {
-        out += '<span class="text-fuchsia-400 font-bold font-devanagari">' + escapeHtml(word) + '</span>';
+        out += '<span data-token="' + escapeHtml(word) + '" class="text-fuchsia-400 font-bold font-devanagari cursor-help">' + escapeHtml(word) + '</span>';
         lastWasVarDecl = false;
       } else if (BUILTINS.has(word)) {
-        out += '<span class="text-sky-400 font-semibold font-devanagari">' + escapeHtml(word) + '</span>';
+        out += '<span data-token="' + escapeHtml(word) + '" class="text-sky-400 font-semibold font-devanagari cursor-help">' + escapeHtml(word) + '</span>';
         lastWasVarDecl = false;
       } else if (LITERALS.has(word)) {
-        out += '<span class="text-rose-400 font-semibold font-devanagari">' + escapeHtml(word) + '</span>';
+        out += '<span data-token="' + escapeHtml(word) + '" class="text-rose-400 font-semibold font-devanagari cursor-help">' + escapeHtml(word) + '</span>';
         lastWasVarDecl = false;
       } else if (isFunctionCall) {
         out += '<span class="text-amber-300 font-semibold font-devanagari">' + escapeHtml(word) + '</span>';
@@ -168,7 +168,7 @@ export function highlightNepaliCode(code: string): string {
     // 6. Operators & Punctuation
     const char = code[i];
     if (char === "।" || char === "॥") {
-      out += '<span class="text-rose-400 font-bold">' + escapeHtml(char) + '</span>';
+      out += '<span data-token="' + escapeHtml(char) + '" class="text-rose-400 font-bold cursor-help">' + escapeHtml(char) + '</span>';
       lastWasVarDecl = false;
     } else if (/[\+\-\*/=<>!&|]/.test(char)) {
       out += '<span class="text-indigo-300 font-bold">' + escapeHtml(char) + '</span>';

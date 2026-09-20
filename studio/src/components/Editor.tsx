@@ -96,37 +96,23 @@ export const Editor: React.FC<EditorProps> = ({
     setCursorPos({ line, col });
   };
 
-  // Interactive Hover Documentation for Devanagari identifiers
+  // Interactive Hover Documentation for Devanagari identifiers using exact DOM token matching
   const handleMouseMove = (e: React.MouseEvent<HTMLTextAreaElement>) => {
-    if (!textareaRef.current) return;
-    const rect = textareaRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    if (typeof document === 'undefined') return;
 
-    const lineHeight = 24;
-    const charWidth = 8.5;
-    const lineIndex = Math.floor((y + textareaRef.current.scrollTop - 12) / lineHeight);
-    const colIndex = Math.floor((x + textareaRef.current.scrollLeft - 16) / charWidth);
+    // Query exact DOM elements physically under the mouse cursor
+    const elements = document.elementsFromPoint(e.clientX, e.clientY);
+    const tokenEl = elements.find((el) => el.hasAttribute('data-token'));
 
-    const lines = activeContent.split('\n');
-    if (lineIndex >= 0 && lineIndex < lines.length) {
-      const line = lines[lineIndex];
-      let start = colIndex;
-      let end = colIndex;
-      while (start > 0 && /[^\s(),.;।+\-*/=><{}]/.test(line[start - 1])) {
-        start--;
-      }
-      while (end < line.length && /[^\s(),.;।+\-*/=><{}]/.test(line[end])) {
-        end++;
-      }
-      if (start < end) {
-        const symbol = line.substring(start, end);
-        const doc = getDocumentationForSymbol(symbol);
+    if (tokenEl) {
+      const token = tokenEl.getAttribute('data-token');
+      if (token) {
+        const doc = getDocumentationForSymbol(token);
         if (doc) {
           setHoverDoc({
             doc,
-            x: Math.min(e.clientX + 10, window.innerWidth - 320),
-            y: e.clientY + 15,
+            x: Math.min(e.clientX + 12, window.innerWidth - 340),
+            y: e.clientY + 18,
           });
           return;
         }
