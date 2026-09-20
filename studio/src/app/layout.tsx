@@ -23,21 +23,41 @@ const ibmPlexDevanagari = IBM_Plex_Sans_Devanagari({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://nepali.dibe.sh'),
   title: 'नेपाली स्टुडियो | Nepali Programming Language IDE',
   description:
-    'A modern, interactive developer playground for the Nepali Programming Language with live Devanagari transliteration, real-time AST inspector, and local AI assistant.',
+    'A modern, interactive developer playground and IDE for the Nepali Programming Language with live Devanagari transliteration, real-time AST inspector, and local AI assistant.',
+  keywords: [
+    'Nepali Programming Language',
+    'नेपाली प्रोग्रामिङ भाषा',
+    'Nepali Coding',
+    'Devanagari IDE',
+    'Nepali Code',
+    'Dibesh Raj Subedi',
+    'dibe.sh',
+  ],
+  authors: [{ name: 'Dibesh Raj Subedi', url: 'https://dibe.sh' }],
+  creator: 'Dibesh Raj Subedi',
   icons: {
     icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
     shortcut: '/favicon.svg',
     apple: '/favicon.svg',
   },
   openGraph: {
-    title: 'नेपाली स्टुडियो (Nepali Studio)',
+    title: 'नेपाली स्टुडियो | Nepali Programming Language IDE',
     description:
-      'Devanagari-first developer environment for the Nepali Programming Language.',
+      'A modern developer playground and compiler/interpreter for the Nepali Programming Language with live Devanagari transliteration.',
+    url: 'https://nepali.dibe.sh',
     siteName: 'Nepali Studio',
     locale: 'ne_NP',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'नेपाली स्टुडियो | Nepali Programming Language IDE',
+    description:
+      'Devanagari-first developer environment for the Nepali Programming Language created by Dibesh Raj Subedi.',
+    creator: '@itSubeDibesh',
   },
 };
 
