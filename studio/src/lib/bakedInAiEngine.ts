@@ -545,16 +545,15 @@ export function explainNepaliCodeSemantics(code: string, activeFileName: string,
   // Check if the user is asking about loop iteration count, why it ran N times, off-by-one, etc.
   const cleanQ = (userQuery || '').toLowerCase();
   const isLoopCountQuery = hasLoop && (
-    /किन.*(सोध|चल|पटक|चोटि|चोति|चोटी|loop|while|भएसम्म|iteration|count)/i.test(cleanQ) ||
-    /(?:२|3|३|2|५|5|कति)\s*(?:पटक|चोटि|चोति|चोटी|चक्र|times|किन)/i.test(cleanQ) ||
-    /सोधेअन|सोधेन|सोध्या|भएन|किन/i.test(cleanQ)
+    /किन.*(सोध|चल|पटक|चोटि|चोति|चोटी|loop|while|भएसम्म|iteration|count|आएन|आयेअन|भएन|मिलेन|ओत|ओटा|वटा)/i.test(cleanQ) ||
+    /(?:२|3|३|2|५|5|कति)\s*(?:पटक|चोटि|चोति|चोटी|चक्र|times|किन|ओत|ओटा|वटा|आएन|आयेअन)/i.test(cleanQ) ||
+    /सोधेअन|सोधेन|सोध्या|भएन|किन|आएन|आयेअन|मिलेन|गन्ती/i.test(cleanQ)
   );
 
   if (isLoopCountQuery && loopCondition) {
     const fixedCode = code
-      .replace(/राखौँ\s+गन्ती\s*=\s*०/, 'राखौँ गन्ती = १')
-      .replace(/राखौँ\s+([a-zA-Z_\u0900-\u097F]+)\s*=\s*0/, 'राखौँ $1 = 1')
-      .replace(/भएसम्म\s+([a-zA-Z_\u0900-\u097F]+)\s*<=\s*२/, 'भएसम्म $1 < २');
+      .replace(/राखौँ\s+गन्ती\s*=\s*[०0][;।\s]*/, 'राखौँ गन्ती = १।\n')
+      .replace(/राखौँ\s+([a-zA-Z_\u0900-\u097F]+)\s*=\s*[०0][;।\s]*/, 'राखौँ $1 = १।\n');
 
     const answer = `### 💡 लुप ३ पटक चल्नुको कारण (Off-By-One Logic Analysis):
 
