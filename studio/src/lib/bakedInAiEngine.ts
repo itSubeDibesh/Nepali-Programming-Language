@@ -85,8 +85,9 @@ export function diagnoseAndFixNepaliCode(
       for (const p of params) declaredVars.add(p);
     }
 
-    // Variables: राखौँ var = ...
-    const varMatch = trimmed.match(/^(?:राखौँ|राखौं|मानौँ|rakha|let|const|var)\s+([a-zA-Z_\u0900-\u097F][a-zA-Z0-9_\u0900-\u097F]*)/);
+    // Variables: राखौँ var = ... (also accept the common typo राखौ/मानौ missing
+    // the candrabindu so the declared name is still registered for later checks)
+    const varMatch = trimmed.match(/^(?:राखौँ|राखौं|मानौँ|राखौ|मानौ|rakha|let|const|var)\s+([a-zA-Z_\u0900-\u097F][a-zA-Z0-9_\u0900-\u097F]*)/);
     if (varMatch) {
       declaredVars.add(varMatch[1]);
     }
@@ -242,6 +243,21 @@ export function diagnoseAndFixNepaliCode(
         severity: 'warning',
       });
       line = line.replace(/^else\b/, 'नत्र');
+      modified = true;
+    }
+
+    // Fix declaration keyword typo: 'राखौ'/'मानौ' (missing candrabindu 'ँ') -> 'राखौँ'/'मानौँ'
+    // e.g. `राखौ नाम = []` is not valid Nepali - the real keyword is `राखौँ`.
+    const kwTypo = trimmed.match(/^(राखौ|मानौ)\s+\S/);
+    if (kwTypo) {
+      const badKw = kwTypo[1];
+      const goodKw = badKw === 'राखौ' ? 'राखौँ' : 'मानौँ';
+      issues.push({
+        line: i + 1,
+        message: `लाइन ${i + 1}: चर घोषणा कुञ्जीशब्द \`${badKw}\` गलत लेखिएको छ। सही शब्द \`${goodKw}\` प्रयोग गर्नुपर्छ (कान्द्रबिन्दु 'ँ' हराइरहेको छ)।`,
+        severity: 'error',
+      });
+      line = line.replace(new RegExp(`^${badKw}\\s+`), `${goodKw} `);
       modified = true;
     }
 
