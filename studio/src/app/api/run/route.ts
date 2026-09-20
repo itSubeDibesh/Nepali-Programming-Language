@@ -18,10 +18,26 @@ export async function POST(req: NextRequest) {
     const projectRoot = path.resolve(process.cwd(), '..');
     const modeFlag = mode === 'os' ? '--mode os' : '--mode sandbox';
 
+    const debugBin = path.join(projectRoot, 'crates/nepali-core/target/debug/nepali-core-cli');
+    const releaseBin = path.join(projectRoot, 'crates/nepali-core/target/release/nepali-core-cli');
+    const cliBin = fs.existsSync(releaseBin) ? releaseBin : fs.existsSync(debugBin) ? debugBin : null;
+
+    const cmd = cliBin
+      ? `"${cliBin}" ${modeFlag} "${tmpFile}"`
+      : `cargo run --quiet --manifest-path crates/nepali-core/Cargo.toml -- ${modeFlag} "${tmpFile}"`;
+
     return new Promise<NextResponse>((resolve) => {
       exec(
-        `cargo run --quiet --manifest-path crates/nepali-core/Cargo.toml -- ${modeFlag} run "${tmpFile}"`,
-        { cwd: projectRoot, timeout: 15000 },
+        cmd,
+        {
+          cwd: projectRoot,
+          timeout: 15000,
+          env: {
+            ...process.env,
+            PYO3_USE_ABI3_FORWARD_COMPATIBILITY: '1',
+            NEPALI_SCRIPT: 'devanagari',
+          },
+        },
         (error, stdout, stderr) => {
           try {
             if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
