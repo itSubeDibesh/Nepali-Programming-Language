@@ -1,27 +1,41 @@
 'use client';
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { CodeFile } from '../lib/types';
 import { transliterateWord } from '../lib/translit';
 import { highlightNepaliCode } from '../lib/highlighter';
 import { getDocumentationForSymbol, DocItem } from '../lib/docs';
 import { toNepaliDigits } from '../lib/numbers';
 import {
-  FileCode, Plus, X, Copy, Check, Download, Save, Pencil,
-  Sparkles, HelpCircle, Info
+  FileCode,
+  Plus,
+  X,
+  Copy,
+  Check,
+  Download,
+  Save,
+  Pencil,
+  ChevronRight,
+  Folder,
+  Code2,
+  Sparkles,
+  Info,
+  Maximize2,
+  Minimize2,
+  AlignLeft,
 } from 'lucide-react';
 
 interface EditorProps {
   files: CodeFile[];
   activeFileId: string;
   onSelectFile: (id: string) => void;
-  onUpdateContent: (id: string, content: string) => void;
+  onUpdateContent: (id: string, newContent: string) => void;
   onAddFile: () => void;
   onDeleteFile: (id: string) => void;
   onRenameFile: (id: string, newName: string) => void;
   translitEnabled: boolean;
   onRun: () => void;
-  onSave?: () => void;
-  isSaved?: boolean;
+  onSave: () => void;
+  isSaved: boolean;
 }
 
 export const Editor: React.FC<EditorProps> = ({
@@ -35,112 +49,96 @@ export const Editor: React.FC<EditorProps> = ({
   translitEnabled,
   onRun,
   onSave,
-  isSaved = true,
+  isSaved,
 }) => {
-  const activeFile = files.find((f) => f.id === activeFileId) || files[0];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const highlightRef = useRef<HTMLPreElement>(null);
-  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
-  const [copied, setCopied] = useState(false);
-  const [editingNameId, setEditingNameId] = useState<string | null>(null);
-  const [tempName, setTempName] = useState('');
-  const [showSaveToast, setShowSaveToast] = useState(false);
+  const highlighterRef = useRef<HTMLPreElement>(null);
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
 
-  // Hover Doc Tooltip State
+  const [cursorPos, setCursorPos] = useState<{ line: number; col: number }>({ line: 1, col: 1 });
   const [hoverDoc, setHoverDoc] = useState<{ doc: DocItem; x: number; y: number } | null>(null);
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [savedFeedback, setSavedFeedback] = useState(false);
 
-  // Synchronize scroll between textarea and syntax highlight backdrop
+  // File Renaming state
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  const [tempName, setTempName] = useState<string>('');
+
+  const activeFile = files.find((f) => f.id === activeFileId) || files[0];
+  const activeContent = activeFile ? activeFile.content : '';
+
+  // Synchronize scrolling between textarea, syntax highlighter, and line numbers
   const handleScroll = () => {
-    if (textareaRef.current && highlightRef.current) {
-      highlightRef.current.scrollTop = textareaRef.current.scrollTop;
-      highlightRef.current.scrollLeft = textareaRef.current.scrollLeft;
+    if (!textareaRef.current) return;
+    const { scrollTop, scrollLeft } = textareaRef.current;
+    if (highlighterRef.current) {
+      highlighterRef.current.scrollTop = scrollTop;
+      highlighterRef.current.scrollLeft = scrollLeft;
     }
-    setHoverDoc(null);
+    if (lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = scrollTop;
+    }
   };
 
   const handleCursorMove = () => {
     if (!textareaRef.current) return;
-    const text = textareaRef.current.value.slice(0, textareaRef.current.selectionStart);
-    const lines = text.split('\n');
-    setCursorPos({
-      line: lines.length,
-      col: lines[lines.length - 1].length + 1,
-    });
+    const text = textareaRef.current.value;
+    const selStart = textareaRef.current.selectionStart;
+    const linesUpToCursor = text.substring(0, selStart).split('\n');
+    const line = linesUpToCursor.length;
+    const col = linesUpToCursor[linesUpToCursor.length - 1].length + 1;
+    setCursorPos({ line, col });
   };
 
+  // Interactive Hover Documentation for Devanagari identifiers
   const handleMouseMove = (e: React.MouseEvent<HTMLTextAreaElement>) => {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    if (!textareaRef.current) return;
+    const rect = textareaRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
-    const clientX = e.clientX;
-    const clientY = e.clientY;
+    const lineHeight = 24;
+    const charWidth = 8.5;
+    const lineIndex = Math.floor((y + textareaRef.current.scrollTop - 12) / lineHeight);
+    const colIndex = Math.floor((x + textareaRef.current.scrollLeft - 16) / charWidth);
 
-    hoverTimeoutRef.current = setTimeout(() => {
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      const pos = textarea.selectionStart;
-      const text = textarea.value;
-
-      // Extract current word around cursor
-      let start = pos;
-      while (start > 0 && /[^\s()\[\]{};,।॥"']/.test(text[start - 1])) {
+    const lines = activeContent.split('\n');
+    if (lineIndex >= 0 && lineIndex < lines.length) {
+      const line = lines[lineIndex];
+      let start = colIndex;
+      let end = colIndex;
+      while (start > 0 && /[^\s(),.;।+\-*/=><{}]/.test(line[start - 1])) {
         start--;
       }
-      let end = pos;
-      while (end < text.length && /[^\s()\[\]{};,।॥"']/.test(text[end])) {
+      while (end < line.length && /[^\s(),.;।+\-*/=><{}]/.test(line[end])) {
         end++;
       }
-
       if (start < end) {
-        const word = text.substring(start, end);
-        const doc = getDocumentationForSymbol(word);
+        const symbol = line.substring(start, end);
+        const doc = getDocumentationForSymbol(symbol);
         if (doc) {
           setHoverDoc({
             doc,
-            x: Math.min(clientX + 10, window.innerWidth - 340),
-            y: Math.min(clientY + 15, window.innerHeight - 220),
+            x: Math.min(e.clientX + 10, window.innerWidth - 320),
+            y: e.clientY + 15,
           });
           return;
         }
       }
-      setHoverDoc(null);
-    }, 350);
+    }
+    setHoverDoc(null);
   };
 
   const handleMouseLeave = () => {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     setHoverDoc(null);
-  };
-
-  const triggerSave = () => {
-    if (onSave) onSave();
-    setShowSaveToast(true);
-    setTimeout(() => setShowSaveToast(false), 2000);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    setHoverDoc(null);
-
-    // Ctrl+S / Cmd+S: Save
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-      e.preventDefault();
-      triggerSave();
-      return;
-    }
-
-    // Ctrl+Enter / Cmd+Enter: Run
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-      e.preventDefault();
-      onRun();
-      return;
-    }
-
-    // Tab: 2-space indentation
+    // 1. Tab Key Indentation (2 spaces)
     if (e.key === 'Tab') {
       e.preventDefault();
       const target = textareaRef.current;
-      if (!target) return;
+      if (!target || !activeFile) return;
       const start = target.selectionStart;
       const end = target.selectionEnd;
       const val = target.value;
@@ -148,11 +146,12 @@ export const Editor: React.FC<EditorProps> = ({
       onUpdateContent(activeFile.id, newVal);
       setTimeout(() => {
         target.selectionStart = target.selectionEnd = start + 2;
+        handleCursorMove();
       }, 0);
       return;
     }
 
-    // 1. Direct Digit Transliteration (0-9 -> ०-९) when in Nepali mode
+    // 2. Direct Digit Transliteration (0-9 -> ०-९) when in Nepali mode
     if (
       translitEnabled &&
       /^[0-9]$/.test(e.key) &&
@@ -162,7 +161,7 @@ export const Editor: React.FC<EditorProps> = ({
     ) {
       e.preventDefault();
       const target = textareaRef.current;
-      if (!target) return;
+      if (!target || !activeFile) return;
       const nepDigit = toNepaliDigits(e.key);
       const start = target.selectionStart;
       const end = target.selectionEnd;
@@ -176,13 +175,13 @@ export const Editor: React.FC<EditorProps> = ({
       return;
     }
 
-    // 2. Full Word Transliteration on Delimiters
+    // 3. Full Word Transliteration on Delimiters
     if (
       translitEnabled &&
       (e.key === ' ' || e.key === 'Enter' || e.key === '।' || e.key === '(' || e.key === ')' || e.key === ',' || e.key === ';' || e.key === '.')
     ) {
       const target = textareaRef.current;
-      if (!target) return;
+      if (!target || !activeFile) return;
       const pos = target.selectionStart;
       const text = target.value;
 
@@ -219,15 +218,21 @@ export const Editor: React.FC<EditorProps> = ({
     }
   };
 
+  const handleManualSaveTrigger = () => {
+    onSave();
+    setSavedFeedback(true);
+    setTimeout(() => setSavedFeedback(false), 1500);
+  };
+
   const handleDownload = () => {
     if (!activeFile) return;
-    const blob = new Blob([activeFile.content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = activeFile.name.endsWith('.nep') ? activeFile.name : activeFile.name + '.nep';
-    a.click();
-    URL.revokeObjectURL(url);
+    const element = document.createElement('a');
+    const file = new Blob([activeFile.content], { type: 'text/plain;charset=utf-8' });
+    element.href = URL.createObjectURL(file);
+    element.download = activeFile.name.endsWith('.nep') ? activeFile.name : `${activeFile.name}.nep`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
   };
 
   const startRenaming = (file: CodeFile) => {
@@ -236,26 +241,30 @@ export const Editor: React.FC<EditorProps> = ({
   };
 
   const finishRenaming = (id: string) => {
-    if (tempName.trim()) {
-      const finalName = tempName.trim().endsWith('.nep') ? tempName.trim() : tempName.trim() + '.nep';
-      onRenameFile(id, finalName);
+    if (!tempName.trim()) {
+      setEditingNameId(null);
+      return;
     }
+    let finalName = tempName.trim();
+    if (!finalName.endsWith('.nep')) {
+      finalName += '.nep';
+    }
+    onRenameFile(id, finalName);
     setEditingNameId(null);
   };
 
-  const lineCount = (activeFile?.content || '').split('\n').length;
-  const lineNumbers = Array.from({ length: Math.max(lineCount, 1) }, (_, i) => i + 1);
-  const charCount = (activeFile?.content || '').length;
-
-  const highlightedHtml = highlightNepaliCode(activeFile?.content || '');
+  const linesCount = activeContent.split('\n').length;
+  const charsCount = activeContent.length;
 
   return (
     <div className="flex-1 flex flex-col bg-[#060911] border-r border-[#1E293B] overflow-hidden relative select-none">
-      {/* Tab Bar */}
+      {/* 1. Authentic IDE Tab Bar */}
       <div className="h-10 bg-[#0B0F19] border-b border-[#1E293B] flex items-center justify-between px-2 select-none overflow-x-auto">
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-0.5 min-w-0">
           {files.map((file) => {
             const isActive = file.id === activeFileId;
+            const isEditing = editingNameId === file.id;
+
             return (
               <div
                 key={file.id}
@@ -265,15 +274,19 @@ export const Editor: React.FC<EditorProps> = ({
                   e.stopPropagation();
                   startRenaming(file);
                 }}
-                className={`group flex items-center space-x-2 px-3.5 py-1.5 rounded-t-lg text-xs cursor-pointer border-t-2 transition-all select-none ${
+                className={`group relative flex items-center space-x-2 px-3.5 py-2 text-xs cursor-pointer transition-all select-none border-r border-[#1E293B]/60 ${
                   isActive
-                    ? 'bg-[#060911] text-emerald-400 border-emerald-500 font-semibold shadow-sm'
-                    : 'bg-transparent text-slate-400 border-transparent hover:bg-[#0F172A] hover:text-slate-300'
+                    ? 'bg-[#060911] text-emerald-400 font-semibold shadow-sm border-t-2 border-t-emerald-500'
+                    : 'bg-[#0B0F19] text-slate-400 hover:bg-[#0F172A] hover:text-slate-200 border-t-2 border-t-transparent'
                 }`}
               >
-                <FileCode className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-400' : 'text-slate-500'}`} />
-                
-                {editingNameId === file.id ? (
+                <FileCode
+                  className={`w-3.5 h-3.5 flex-shrink-0 ${
+                    isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-400'
+                  }`}
+                />
+
+                {isEditing ? (
                   <input
                     type="text"
                     value={tempName}
@@ -285,25 +298,30 @@ export const Editor: React.FC<EditorProps> = ({
                       if (e.key === 'Escape') setEditingNameId(null);
                     }}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-slate-900 text-white font-mono text-xs px-1.5 py-0.5 rounded border border-emerald-500 outline-none w-28"
+                    className="bg-slate-950 text-white font-mono text-xs px-1.5 py-0.5 rounded border border-emerald-500 outline-none w-28 shadow-inner"
                   />
                 ) : (
-                  <span className="font-mono">{file.name}</span>
+                  <span className="font-mono truncate max-w-[140px]">{file.name}</span>
                 )}
 
+                {/* Unsaved status dot */}
                 {!isSaved && isActive && (
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" title="परिवर्तन सुरक्षित गरिएको छैन (Unsaved)" />
+                  <span
+                    className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0"
+                    title="परिवर्तनहरू सुरक्षित गरिएका छैनन् (Unsaved changes)"
+                  />
                 )}
 
+                {/* Custom Action Buttons on Tab */}
                 <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {editingNameId !== file.id && (
+                  {!isEditing && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         startRenaming(file);
                       }}
                       className="p-0.5 rounded hover:bg-slate-700/60 text-slate-500 hover:text-emerald-300 transition-colors"
-                      title="फाइलको नाम परिवर्तन गर्नुहोस् (Rename)"
+                      title="नाम परिवर्तन गर्नुहोस् (Rename)"
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
@@ -325,74 +343,119 @@ export const Editor: React.FC<EditorProps> = ({
             );
           })}
 
+          {/* "+ New Tab" Button */}
           <button
             onClick={onAddFile}
-            className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-[#0F172A] rounded-md transition-colors"
-            title="नयाँ फाइल सिर्जना गर्नुहोस् (+)"
+            className="p-1.5 ml-1 text-slate-400 hover:text-emerald-400 hover:bg-[#0F172A] rounded-lg transition-colors"
+            title="नयाँ फाइल सिर्जना गर्नुहोस् (New Tab)"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Top Editor Actions */}
-        <div className="flex items-center space-x-1">
+        {/* Right Toolbar in Tab Bar */}
+        <div className="flex items-center space-x-1 text-slate-400">
           <button
-            onClick={triggerSave}
-            className="px-2.5 py-1 text-slate-400 hover:text-slate-200 hover:bg-[#0F172A] rounded text-xs flex items-center space-x-1.5 transition-colors"
-            title="परियोजना सुरक्षित गर्नुहोस् (Ctrl+S / ⌘S)"
+            onClick={handleManualSaveTrigger}
+            className={`p-1.5 rounded transition-colors text-xs flex items-center space-x-1 ${
+              savedFeedback
+                ? 'text-emerald-400 bg-emerald-500/10'
+                : 'hover:text-slate-200 hover:bg-[#0F172A]'
+            }`}
+            title="फाइल सुरक्षित गर्नुहोस् (Save - Ctrl+S)"
           >
-            <Save className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline text-[11px]">बचत</span>
+            {savedFeedback ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Save className="w-3.5 h-3.5" />}
           </button>
-
+          {activeFile && (
+            <button
+              onClick={() => startRenaming(activeFile)}
+              className="p-1.5 hover:text-emerald-400 hover:bg-[#0F172A] rounded transition-colors"
+              title="सक्रिय फाइलको नाम बदल्नुहोस् (Rename File)"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             onClick={handleDownload}
-            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-[#0F172A] rounded transition-colors"
-            title="यो फाइल डाउनलोड गर्नुहोस् (.nep)"
+            className="p-1.5 hover:text-slate-200 hover:bg-[#0F172A] rounded transition-colors"
+            title="डाउनलोड गर्नुहोस् (.nep)"
           >
             <Download className="w-3.5 h-3.5" />
           </button>
-
           <button
             onClick={handleCopy}
-            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-[#0F172A] rounded transition-colors"
-            title="सबै कोड प्रतिलिपि गर्नुहोस्"
+            className="p-1.5 hover:text-slate-200 hover:bg-[#0F172A] rounded transition-colors"
+            title="कोड प्रतिलिपि गर्नुहोस् (Copy Code)"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
 
-      {/* Editor Main Canvas with Syntax Highlighting Layer */}
-      <div className="flex-1 flex overflow-hidden relative font-mono text-sm">
-        {/* Line Numbers in Devanagari */}
-        <div className="w-12 bg-[#060911] py-3.5 select-none text-right pr-3 font-mono text-xs text-slate-600 overflow-hidden leading-6 border-r border-[#1E293B]">
-          {lineNumbers.map((num) => (
-            <div
-              key={num}
-              className={num === cursorPos.line ? 'text-emerald-400 font-bold bg-emerald-500/10 -mr-3 pr-3 rounded-l font-devanagari' : 'font-devanagari'}
-            >
-              {toNepaliDigits(num)}
-            </div>
-          ))}
+      {/* 2. IDE Breadcrumbs & Context Bar */}
+      <div className="h-7 bg-[#060911] border-b border-[#1E293B]/70 px-3 flex items-center justify-between text-[11px] text-slate-400 select-none">
+        <div className="flex items-center space-x-1.5 font-devanagari">
+          <Folder className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="text-slate-400">परियोजना</span>
+          <ChevronRight className="w-3 h-3 text-slate-600" />
+          <FileCode className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="text-slate-200 font-mono font-medium">{activeFile?.name || 'main.nep'}</span>
+          <ChevronRight className="w-3 h-3 text-slate-600" />
+          <span className="text-emerald-400/90 font-mono">⚡ मुख्य कार्यक्रम</span>
         </div>
 
-        {/* Code Viewports Container */}
+        <div className="flex items-center space-x-3 text-[10px] text-slate-500 font-devanagari">
+          <span>{toNepaliDigits(linesCount)} पंक्तिहरू</span>
+          <span>•</span>
+          <span>{toNepaliDigits(charsCount)} अक्षरहरू</span>
+        </div>
+      </div>
+
+      {/* 3. Editor Code Canvas */}
+      <div className="flex-1 flex relative overflow-hidden bg-[#060911]">
+        {/* Line Numbers Gutter */}
+        <div
+          ref={lineNumbersRef}
+          className="w-14 bg-[#080C16] border-r border-[#1E293B] py-3 text-right pr-3 select-none overflow-hidden font-mono text-xs leading-6 text-slate-600 font-devanagari"
+        >
+          {Array.from({ length: Math.max(linesCount, 1) }).map((_, i) => {
+            const lineNum = i + 1;
+            const isCurrentLine = cursorPos.line === lineNum;
+            return (
+              <div
+                key={i}
+                className={`transition-colors ${
+                  isCurrentLine
+                    ? 'text-emerald-400 font-bold bg-emerald-500/10 -mr-3 pr-3 border-r-2 border-emerald-500'
+                    : 'hover:text-slate-400'
+                }`}
+              >
+                {toNepaliDigits(lineNum)}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Textarea & Syntax Highlight Layer */}
         <div className="flex-1 relative overflow-hidden">
-          {/* Syntax Highlight Backdrop */}
+          {/* Syntax Highlighter Underlay */}
           <pre
-            ref={highlightRef}
+            ref={highlighterRef}
             aria-hidden="true"
-            dangerouslySetInnerHTML={{ __html: highlightedHtml + '<br/>' }}
-            className="absolute inset-0 p-3.5 font-mono text-sm leading-6 overflow-hidden pointer-events-none whitespace-pre font-devanagari text-transparent select-none z-0"
+            className="absolute inset-0 p-3 m-0 pointer-events-none font-mono text-sm leading-6 whitespace-pre overflow-hidden text-transparent select-none font-devanagari"
+            dangerouslySetInnerHTML={{
+              __html: highlightNepaliCode(activeContent) + '\n\n',
+            }}
           />
 
-          {/* Editable Transparent Textarea */}
+          {/* Interactive Textarea Input */}
           <textarea
             ref={textareaRef}
-            value={activeFile?.content || ''}
+            value={activeContent}
             onChange={(e) => {
-              onUpdateContent(activeFile.id, e.target.value);
+              if (activeFile) {
+                onUpdateContent(activeFile.id, e.target.value);
+              }
               handleCursorMove();
             }}
             onScroll={handleScroll}
@@ -402,77 +465,81 @@ export const Editor: React.FC<EditorProps> = ({
             onClick={handleCursorMove}
             onKeyUp={handleCursorMove}
             spellCheck={false}
-            className="absolute inset-0 w-full h-full bg-transparent text-transparent caret-emerald-400 font-mono text-sm p-3.5 leading-6 outline-none resize-none overflow-auto whitespace-pre selection:bg-emerald-500/30 font-devanagari z-10"
-            placeholder="// यहाँ नेपाली कोड लेख्नुहोस्..."
+            autoCapitalize="off"
+            autoComplete="off"
+            className="absolute inset-0 w-full h-full p-3 m-0 bg-transparent text-slate-100 font-mono text-sm leading-6 resize-none outline-none border-none whitespace-pre overflow-auto font-devanagari caret-emerald-400 selection:bg-emerald-500/30"
           />
         </div>
-      </div>
 
-      {/* Floating Hover Documentation Card */}
-      {hoverDoc && (
-        <div
-          style={{ top: `${hoverDoc.y}px`, left: `${hoverDoc.x}px` }}
-          className="fixed z-50 max-w-sm bg-[#0F172A]/95 backdrop-blur-xl border border-emerald-500/40 rounded-xl p-3.5 shadow-2xl space-y-2 pointer-events-none animate-in fade-in zoom-in-95 text-xs select-none"
-        >
-          <div className="flex items-center justify-between border-b border-[#1E293B] pb-1.5">
-            <div className="flex items-center space-x-1.5">
-              <span className="font-bold text-emerald-400 font-devanagari text-sm">
-                {hoverDoc.doc.devanagari}
+        {/* Hover Documentation Floating Tooltip */}
+        {hoverDoc && (
+          <div
+            style={{ top: hoverDoc.y, left: hoverDoc.x }}
+            className="fixed z-50 w-80 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3.5 shadow-2xl text-xs space-y-2 pointer-events-none animate-in fade-in duration-100"
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span className="font-bold text-emerald-400 font-mono text-sm font-devanagari">
+                {hoverDoc.doc.devanagari || hoverDoc.doc.name}
               </span>
-              <span className="text-[10px] bg-slate-800 text-slate-400 font-mono px-1.5 py-0.5 rounded">
-                {hoverDoc.doc.romanAlias}
+              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800/50">
+                {hoverDoc.doc.category}
               </span>
             </div>
-            <span className="text-[9px] uppercase tracking-wider font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              {hoverDoc.doc.category}
-            </span>
+
+            <p className="text-slate-200 font-devanagari leading-relaxed">
+              {hoverDoc.doc.description}
+            </p>
+
+            {hoverDoc.doc.signature && (
+              <div className="bg-slate-950 px-2 py-1 rounded font-mono text-[11px] text-indigo-300 border border-slate-800">
+                <code>{hoverDoc.doc.signature}</code>
+              </div>
+            )}
+
+            {hoverDoc.doc.example && (
+              <div className="text-[10px] text-slate-400 font-mono">
+                <span className="text-slate-500">उदाहरण:</span> {hoverDoc.doc.example}
+              </div>
+            )}
           </div>
-
-          <div className="bg-[#060911] p-1.5 rounded font-mono text-[11px] text-sky-300">
-            {hoverDoc.doc.signature}
-          </div>
-
-          <p className="text-[11px] text-slate-200 leading-snug font-devanagari">
-            {hoverDoc.doc.description}
-          </p>
-
-          <div className="text-[10px] text-slate-400 italic">
-            {hoverDoc.doc.englishDescription}
-          </div>
-        </div>
-      )}
-
-      {/* Save Notification Toast */}
-      {showSaveToast && (
-        <div className="absolute bottom-10 right-6 z-50 bg-[#0F172A] border border-emerald-500/40 text-emerald-400 px-3.5 py-1.5 rounded-lg shadow-xl text-xs flex items-center space-x-2 animate-bounce">
-          <Check className="w-3.5 h-3.5" />
-          <span>परियोजना सुरक्षित भयो (Saved to Browser)</span>
-        </div>
-      )}
-
-      {/* Status Bar */}
-      <div className="h-6 bg-[#0B0F19] border-t border-[#1E293B] px-3.5 flex items-center justify-between text-[11px] text-slate-400 font-mono select-none">
-        <div className="flex items-center space-x-4 font-devanagari">
-          <span className="text-slate-300 font-semibold">
-            पंक्ति {toNepaliDigits(cursorPos.line)}, स्तम्भ {toNepaliDigits(cursorPos.col)}
-          </span>
-          <span className="text-slate-500">
-            {toNepaliDigits(lineCount)} पंक्तिहरू
-          </span>
-          <span className="text-slate-500">
-            {toNepaliDigits(charCount)} वर्णहरू
-          </span>
-        </div>
-        
-        <div className="flex items-center space-x-3">
-          <span className="flex items-center space-x-1.5 text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-devanagari">{translitEnabled ? 'रोमन → नेपाली (F2)' : 'English (F2)'}</span>
-          </span>
-          <span className="text-slate-500">UTF-8</span>
-          <span className="text-slate-500">Nepali v1.0</span>
-        </div>
+        )}
       </div>
+
+      {/* 4. Authentic IDE Status Bar */}
+      <footer className="h-6 bg-[#080C16] border-t border-[#1E293B] px-3 flex items-center justify-between text-[11px] text-slate-400 select-none font-mono">
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-1.5 text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
+            <span className="font-devanagari font-semibold">नेपाली (Nepali)</span>
+          </div>
+
+          <span className="text-slate-600">|</span>
+
+          <span className="text-slate-400 font-devanagari">
+            {translitEnabled ? '🇳🇵 रोमन → देवनागरी (F2)' : '🔤 English (F2)'}
+          </span>
+
+          <span className="text-slate-600">|</span>
+
+          <span>UTF-8</span>
+
+          <span className="text-slate-600 hidden sm:inline">|</span>
+
+          <span className="text-slate-500 hidden sm:inline">Spaces: २</span>
+        </div>
+
+        <div className="flex items-center space-x-3">
+          <span className="font-devanagari">
+            पं. {toNepaliDigits(cursorPos.line)}, स्त. {toNepaliDigits(cursorPos.col)}
+          </span>
+
+          <span className="text-slate-600">|</span>
+
+          <span className="font-devanagari">
+            {isSaved ? 'सञ्चित (Saved)' : 'परिवर्तित (Modified)'}
+          </span>
+        </div>
+      </footer>
     </div>
   );
 };
