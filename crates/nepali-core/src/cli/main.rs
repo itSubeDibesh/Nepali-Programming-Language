@@ -229,7 +229,7 @@ fn main() -> ExitCode {
             let mut no_open = false;
             let mut tui = false;
             #[cfg(feature = "gui")]
-            let mut window = false;
+            let mut window = true; // Native window by default on all desktop OS
             let mut nepali_bin: Option<String> = None;
             let mut i = 2;
             while i < args.len() {
@@ -244,6 +244,8 @@ fn main() -> ExitCode {
                     "--tui" => tui = true,
                     #[cfg(feature = "gui")]
                     "--window" => window = true,
+                    #[cfg(feature = "gui")]
+                    "--browser" => window = false,
                     "--nepali" => {
                         i += 1;
                         nepali_bin = args.get(i).cloned();
@@ -260,7 +262,7 @@ fn main() -> ExitCode {
             } else {
                 #[cfg(feature = "gui")]
                 if window {
-                    window::run_window(port);
+                    window::run_window(port, nepali_bin.as_deref());
                     ExitCode::SUCCESS
                 } else {
                     studio::run_studio(port, no_open, nepali_bin.as_deref());

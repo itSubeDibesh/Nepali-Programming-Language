@@ -1,0 +1,19 @@
+[package]
+name = "nepali-studio-desktop"
+version = "1.0.0"
+description = "नेपाली प्रोग्रामिङ भाषा — Native Desktop IDE"
+authors = ["Nepali Programming Language Team"]
+edition = "2021"
+
+[lib]
+name = "nepali_studio_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+nepali-core = { path = "../crates/nepali-core" }
+tauri = { version = "2", features = ["tray-icon"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

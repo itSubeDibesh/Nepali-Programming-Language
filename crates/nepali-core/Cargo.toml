@@ -115,7 +115,7 @@ tiny_http = { version = "0.12", optional = true }
 # statically linked already." Defaults to everything, matching this
 # crate's behavior before this feature-gating existed - existing
 # Dockerfile/os-image builds need no changes.
-default = ["python-interop", "rust-interop", "js-interop", "cache", "studio", "db"]
+default = ["python-interop", "rust-interop", "js-interop", "cache", "studio", "db", "gui"]
 python-interop = ["dep:pyo3"]
 rust-interop = ["dep:libloading", "dep:nepali-plugin-abi"]
 js-interop = ["dep:rquickjs", "dep:swc_core"]

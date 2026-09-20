@@ -50,6 +50,30 @@ export class NepaliEngine {
       }
     }
 
+        // 1. Desktop Native Tauri / Wry IPC (if running inside standalone desktop app)
+    if (typeof window !== 'undefined' && ((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__ || (window as any).ipc)) {
+      try {
+        const tauriInvoke = (window as any).__TAURI_INTERNALS__?.invoke || (window as any).__TAURI__?.core?.invoke || (window as any).__TAURI__?.invoke;
+        if (typeof tauriInvoke === 'function') {
+          const res: any = await tauriInvoke('run_nepali_code', {
+            code,
+            mode,
+            inputs
+          });
+          const durationMs = Math.round(performance.now() - startTime);
+          return {
+            stdout: res.stdout || [],
+            stderr: res.stderr || undefined,
+            exitCode: res.exitCode ?? 0,
+            durationMs,
+            mode
+          };
+        }
+      } catch (tauriErr: any) {
+        console.warn('Native IPC fallback:', tauriErr);
+      }
+    }
+
     // 2. Mode 1: WASM Client Execution (if no input/OS calls needed)
     if (mode === 'wasm' && prompts.length === 0 && !code.includes('डाटाबेस') && !code.includes('ओएस_')) {
       try {
