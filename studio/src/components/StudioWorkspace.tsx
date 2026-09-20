@@ -9,9 +9,16 @@ import { AiAssistant } from './AiAssistant';
 import { ShareModal } from './ShareModal';
 import { DownloadModal } from './DownloadModal';
 import { InputModal } from './InputModal';
+import { AstInspector } from './AstInspector';
+import { UpdateModal } from './UpdateModal';
 import { ToastContainer, ToastMessage } from './Toast';
 import { ConfirmModal, ConfirmDialogState } from './ConfirmModal';
+import { ContextMenu } from './ContextMenu';
+import { formatNepaliCode } from '../lib/formatter';
+import { copyToClipboard, readFromClipboard } from '../lib/clipboard';
 import { engine } from '../lib/engine';
+import { checkForAppUpdates, UpdateInfo } from '../lib/updateChecker';
+import { checkAiAvailability } from '../lib/aiChecker';
 import { ExecutionResult, RunMode, PromptRequest, CodeFile, RecipeItem } from '../lib/types';
 import { decodeCodeFromUrl } from '../lib/share';
 import { ensureNepaliExtension } from '../lib/fileUtils';
@@ -190,11 +197,18 @@ export default function StudioWorkspace() {
 
   // Layout Drawers & Dock state
   const [activeSidebarTab, setActiveSidebarTab] = useState<ActiveSidebarTab>(getInitialSidebarTab);
+  const [isAiAvailable, setIsAiAvailable] = useState<boolean>(false);
   const [isAiOpen, setIsAiOpen] = useState<boolean>(getInitialAiOpen);
   const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(getInitialTerminalOpen);
+  const [isAstInspectorOpen, setIsAstInspectorOpen] = useState<boolean>(false);
   const [isShareOpen, setIsShareOpen] = useState<boolean>(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
+  const [isUpdateOpen, setIsUpdateOpen] = useState<boolean>(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
   const [isSaved, setIsSaved] = useState<boolean>(true);
+
+  const [globalContextMenu, setGlobalContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   // App-level Toast Notifications & Confirm Dialogs
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -214,6 +228,44 @@ export default function StudioWorkspace() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // Check AI accessibility on startup
+  useEffect(() => {
+    checkAiAvailability().then((avail) => {
+      setIsAiAvailable(avail);
+      if (!avail) {
+        setIsAiOpen(false);
+      }
+    });
+  }, []);
+
+  const handleCheckUpdate = useCallback(async (notifyIfLatest = false) => {
+    setIsCheckingUpdate(true);
+    try {
+      const info = await checkForAppUpdates();
+      setUpdateInfo(info);
+      if (info.hasUpdate) {
+        showToast(
+          'info',
+          'नयाँ सफ्टवेयर अपडेट उपलब्ध छ',
+          `Nepali Studio v${info.latestVersion} (${info.updateType}) डाउनलोडका लागि तयार छ।`
+        );
+      } else if (notifyIfLatest) {
+        showToast('success', 'स्टुडियो अद्यावधिक छ', `v${info.currentVersion} हालको नवीनतम संस्करण हो।`);
+      }
+    } catch (e) {
+      if (notifyIfLatest) {
+        showToast('error', 'अपडेट जाँच असफल', 'इन्टरनेट जडान वा सर्भर जाँच गर्नुहोस्।');
+      }
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  }, [showToast]);
+
+  // Check for updates on startup
+  useEffect(() => {
+    handleCheckUpdate(false);
+  }, [handleCheckUpdate]);
+
   // Check URL share parameters on client mount
   useEffect(() => {
     const shared = decodeCodeFromUrl();
@@ -228,6 +280,23 @@ export default function StudioWorkspace() {
       setActiveFileId('shared');
       showToast('info', 'साझेदारी गरिएको कोड लोड भयो', `${shared.name} सफलतापूर्वक लोड गरियो।`);
     }
+
+    const handleOpenDownload = () => setIsDownloadOpen(true);
+    const handleOpenUpdate = () => setIsUpdateOpen(true);
+    const handleGlobalContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      setGlobalContextMenu({ x: e.clientX, y: e.clientY });
+    };
+
+    window.addEventListener('open-download-modal', handleOpenDownload);
+    window.addEventListener('open-update-modal', handleOpenUpdate);
+    window.addEventListener('contextmenu', handleGlobalContextMenu);
+
+    return () => {
+      window.removeEventListener('open-download-modal', handleOpenDownload);
+      window.removeEventListener('open-update-modal', handleOpenUpdate);
+      window.removeEventListener('contextmenu', handleGlobalContextMenu);
+    };
   }, [showToast]);
 
   const saveFilesToStorage = (updatedFiles: CodeFile[]) => {
@@ -384,10 +453,11 @@ export default function StudioWorkspace() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [activeFile, mode, isRunning, showToast]);
 
-    const handleAddFile = () => {
+  const handleAddFile = (folderPrefix?: string) => {
     const newId = String(Date.now());
     const ext = translitEnabled ? '.नेपाली' : '.nep';
-    const newFileName = `कार्यक्रम_${files.length + 1}${ext}`;
+    const baseName = `कार्यक्रम_${files.length + 1}${ext}`;
+    const newFileName = folderPrefix ? `${folderPrefix}/${baseName}` : baseName;
     const newFile: CodeFile = {
       id: newId,
       name: newFileName,
@@ -401,6 +471,132 @@ export default function StudioWorkspace() {
     saveFilesToStorage(nextFiles);
     saveOpenTabsToStorage(nextOpen);
     showToast('success', translitEnabled ? 'नयाँ फाइल सिर्जना गरियो' : 'New File Created', `"${newFileName}" ${translitEnabled ? 'थपियो।' : 'added.'}`);
+  };
+
+  const handleAddFolder = (folderName: string) => {
+    const cleanFolder = folderName.replace(/\/+$/, '').trim();
+    if (!cleanFolder) return;
+    const ext = translitEnabled ? '.नेपाली' : '.nep';
+    const newFileName = `${cleanFolder}/main${ext}`;
+    const newId = String(Date.now());
+    const newFile: CodeFile = {
+      id: newId,
+      name: newFileName,
+      content: `// ${cleanFolder} फोल्डर भित्रको मुख्य फाइल\nभनौँ("नमस्ते ${cleanFolder} बाट!");\n`
+    };
+    const nextFiles = [...files, newFile];
+    const nextOpen = [...openTabIds, newId];
+    setFiles(nextFiles);
+    setOpenTabIds(nextOpen);
+    handleSetActiveFileId(newId);
+    saveFilesToStorage(nextFiles);
+    saveOpenTabsToStorage(nextOpen);
+    showToast('success', translitEnabled ? 'नयाँ फोल्डर सिर्जना गरियो' : 'New Folder Created', `"${cleanFolder}" (${newFileName})`);
+  };
+
+  const handleRenameFolder = (oldPath: string, newPath: string) => {
+    const cleanOld = oldPath.replace(/\/+$/, '');
+    const cleanNew = newPath.replace(/\/+$/, '');
+    if (!cleanNew || cleanOld === cleanNew) return;
+
+    const nextFiles = files.map((f) => {
+      if (f.name.startsWith(cleanOld + '/')) {
+        return {
+          ...f,
+          name: cleanNew + '/' + f.name.slice(cleanOld.length + 1)
+        };
+      }
+      return f;
+    });
+
+    setFiles(nextFiles);
+    saveFilesToStorage(nextFiles);
+    showToast('success', 'फोल्डरको नाम बदलियो', `"${cleanOld}" → "${cleanNew}"`);
+  };
+
+  const handleMoveFile = (fileId: string, targetFolder: string | null) => {
+    const targetFile = files.find((f) => f.id === fileId);
+    if (!targetFile) return;
+
+    const parts = targetFile.name.split('/').filter(Boolean);
+    const baseName = parts[parts.length - 1];
+    const cleanTarget = targetFolder ? targetFolder.replace(/\/+$/, '').trim() : '';
+
+    let newFullName = cleanTarget ? `${cleanTarget}/${baseName}` : baseName;
+
+    if (newFullName === targetFile.name) {
+      showToast('info', 'फाइल त्यहीँ छ', `"${baseName}" पहिले नै यो स्थानमा छ।`);
+      return;
+    }
+
+    let counter = 1;
+    while (files.some((f) => f.id !== fileId && f.name === newFullName)) {
+      const dotIdx = baseName.lastIndexOf('.');
+      const rawName = dotIdx !== -1 ? baseName.substring(0, dotIdx) : baseName;
+      const ext = dotIdx !== -1 ? baseName.substring(dotIdx) : '';
+      const altBase = `${rawName}_${counter}${ext}`;
+      newFullName = cleanTarget ? `${cleanTarget}/${altBase}` : altBase;
+      counter++;
+    }
+
+    const nextFiles = files.map((f) => {
+      if (f.id === fileId) {
+        return {
+          ...f,
+          name: newFullName,
+        };
+      }
+      return f;
+    });
+
+    setFiles(nextFiles);
+    saveFilesToStorage(nextFiles);
+
+    const destLabel = cleanTarget ? `"${cleanTarget}/"` : 'मूल डाइरेक्टरी (Root)';
+    showToast('success', translitEnabled ? 'फाइल सारियो' : 'File Moved', `"${baseName}" → ${destLabel}`);
+  };
+
+  const handleDeleteFolder = (folderPath: string) => {
+    const cleanPath = folderPath.replace(/\/+$/, '');
+    const targetFiles = files.filter((f) => f.name.startsWith(cleanPath + '/'));
+    if (targetFiles.length === 0) return;
+
+    if (files.length <= targetFiles.length) {
+      showToast('warning', translitEnabled ? 'फोल्डर मेटाउन मिल्दैन' : 'Cannot Delete Folder', translitEnabled ? 'परियोजनामा कम्तिमा एउटा फाइल हुनैपर्छ।' : 'Workspace must have at least one file.');
+      return;
+    }
+
+    const i18nModals = getI18n(translitEnabled).modals;
+    setConfirmDialog({
+      isOpen: true,
+      title: 'फोल्डर मेटाउनुहोस् (Delete Folder)',
+      message: `के तपाईं "${cleanPath}" फोल्डर र यस भित्रका ${targetFiles.length} फाइलहरू मेटाउन चाहनुहुन्छ?`,
+      confirmLabel: i18nModals.deleteConfirm,
+      cancelLabel: i18nModals.deleteCancel,
+      variant: 'danger',
+      onConfirm: () => {
+        const targetIds = new Set(targetFiles.map((f) => f.id));
+        const nextFiles = files.filter((f) => !targetIds.has(f.id));
+        const nextOpen = openTabIds.filter((tabId) => !targetIds.has(tabId));
+        setFiles(nextFiles);
+        setOpenTabIds(nextOpen);
+        saveFilesToStorage(nextFiles);
+        saveOpenTabsToStorage(nextOpen);
+
+        if (targetIds.has(activeFileId)) {
+          if (nextOpen.length > 0) {
+            handleSetActiveFileId(nextOpen[0]);
+          } else if (nextFiles.length > 0) {
+            handleSetActiveFileId(nextFiles[0].id);
+            setOpenTabIds([nextFiles[0].id]);
+            saveOpenTabsToStorage([nextFiles[0].id]);
+          } else {
+            handleSetActiveFileId('');
+          }
+        }
+        showToast('info', translitEnabled ? 'फोल्डर मेटाइयो' : 'Folder Deleted', `"${cleanPath}" ${translitEnabled ? 'हटाइयो।' : 'deleted.'}`);
+      }
+    });
   };
 
   const handleDeleteFile = (id: string) => {
@@ -519,10 +715,13 @@ export default function StudioWorkspace() {
     saveFilesToStorage(nextFiles);
   };
 
-  const handleSelectExample = (ex: RecipeItem) => {
+  const handleSelectExample = (ex: RecipeItem, saveToFolder = false) => {
     const ext = translitEnabled ? '.नेपाली' : '.nep';
-    const exampleFileName = `${ex.id}${ext}`;
-    const existingFile = files.find((f) => f.name === exampleFileName);
+    const folderPrefix = saveToFolder ? 'उदाहरण' : '';
+    const rawFileName = `${ex.id}${ext}`;
+    const exampleFileName = folderPrefix ? `${folderPrefix}/${rawFileName}` : rawFileName;
+
+    const existingFile = files.find((f) => f.name === exampleFileName || f.name === rawFileName);
     if (existingFile) {
       if (!openTabIds.includes(existingFile.id)) {
         const nextOpen = [...openTabIds, existingFile.id];
@@ -530,7 +729,7 @@ export default function StudioWorkspace() {
         saveOpenTabsToStorage(nextOpen);
       }
       handleSetActiveFileId(existingFile.id);
-      showToast('info', translitEnabled ? 'उदाहरण खोलियो' : 'Example Opened', `"${exampleFileName}" ${translitEnabled ? 'पहिल्यै खुला छ।' : 'is already open.'}`);
+      showToast('info', translitEnabled ? 'उदाहरण खोलियो' : 'Example Opened', `"${existingFile.name}" ${translitEnabled ? 'पहिल्यै खुला छ।' : 'is already open.'}`);
       return;
     }
 
@@ -579,8 +778,11 @@ export default function StudioWorkspace() {
         onToggleInspector={() => handleSetIsTerminalOpen((prev) => !prev)}
         onOpenShare={() => setIsShareOpen(true)}
         isAiOpen={isAiOpen}
+        isAiAvailable={isAiAvailable}
         isInspectorOpen={isTerminalOpen}
         onOpenDownload={() => setIsDownloadOpen(true)}
+        onOpenUpdate={() => setIsUpdateOpen(true)}
+        hasUpdate={Boolean(updateInfo?.hasUpdate)}
       />
 
       {/* Main IDE Workspace */}
@@ -591,16 +793,22 @@ export default function StudioWorkspace() {
           translitEnabled={translitEnabled}
           onSelectTab={handleSetActiveSidebarTab}
           isAiOpen={isAiOpen}
+          isAiAvailable={isAiAvailable}
           onToggleAi={() => handleSetIsAiOpen((prev) => !prev)}
           isInspectorOpen={isTerminalOpen}
           onToggleInspector={() => handleSetIsTerminalOpen((prev) => !prev)}
+          isAstInspectorOpen={isAstInspectorOpen}
+          onToggleAstInspector={() => setIsAstInspectorOpen((prev) => !prev)}
           onRun={handleRun}
           isRunning={isRunning}
           mode={mode}
           onModeChange={handleSetMode}
+          onOpenDownload={() => setIsDownloadOpen(true)}
+          onOpenUpdate={() => setIsUpdateOpen(true)}
+          hasUpdate={Boolean(updateInfo?.hasUpdate)}
         />
 
-        {/* Center/Right Layout: Top Panes (Sidebar + Editor + AI) + Full-Width Bottom Terminal Dock */}
+        {/* Center/Right Layout: Top Panes (Sidebar + Editor + AI + Bytecode Inspector) + Full-Width Bottom Terminal Dock */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0 bg-[#060911]">
           {/* Upper Workspace: Sidebars & Editor */}
           <div className="flex-1 flex overflow-hidden min-h-0 relative">
@@ -614,12 +822,18 @@ export default function StudioWorkspace() {
                 activeFileId={activeFileId}
                 onSelectFile={handleSelectFile}
                 onAddFile={handleAddFile}
+                onAddFolder={handleAddFolder}
                 onDeleteFile={handleDeleteFile}
+                onDeleteFolder={handleDeleteFolder}
+                onRenameFolder={handleRenameFolder}
                 onRenameFile={handleRenameFile}
+                onMoveFile={handleMoveFile}
                 onCloseTab={handleCloseTab}
                 onSelectExample={handleSelectExample}
                 onInsertCode={handleInsertCode}
                 onResetWorkspace={handleResetWorkspace}
+                onOpenDownload={() => setIsDownloadOpen(true)}
+                onOpenUpdate={() => setIsUpdateOpen(true)}
               />
             )}
 
@@ -633,6 +847,7 @@ export default function StudioWorkspace() {
                 onAddFile={handleAddFile}
                 onDeleteFile={handleDeleteFile}
                 onRenameFile={handleRenameFile}
+                onMoveFile={handleMoveFile}
                 onCloseTab={handleCloseTab}
                 onCloseOthers={handleCloseOthers}
                 onCloseToRight={handleCloseToRight}
@@ -643,17 +858,29 @@ export default function StudioWorkspace() {
                 isSaved={isSaved}
                 onToggleTranslit={() => handleSetTranslitEnabled((prev) => !prev)}
                 onOpenAi={() => handleSetIsAiOpen(true)}
+                isAiAvailable={isAiAvailable}
                 onOpenExplorer={() => handleSetActiveSidebarTab('files')}
               />
             </main>
 
-            {/* Right Drawer: AI Assistant */}
-            <AiAssistant
-              isOpen={isAiOpen}
-              translitEnabled={translitEnabled}
-              onClose={() => handleSetIsAiOpen(false)}
-              currentCode={activeFile?.content || ''}
-              onInsertCode={handleInsertCode}
+            {/* Right Drawer: AI Assistant with Auto-Adaptive Multi-File Context */}
+            {isAiAvailable && (
+              <AiAssistant
+                isOpen={isAiOpen}
+                translitEnabled={translitEnabled}
+                onClose={() => handleSetIsAiOpen(false)}
+                currentCode={activeFile?.content || ''}
+                activeFileName={activeFile?.name || 'main.nep'}
+                files={files}
+                onInsertCode={handleInsertCode}
+              />
+            )}
+
+            {/* Right Drawer: Real Bytecode Disassembly & AST Inspector */}
+            <AstInspector
+              isOpen={isAstInspectorOpen}
+              onClose={() => setIsAstInspectorOpen(false)}
+              code={activeFile?.content || ''}
             />
           </div>
 
@@ -690,7 +917,18 @@ export default function StudioWorkspace() {
         isOpen={isDownloadOpen}
         onClose={() => setIsDownloadOpen(false)}
         translitEnabled={translitEnabled}
+        updateInfo={updateInfo}
       />
+
+      {/* Software Patch & Update Modal */}
+      <UpdateModal
+        isOpen={isUpdateOpen}
+        onClose={() => setIsUpdateOpen(false)}
+        updateInfo={updateInfo}
+        isChecking={isCheckingUpdate}
+        onRecheck={() => handleCheckUpdate(true)}
+      />
+
       {/* Share Code Modal */}
       <ShareModal
         isOpen={isShareOpen}
@@ -698,6 +936,101 @@ export default function StudioWorkspace() {
         code={activeFile?.content || ''}
         fileName={activeFile?.name || 'main.nep'}
       />
+
+      {/* Global Studio Context Menu */}
+      {globalContextMenu && (
+        <ContextMenu
+          x={globalContextMenu.x}
+          y={globalContextMenu.y}
+          onClose={() => setGlobalContextMenu(null)}
+          onRun={handleRun}
+          onSave={handleManualSave}
+          onFormat={() => {
+            if (activeFile) {
+              const formatted = formatNepaliCode(activeFile.content);
+              handleUpdateContent(activeFile.id, formatted);
+              showToast('success', 'ढाँचा मिल्यो', 'सक्रिय कोडको ढाँचा मिलाइयो।');
+            }
+          }}
+          onCopy={async () => {
+            if (!activeFile) return;
+            const ta = document.querySelector('textarea');
+            let textToCopy = activeFile.content;
+            if (ta && ta.selectionStart !== ta.selectionEnd) {
+              textToCopy = ta.value.substring(ta.selectionStart, ta.selectionEnd);
+            }
+            const ok = await copyToClipboard(textToCopy);
+            if (ok) {
+              showToast('success', 'प्रतिलिपि भयो', 'चयन गरिएको कोड क्लिपबोर्डमा प्रतिलिपि गरियो।');
+            }
+          }}
+          onCut={async () => {
+            if (!activeFile) return;
+            const ta = document.querySelector('textarea');
+            if (ta && ta.selectionStart !== ta.selectionEnd) {
+              const start = ta.selectionStart;
+              const end = ta.selectionEnd;
+              const selected = ta.value.substring(start, end);
+              await copyToClipboard(selected);
+              const newVal = ta.value.substring(0, start) + ta.value.substring(end);
+              handleUpdateContent(activeFile.id, newVal);
+              setTimeout(() => {
+                ta.focus();
+                ta.selectionStart = ta.selectionEnd = start;
+              }, 0);
+              showToast('success', 'काटियो', 'चयन गरिएको कोड काटियो।');
+            } else {
+              await copyToClipboard(activeFile.content);
+              handleUpdateContent(activeFile.id, '');
+              showToast('success', 'काटियो', 'फाइलको सामग्री काटियो।');
+            }
+          }}
+          onPaste={async () => {
+            if (!activeFile) return;
+            let text = await readFromClipboard();
+            if (text === null || text === undefined) {
+              text = window.prompt('यहाँ टाँस्नुहोस् (Paste code here):');
+            }
+            if (text) {
+              const ta = document.querySelector('textarea');
+              if (ta && ta.selectionStart !== undefined) {
+                const start = ta.selectionStart;
+                const end = ta.selectionEnd;
+                const val = activeFile.content;
+                const safeStart = Math.min(start, val.length);
+                const safeEnd = Math.min(end, val.length);
+                const newVal = val.substring(0, safeStart) + text + val.substring(safeEnd);
+                handleUpdateContent(activeFile.id, newVal);
+                setTimeout(() => {
+                  ta.focus();
+                  ta.selectionStart = ta.selectionEnd = safeStart + text.length;
+                }, 0);
+              } else {
+                handleUpdateContent(activeFile.id, activeFile.content ? `${activeFile.content}\n${text}` : text);
+              }
+              showToast('success', 'टाँसियो', 'क्लिपबोर्ड सामग्री सम्पादकमा थपियो।');
+            }
+          }}
+          onSelectAll={() => {
+            const ta = document.querySelector('textarea');
+            if (ta) {
+              ta.focus();
+              ta.select();
+            }
+          }}
+          onNewFile={() => handleAddFile()}
+          onNewFolder={() => handleAddFolder('नयाँ_फोल्डर')}
+          onAskAi={() => handleSetIsAiOpen(true)}
+          onOpenAst={() => setIsAstInspectorOpen((prev) => !prev)}
+          onOpenTerminal={() => handleSetIsTerminalOpen((prev) => !prev)}
+          onToggleTranslit={() => handleSetTranslitEnabled((prev) => !prev)}
+          onShare={() => setIsShareOpen(true)}
+          onResetWorkspace={handleResetWorkspace}
+          onDownloadApp={() => setIsDownloadOpen(true)}
+          translitEnabled={translitEnabled}
+          isAiAvailable={isAiAvailable}
+        />
+      )}
     </div>
   );
 }

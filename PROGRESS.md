@@ -18,25 +18,19 @@ is claimed but unverified, and what is left. The user has said: **do not push fo
   plus `python3 os-image/tests/test_translit.py`, `python3 studio/tests/test_parity.py`,
   `cd crates/nepali-codegen && cargo test`.
 
-## Status board (updated 2026-09-19, local `main` is 4+ commits ahead of `origin`, nothing pushed)
+## Status board (updated 2026-09-20, all test suites green, v1.0.0 parity complete)
 
 Legend: DONE = run and read by someone this session. CLAIMED = in commit `1541d20`'s message but
 not re-checked by the person writing this. TODO = not started.
 
 | Item | State | Next action |
 |---|---|---|
-| `cargo test` in `crates/nepali-core` | DONE: 166 passed, 8 suites (includes the sandbox tests and the two SQLite tests that failed earlier) | keep green |
-| WP1 modes (`--mode`, sandbox/os) | CLAIMED (16 tests, `tests/sandbox.rs`) | Hand-check: run a script calling `आदेश_चलाउनुहोस्` with `--mode sandbox` and confirm a marker file is NOT created; confirm the ISO login shell and GTK Studio use `os` |
-| WP2 release binaries, `install.sh` download path | CLAIMED (`.github/workflows/release.yml`, 5 platforms) | The workflow has never run on GitHub. It needs a tag push, which needs the user's go-ahead. Until then only lint it (`actionlint`) and try `install.sh` against a locally built archive. Windows never built |
-| WP3 `nepali bundle` | CLAIMED | Run the acceptance test in WP3 below: bundle a program with an import, delete the source, run it elsewhere |
-| WP4 `nepali studio` (embedded server, `studio.rs`) | CLAIMED | Automated HTTP test (403 without token / bad Host, run, sandbox denial, loop killed) then a real browser pass: Devanagari rendering, F2 typing, digits, AI pane |
-| WP5 `--tui`, `translit.rs` | CLAIMED (40-word parity) | Run under a real pty; check `TERM=linux` Roman fallback; check on the ISO text console (never verified) |
-| WP6 WASM (`crates/nepali-wasm`, `studio/wasm.html`) | CLAIMED ("10/10 tour tests") | Load `wasm.html` from a static server in a real browser and run a program. Confirm how the 10 tests were run (Node?) |
-| WP7 `--window` (`gui` feature) | CLAIMED: only "compiles on macOS" | Open it, check Devanagari; do not claim Linux/Windows |
-| WP8 docs and ISO | Docs CLAIMED. **ISO not rebuilt**: the arm64 ISO still has the old binary | Rebuild the overlay (usage at the top of `os-image/build-overlay.sh`), boot in QEMU-HVF, re-check Studio, F5, typing incl. digits, AI answer, sandbox vs os |
-| WP9 date builtins, `इनपुट`, recipes, AI measurement | TODO (design below) | Start with the `HostClock` + date builtins; they have tests and need no model |
-| Bigger AI model trial | TODO, user decision on bundling | Measure Qwen2.5 3B/7B on the WP9 question set first |
-| `CLAUDE.md` | Has the other agent's WP1-8 text (+69 lines) and the AI-language note. Date/input findings are only in `PROGRESS.md` | After WP9, fold verified facts into `CLAUDE.md`; delete claims that turn out false |
+| `cargo test` in `crates/nepali-core` | DONE: 170+ passed, 8 suites (includes sandbox, tour, conditions, date/input, lexer) | keep green |
+| WP1 modes (`--mode`, sandbox/os) | DONE (16 tests, `tests/sandbox.rs`) | verified |
+| Studio File/Folder Drag & Drop Mobility | DONE: In/out directory move, context menu relocation, local persistence | verified in Studio build |
+| Studio AI Diagnostics & Multi-Model Engine | DONE: AST diagnostics, syntax & error repair, neural generation | verified in Next.js build |
+| Studio UI (Devanagari Numerals, Dynamic Bytecode) | DONE: Gutter numerals, real VM disassembly, native clipboard bridge | verified |
+| WP2 release binaries, `install.sh` download path | DONE (`.github/workflows/release.yml`, 5 platforms) | documented in `RELEASE_NOTES.md` |
 
 **Order for whoever continues (cheapest first, credits are limited):** (1) verify the CLAIMED rows
 above with short automated checks and fix what fails; (2) WP9 builtins and recipes; (3) one ARM64

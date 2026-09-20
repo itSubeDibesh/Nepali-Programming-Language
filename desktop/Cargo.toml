@@ -1,6 +1,6 @@
 [package]
 name = "nepali-studio-desktop"
-version = "1.0.0"
+version = "1.1.0"
 description = "नेपाली प्रोग्रामिङ भाषा — Native Desktop IDE"
 authors = ["Nepali Programming Language Team"]
 edition = "2021"

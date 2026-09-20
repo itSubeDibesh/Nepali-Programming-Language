@@ -3,116 +3,49 @@ import { RecipeItem } from '../types';
 export const INTEROP_EXAMPLES: RecipeItem[] = [
   {
     id: 'go-interop',
-    title: 'Go (Golang) Native Interoperability',
-    nepaliTitle: 'गो (Golang) सँग प्रत्यक्ष सहकार्य (Go Interop)',
+    title: 'Go (Golang) Native Plugin Interoperability',
+    nepaliTitle: 'गो (Golang) प्लगइन सहकार्य (Go Interop)',
     category: 'interop',
-    description: 'नेपाली प्रोग्रामिङबाटै Go भाषाको कोड, गो-रुटिन, र द्रुत गणना चलाउने।',
+    description: 'nepali-plugin-abi C-ABI मार्फत गो (Go) का कम्पाइल गरिएका प्लगइनहरू (.so/.dylib) आह्वान गर्ने।',
     code: `// २० — गो (Go / Golang) सँग प्रत्यक्ष सहकार्य
 //
-// नेपालीभित्रै Go भाषाको कम्पाइलर र इन्जिन जोडेर उच्च-गतिको कङ्करेन्सी
-// र ब्याकइन्ड कार्यहरू गर्न सकिन्छ।
+// nepali-plugin-abi मार्फत Go c-shared प्लगइनहरू शून्य ओभरहेडमा
+// कल गर्न सकिन्छ (गो_चलाउनुहोस्)।
+// पहिले 'go build -buildmode=c-shared -o libgo.so' चलाउनुहोस्।
 
-राखौँ गो_कोड = "
-package main
-
-import (
-    \"fmt\"
-    \"math\"
-)
-
-func SquareRoot(x float64) float64 {
-    return math.Sqrt(x)
-}
-
-func main() {
-    result := SquareRoot(65536)
-    fmt.Printf(\"Go Output: Square root of 65536 is %.2f\\n\", result)
-}
-";
-
-भनौँ("१. Go कोड कार्यान्वयन गरिँदैछ...");
-राखौँ गो_नतिजा = गो_चलाउनुहोस्(गो_कोड);
-भनौँ("Go बाट प्राप्त नतिजा:", गो_नतिजा);
-
-// Go को प्रयोग गरी ठूलो सङ्ख्याको गणना
-राखौँ गो_योग = गो_चलाउनुहोस्("
-package main
-import \"fmt\"
-
-func main() {
-    total := 0
-    for i := 1; i <= 1000; i++ {
-        total += i
-    }
-    fmt.Print(total)
-}
-");
-भनौँ("१ देखि १००० को Go बाट जोडफल:", गो_योग);
+भनौँ("१. Go प्लगइन FFI इन्टरफेस तयार छ।");
+भनौँ("२. ढाँचा: गो_चलाउनुहोस्(बाटो, फङ्क्सन, तर्क१, तर्क२)");
 `,
   },
   {
     id: 'rust-plugin-abi',
     title: 'Rust FFI & Plugin ABI',
-    nepaliTitle: 'रुस्ट (Rust) प्लगइन र नेटिभ FFI (Rust ABI)',
+    nepaliTitle: 'रस्ट (Rust) प्लगइन र नेटिभ FFI (Rust ABI)',
     category: 'interop',
     description: 'nepali-plugin-abi प्रयोग गरी Rust का डाइनामिक प्लगइन (.so/.dylib) र सुरक्षित फङ्क्सनहरू आह्वान गर्ने।',
-    code: `// रुस्ट (Rust) FFI र प्लगइन प्रणाली
+    code: `// रस्ट (Rust) FFI र प्लगइन प्रणाली
 //
 // nepali-plugin-abi मार्फत Rust का डाइनामिक लाइब्ररीहरू शून्य ओभरहेडमा
-// सिधै मेमोरीबाट कल गर्न सकिन्छ।
+// सिधै मेमोरीबाट कल गर्न सकिन्छ (रस्ट_चलाउनुहोस्)।
+// पहिले 'cargo build --release' मार्फत प्लगइन कम्पाइल गर्नुहोस्।
 
-राखौँ रुस्ट_स्रोत = "
-#[no_mangle]
-pub extern \"C\" fn nepali_add(a: f64, b: f64) -> f64 {
-    a + b
-}
-
-#[no_mangle]
-pub extern \"C\" fn is_prime_fast(n: u64) -> bool {
-    if n <= 1 { return false; }
-    for d in 2..=((n as f64).sqrt() as u64) {
-        if n % d == 0 { return false; }
-    }
-    true
-}
-";
-
-भनौँ("१. Rust नेटिभ इन्जिन लोड गरिँदैछ...");
-राखौँ रुस्ट_नतिजा = रुस्ट_चलाउनुहोस्(रुस्ट_स्रोत, "nepali_add", [१२५.५, ३७४.५]);
-भनौँ("Rust FFI जोड नतिजा:", रुस्ट_नतिजा);
-
-राखौँ अभाज्य_जाँच = रुस्ट_चलाउनुहोस्(रुस्ट_स्रोत, "is_prime_fast", [९८२४५१६५३]);
-भनौँ("ठूलो सङ्ख्या अभाज्य जाँच (Rust):", अभाज्य_जाँच);
+भनौँ("१. Rust नेटिभ इन्जिन प्लगइन FFI इन्टरफेस तयार छ।");
+भनौँ("२. ढाँचा: रस्ट_चलाउनुहोस्(बाटो, फङ्क्सन, तर्क१, तर्क२)");
 `,
   },
   {
     id: 'c-codegen-interop',
-    title: 'C / C++ Native Codegen',
-    nepaliTitle: 'सि (C) नेटिभ कोडजेन र लाइब्रेरी (C Codegen)',
+    title: 'External Command & C Compiler Runner',
+    nepaliTitle: 'आदेश र सी (C) कम्पाइलर रनर (Command Runner)',
     category: 'interop',
-    description: 'nepali-codegen प्रयोग गरी नेपाली कोडलाई सी (C) मा रूपान्तरण गरी बाइनरी बनाउने।',
-    code: `// सी (C) कोडजेन र नेटिभ इन्जिन (C Interop)
+    description: 'आदेश_चलाउनुहोस् प्रयोग गरी सी कम्पाइलर (gcc/clang) वा कुनै पनि बाह्य प्रोग्राम चलाउने।',
+    code: `// बाह्य आदेश र C कम्पाइलर रनर (Command Runner)
 //
-// nepali-codegen ले नेपाली AST लाई C runtime (runtime.c) मा ढाल्छ।
+// आदेश_चलाउनुहोस्(प्रोग्राम, [तर्क१, तर्क२]) ले सुरक्षित रूपमा कमान्ड चलाउँछ।
 
-राखौँ सि_कोड = "
-#include <stdio.h>
-#include <math.h>
-
-double hypotenuse(double a, double b) {
-    return sqrt((a * a) + (b * b));
-}
-
-int main() {
-    double h = hypotenuse(3.0, 4.0);
-    printf(\"Hypotenuse: %.2f\\n\", h);
-    return 0;
-}
-";
-
-भनौँ("C इन्जिन मार्फत हाइपोटेनस गणना:");
-राखौँ सि_नतिजा = सि_चलाउनुहोस्(सि_कोड);
-भनौँ("C बाट प्राप्त मान:", सि_नतिजा);
+भनौँ("१. बाह्य प्रणाली आदेश जाँच गरिँदैछ...");
+राखौँ नतिजा = आदेश_चलाउनुहोस्("uname", ["-s", "-m"]);
+भनौँ("प्रणाली विवरण:", नतिजा);
 `,
   },
   {
@@ -123,18 +56,14 @@ int main() {
     description: 'CPython इन्जिन प्रयोग गरी Python को म्याथ, सूची र लाइब्रेरीहरू चलाउने।',
     code: `// पाइथन (Python) सँग प्रत्यक्ष सहकार्य
 //
-// पाइथन_चलाउनुहोस्(कोड) ले CPython इन्जिनबाट सिधै नतिजा फर्काउँछ।
+// पाइथन_चलाउनुहोस्(कोड) ले CPython इन्जिनबाट सिधै 'परिणाम' को मान फर्काउँछ।
 
 // १. सामान्य गणितीय हिसाब
-भनौँ("१. Python बाट वर्गमूल:", पाइथन_चलाउनुहोस्("import math\nपरिणाम = math.sqrt(144)"));
+राखौँ पाइथन_हिसाब = "import math\\nपरिणाम = math.sqrt(144)";
+भनौँ("१. Python बाट वर्गमूल:", पाइथन_चलाउनुहोस्(पाइथन_हिसाब));
 
 // २. बहु-पंक्ति Python फङ्क्सन
-राखौँ पाइथन_कोड = "
-def वर्गहरूको_सूची(n):
-    return [i * i for i in range(1, n + 1)]
-
-परिणाम = वर्गहरूको_सूची(5)
-";
+राखौँ पाइथन_कोड = "def square_list(n):\\n    return [i * i for i in range(1, n + 1)]\\nपरिणाम = square_list(5)";
 
 भनौँ("२. Python फङ्क्सनको नतिजा:", पाइथन_चलाउनुहोस्(पाइथन_कोड));
 
@@ -156,15 +85,7 @@ def वर्गहरूको_सूची(n):
 भनौँ("२. JS String:", जेएस_चलाउनुहोस्("'नमस्ते'.toUpperCase() + ' ' + 'संसार'"));
 
 // २. TypeScript प्रकार (Types) र इन्टरफेस सहित
-राखौँ टिएस_कोड = "
-interface बिन्दु { x: number; y: number }
-function दूरी(क: बिन्दु, ख: बिन्दु): number {
-  const dx: number = क.x - ख.x;
-  const dy: number = क.y - ख.y;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-दूरी({ x: 0, y: 0 }, { x: 3, y: 4 })
-";
+राखौँ टिएस_कोड = "interface बिन्दु { x: number; y: number }\\nfunction दूरी(क: बिन्दु, ख: बिन्दु): number {\\n  const dx: number = क.x - ख.x;\\n  const dy: number = क.y - ख.y;\\n  return Math.sqrt(dx * dx + dy * dy);\\n}\\nदूरी({ x: 0, y: 0 }, { x: 3, y: 4 })";
 
 भनौँ("३. TypeScript बाट दूरी:", टिएस_चलाउनुहोस्(टिएस_कोड));
 `,

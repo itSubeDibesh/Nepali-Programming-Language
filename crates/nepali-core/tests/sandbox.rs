@@ -7,7 +7,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 fn nepali() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_nepali-core-cli"))
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_nepali-core-cli"));
+    cmd.env("NEPALI_SCRIPT", "devanagari");
+    cmd
 }
 
 fn run_sandbox(code: &str) -> (bool, String, String) {

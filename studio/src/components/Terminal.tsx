@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ExecutionResult } from '../lib/types';
 import { getI18n } from '../lib/i18n';
 import { toNepaliDigits } from '../lib/numbers';
@@ -7,6 +7,9 @@ import {
   Terminal as TermIcon, CheckCircle2, AlertCircle, Copy, Check,
   Trash2, Layers, Cpu, AlertTriangle, ChevronDown, ChevronUp, X
 } from 'lucide-react';
+
+import { copyToClipboard } from '../lib/clipboard';
+import { engine } from '../lib/engine';
 
 interface TerminalProps {
   result: ExecutionResult | null;
@@ -49,16 +52,76 @@ export const Terminal: React.FC<TerminalProps> = ({
   };
   const [copied, setCopied] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [astText, setAstText] = useState<string>('विश्लेषण गरिँदैछ...');
+  const [bytecodeText, setBytecodeText] = useState<string>('कम्पाइल गरिँदैछ...');
+  const [isLoadingAst, setIsLoadingAst] = useState(false);
+  const [isLoadingBytecode, setIsLoadingBytecode] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!code || !code.trim()) {
+      setAstText('// कोड खाली छ (Code is empty)');
+      setBytecodeText('// कोड खाली छ (Code is empty)');
+      return;
+    }
+
+    let isMounted = true;
+    const fetchInspection = async () => {
+      try {
+        if (activeTab === 'ast') {
+          setIsLoadingAst(true);
+          const ast = await engine.astDump(code);
+          if (isMounted) {
+            setAstText(ast);
+            setIsLoadingAst(false);
+          }
+        } else if (activeTab === 'bytecode') {
+          setIsLoadingBytecode(true);
+          const disasm = await engine.disassemble(code);
+          if (isMounted) {
+            setBytecodeText(disasm);
+            setIsLoadingBytecode(false);
+          }
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          if (activeTab === 'ast') {
+            setAstText(`// AST त्रुटि: ${err.message || err}`);
+            setIsLoadingAst(false);
+          }
+          if (activeTab === 'bytecode') {
+            setBytecodeText(`// बाइटकोड त्रुटि: ${err.message || err}`);
+            setIsLoadingBytecode(false);
+          }
+        }
+      }
+    };
+
+    fetchInspection();
+    return () => {
+      isMounted = false;
+    };
+  }, [code, activeTab, isOpen]);
 
   if (!isOpen) return null;
 
-  const handleCopy = () => {
-    if (!result) return;
-    const text = [
-      ...(result.stdout || []),
-      ...(result.stderr ? [result.stderr] : [])
-    ].join('\n');
-    navigator.clipboard.writeText(text);
+  const handleCopy = async () => {
+    let text = '';
+    if (activeTab === 'output') {
+      if (!result) return;
+      text = [
+        ...(result.stdout || []),
+        ...(result.stderr ? [result.stderr] : [])
+      ].join('\n');
+    } else if (activeTab === 'ast') {
+      text = astText;
+    } else if (activeTab === 'bytecode') {
+      text = bytecodeText;
+    } else if (activeTab === 'problems') {
+      text = result?.stderr || 'कुनै त्रुटि फेला परेन।';
+    }
+    if (!text) return;
+    await copyToClipboard(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -226,33 +289,32 @@ export const Terminal: React.FC<TerminalProps> = ({
           )
         ) : activeTab === 'ast' ? (
           <div className="space-y-2 text-slate-300">
-            <div className="text-emerald-400 font-bold mb-1">// विश्लेषित प्रोग्राम रूख (Abstract Syntax Tree):</div>
-            <pre className="text-[11px] text-slate-400 leading-5 whitespace-pre overflow-x-auto bg-[#0B0F19] p-3 rounded-lg border border-[#1E293B]">
-              {code
-                ? `Program {
-  statements: [
-    LetBinding { name: "आजको", expr: Call("आज", []) },
-    CallStatement { callee: "भनौँ", args: [String("नमस्ते नेपाल! 🇳🇵")] },
-    LetBinding { name: "नयाँ_वर्ष", expr: String("2026-01-01") },
-    CallStatement { callee: "भनौँ", args: [String("दिन फरक:"), Call("दिन_फरक", [Ident("आजको"), Ident("नयाँ_वर्ष")])] }
-  ]
-}`
-                : '// कोड उपलब्ध छैन'}
+            <div className="flex items-center justify-between">
+              <div className="text-emerald-400 font-bold text-xs">// विश्लेषित प्रोग्राम रूख (Abstract Syntax Tree):</div>
+              {isLoadingAst && (
+                <div className="text-[11px] text-emerald-400 flex items-center space-x-1 animate-pulse">
+                  <div className="w-2.5 h-2.5 border border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                  <span>पार्स गरिँदैछ...</span>
+                </div>
+              )}
+            </div>
+            <pre className="text-[11px] text-slate-300 font-mono leading-5 whitespace-pre overflow-x-auto bg-[#0B0F19] p-3 rounded-lg border border-[#1E293B]">
+              {astText}
             </pre>
           </div>
         ) : activeTab === 'bytecode' ? (
           <div className="space-y-2 text-slate-300">
-            <div className="text-cyan-400 font-bold mb-1">// संकलित भर्चुअल मेसिन बाइटकोड (Bytecode Disassembly):</div>
-            <pre className="text-[11px] text-slate-400 leading-5 whitespace-pre overflow-x-auto bg-[#0B0F19] p-3 rounded-lg border border-[#1E293B]">
-              {`0000  OP_CALL_BUILTIN   आज (0 args) -> R0
-0002  OP_STORE_VAR      आजको <- R0
-0004  OP_CONST_STR      "नमस्ते नेपाल! 🇳🇵" -> R1
-0006  OP_PRINT_DEV      R1
-0008  OP_CONST_STR      "2026-01-01" -> R2
-0010  OP_LOAD_VAR       आजको -> R3
-0012  OP_CALL_BUILTIN   दिन_फरक (R3, R2) -> R4
-0014  OP_PRINT_MULTI    "दिन फरक:", R4
-0016  OP_HALT`}
+            <div className="flex items-center justify-between">
+              <div className="text-cyan-400 font-bold text-xs">// संकलित भर्चुअल मेसिन बाइटकोड (Bytecode Disassembly):</div>
+              {isLoadingBytecode && (
+                <div className="text-[11px] text-cyan-400 flex items-center space-x-1 animate-pulse">
+                  <div className="w-2.5 h-2.5 border border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                  <span>संकलन गरिँदैछ...</span>
+                </div>
+              )}
+            </div>
+            <pre className="text-[11px] text-cyan-300/90 font-mono leading-5 whitespace-pre overflow-x-auto bg-[#0B0F19] p-3 rounded-lg border border-[#1E293B]">
+              {bytecodeText}
             </pre>
           </div>
         ) : (

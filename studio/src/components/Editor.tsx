@@ -1,13 +1,14 @@
 'use client';
 import { ensureNepaliExtension, getFileExtensionBadgeColor, handleRenameInputKeyDown } from '../lib/fileUtils';
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { CodeFile } from '../lib/types';
-import { transliterateWord } from '../lib/translit';
+import { convertWord, transliterateWord } from '../lib/translit';
 import { highlightNepaliCode } from '../lib/highlighter';
 import { getDocumentationForSymbol, DocItem } from '../lib/docs';
 import { toNepaliDigits } from '../lib/numbers';
 import { getI18n } from '../lib/i18n';
 import { formatNepaliCode } from '../lib/formatter';
+import { copyToClipboard, readFromClipboard } from '../lib/clipboard';
 import { ContextMenu } from './ContextMenu';
 import { TabContextMenu, TabContextMenuState } from './TabContextMenu';
 import {
@@ -36,6 +37,7 @@ interface EditorProps {
   onAddFile: () => void;
   onDeleteFile: (id: string) => void;
   onRenameFile: (id: string, newName: string) => void;
+  onMoveFile?: (fileId: string, targetFolder: string | null) => void;
   onCloseTab?: (id: string) => void;
   onCloseOthers?: (id: string) => void;
   onCloseToRight?: (id: string) => void;
@@ -46,6 +48,7 @@ interface EditorProps {
   isSaved: boolean;
   onToggleTranslit?: () => void;
   onOpenAi?: () => void;
+  isAiAvailable?: boolean;
   onOpenExplorer?: () => void;
 }
 
@@ -76,6 +79,7 @@ export const Editor: React.FC<EditorProps> = ({
   onAddFile,
   onDeleteFile,
   onRenameFile,
+  onMoveFile,
   onCloseTab,
   onCloseOthers,
   onCloseToRight,
@@ -86,6 +90,7 @@ export const Editor: React.FC<EditorProps> = ({
   isSaved,
   onToggleTranslit,
   onOpenAi,
+  isAiAvailable = false,
   onOpenExplorer,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -102,6 +107,7 @@ export const Editor: React.FC<EditorProps> = ({
   // Custom Context Menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [tabContextMenu, setTabContextMenu] = useState<TabContextMenuState | null>(null);
+  const savedSelectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
 
   // File Renaming state
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
@@ -109,6 +115,21 @@ export const Editor: React.FC<EditorProps> = ({
 
   const activeFile = files.find((f) => f.id === activeFileId) || files[0];
   const activeContent = activeFile ? activeFile.content : '';
+
+  const allFolderPaths = useMemo(() => {
+    const folders = new Set<string>();
+    for (const f of files) {
+      const parts = f.name.split('/').filter(Boolean);
+      if (parts.length > 1) {
+        let current = '';
+        for (let i = 0; i < parts.length - 1; i++) {
+          current = current ? `${current}/${parts[i]}` : parts[i];
+          folders.add(current);
+        }
+      }
+    }
+    return Array.from(folders).sort();
+  }, [files]);
 
   // Split View State
   const [splitFileId, setSplitFileIdState] = useState<string | null>(() => getInitialSplitFileId(files));
@@ -159,6 +180,16 @@ export const Editor: React.FC<EditorProps> = ({
     }
   };
 
+  const handleSplitRight = (file: CodeFile) => {
+    setSplitFileId(file.id);
+    setSplitDirection('horizontal');
+  };
+
+  const handleSplitDown = (file: CodeFile) => {
+    setSplitFileId(file.id);
+    setSplitDirection('vertical');
+  };
+
   // Synchronize scrolling between textarea, syntax highlighter, and line numbers
   const handleScroll = () => {
     if (!textareaRef.current) return;
@@ -176,6 +207,10 @@ export const Editor: React.FC<EditorProps> = ({
     if (!textareaRef.current) return;
     const text = textareaRef.current.value;
     const selStart = textareaRef.current.selectionStart;
+    const selEnd = textareaRef.current.selectionEnd;
+    if (selStart !== undefined && selEnd !== undefined) {
+      savedSelectionRef.current = { start: selStart, end: selEnd };
+    }
     const linesUpToCursor = text.substring(0, selStart).split('\n');
     const line = linesUpToCursor.length;
     const col = linesUpToCursor[linesUpToCursor.length - 1].length + 1;
@@ -218,15 +253,45 @@ export const Editor: React.FC<EditorProps> = ({
     setHoverDoc(null);
   };
 
+  const phoneticRef = useRef<{ word: string; shown: string; start: number }>({
+    word: '',
+    shown: '',
+    start: 0,
+  });
+
+  const splitPhoneticRef = useRef<{ word: string; shown: string; start: number }>({
+    word: '',
+    shown: '',
+    start: 0,
+  });
+
+  const resetPhonetic = () => {
+    phoneticRef.current = { word: '', shown: '', start: 0 };
+  };
+
+  const resetSplitPhonetic = () => {
+    splitPhoneticRef.current = { word: '', shown: '', start: 0 };
+  };
+
   const handleFormatCode = () => {
     if (!activeFile) return;
-    const formatted = formatNepaliCode(activeFile.content);
+    const formatted = formatNepaliCode(activeFile.content, translitEnabled);
     onUpdateContent(activeFile.id, formatted);
     setFormattedFeedback(true);
     setTimeout(() => setFormattedFeedback(false), 1500);
   };
 
+  const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // F2: Toggle Transliteration
+    if (e.key === 'F2') {
+      e.preventDefault();
+      resetPhonetic();
+      onToggleTranslit?.();
+      return;
+    }
+
     // Format Code: Shift+Alt+F or Shift+Option+F or Shift+Cmd+F
     if (
       e.shiftKey &&
@@ -234,6 +299,7 @@ export const Editor: React.FC<EditorProps> = ({
       (e.code === 'KeyF' || e.key.toLowerCase() === 'f' || e.key === 'ƒ')
     ) {
       e.preventDefault();
+      resetPhonetic();
       handleFormatCode();
       return;
     }
@@ -241,6 +307,7 @@ export const Editor: React.FC<EditorProps> = ({
     // 1. Tab Key Indentation (2 spaces)
     if (e.key === 'Tab') {
       e.preventDefault();
+      resetPhonetic();
       const target = textareaRef.current;
       if (!target || !activeFile) return;
       const start = target.selectionStart;
@@ -255,88 +322,329 @@ export const Editor: React.FC<EditorProps> = ({
       return;
     }
 
-    // 2. Direct Digit Transliteration (0-9 -> ०-९) when in Nepali mode
+    // Reset phonetic buffer on navigation/arrow keys
     if (
-      translitEnabled &&
-      /^[0-9]$/.test(e.key) &&
-      !e.ctrlKey &&
-      !e.metaKey &&
-      !e.altKey
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight' ||
+      e.key === 'ArrowUp' ||
+      e.key === 'ArrowDown' ||
+      e.key === 'Home' ||
+      e.key === 'End' ||
+      e.key === 'PageUp' ||
+      e.key === 'PageDown' ||
+      e.key === 'Escape'
     ) {
+      resetPhonetic();
+      return;
+    }
+
+    const k = e.key;
+
+    // 2. Live Phonetic Typing (Roman -> Devanagari as each character is typed)
+    if (translitEnabled && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // A. Letter typed -> Live phonetic conversion
+      if (k.length === 1 && LETTERS.includes(k)) {
+        e.preventDefault();
+        const target = textareaRef.current;
+        if (!target || !activeFile) return;
+
+        let start = phoneticRef.current.start;
+        let oldLen = phoneticRef.current.shown.length;
+        const currentVal = target.value;
+
+        if (!phoneticRef.current.word) {
+          start = target.selectionStart;
+          const end = target.selectionEnd;
+          if (start !== end) {
+            const cutVal = currentVal.substring(0, start) + currentVal.substring(end);
+            phoneticRef.current.start = start;
+            phoneticRef.current.word = k;
+            const text = convertWord(k);
+            phoneticRef.current.shown = text;
+            const newVal = cutVal.substring(0, start) + text + cutVal.substring(start);
+            onUpdateContent(activeFile.id, newVal);
+            const newCursor = start + text.length;
+            setTimeout(() => {
+              target.selectionStart = target.selectionEnd = newCursor;
+              handleCursorMove();
+            }, 0);
+            return;
+          }
+          phoneticRef.current.start = start;
+          phoneticRef.current.shown = '';
+          oldLen = 0;
+        }
+
+        phoneticRef.current.word += k;
+        const text = convertWord(phoneticRef.current.word);
+        const newVal = currentVal.substring(0, start) + text + currentVal.substring(start + oldLen);
+        phoneticRef.current.shown = text;
+        onUpdateContent(activeFile.id, newVal);
+        const newCursor = start + text.length;
+        setTimeout(() => {
+          target.selectionStart = target.selectionEnd = newCursor;
+          handleCursorMove();
+        }, 0);
+        return;
+      }
+
+      // B. Backspace within active phonetic word
+      if (k === 'Backspace' && phoneticRef.current.word) {
+        e.preventDefault();
+        const target = textareaRef.current;
+        if (!target || !activeFile) return;
+
+        const start = phoneticRef.current.start;
+        const oldLen = phoneticRef.current.shown.length;
+        const currentVal = target.value;
+        phoneticRef.current.word = phoneticRef.current.word.slice(0, -1);
+
+        if (phoneticRef.current.word) {
+          const text = convertWord(phoneticRef.current.word);
+          const newVal = currentVal.substring(0, start) + text + currentVal.substring(start + oldLen);
+          phoneticRef.current.shown = text;
+          onUpdateContent(activeFile.id, newVal);
+          const newCursor = start + text.length;
+          setTimeout(() => {
+            target.selectionStart = target.selectionEnd = newCursor;
+            handleCursorMove();
+          }, 0);
+        } else {
+          const newVal = currentVal.substring(0, start) + currentVal.substring(start + oldLen);
+          resetPhonetic();
+          onUpdateContent(activeFile.id, newVal);
+          setTimeout(() => {
+            target.selectionStart = target.selectionEnd = start;
+            handleCursorMove();
+          }, 0);
+        }
+        return;
+      }
+
+      // C. Reset phonetic on delimiters / symbols / spaces
+      resetPhonetic();
+
+      // D. Direct Digit Transliteration (0-9 -> ०-९)
+      if (/^[0-9]$/.test(k)) {
+        e.preventDefault();
+        const target = textareaRef.current;
+        if (!target || !activeFile) return;
+        const nepDigit = toNepaliDigits(k);
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+        const val = target.value;
+        const newVal = val.substring(0, start) + nepDigit + val.substring(end);
+        onUpdateContent(activeFile.id, newVal);
+        setTimeout(() => {
+          target.selectionStart = target.selectionEnd = start + nepDigit.length;
+          handleCursorMove();
+        }, 0);
+        return;
+      }
+
+      // E. Pipe | -> Nepali Purna Biram (।)
+      if (k === '|') {
+        e.preventDefault();
+        const target = textareaRef.current;
+        if (!target || !activeFile) return;
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+        const val = target.value;
+        const newVal = val.substring(0, start) + '।' + val.substring(end);
+        onUpdateContent(activeFile.id, newVal);
+        setTimeout(() => {
+          target.selectionStart = target.selectionEnd = start + 1;
+          handleCursorMove();
+        }, 0);
+        return;
+      }
+    } else {
+      resetPhonetic();
+    }
+  };
+
+  const handleSplitKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!splitFile) return;
+
+    if (e.key === 'Tab') {
       e.preventDefault();
-      const target = textareaRef.current;
-      if (!target || !activeFile) return;
-      const nepDigit = toNepaliDigits(e.key);
+      resetSplitPhonetic();
+      const target = splitTextareaRef.current;
+      if (!target) return;
       const start = target.selectionStart;
       const end = target.selectionEnd;
       const val = target.value;
-      const newVal = val.substring(0, start) + nepDigit + val.substring(end);
-      onUpdateContent(activeFile.id, newVal);
+      const newVal = val.substring(0, start) + '  ' + val.substring(end);
+      onUpdateContent(splitFile.id, newVal);
       setTimeout(() => {
-        target.selectionStart = target.selectionEnd = start + nepDigit.length;
-        handleCursorMove();
+        target.selectionStart = target.selectionEnd = start + 2;
       }, 0);
       return;
     }
 
-    // 3. Full Word Transliteration on Delimiters
     if (
-      translitEnabled &&
-      (e.key === ' ' || e.key === 'Enter' || e.key === '।' || e.key === '(' || e.key === ')' || e.key === ',' || e.key === ';' || e.key === '.')
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight' ||
+      e.key === 'ArrowUp' ||
+      e.key === 'ArrowDown' ||
+      e.key === 'Home' ||
+      e.key === 'End' ||
+      e.key === 'PageUp' ||
+      e.key === 'PageDown' ||
+      e.key === 'Escape'
     ) {
-      const target = textareaRef.current;
-      if (!target || !activeFile) return;
-      const pos = target.selectionStart;
-      const text = target.value;
+      resetSplitPhonetic();
+      return;
+    }
 
-      let wordStart = pos - 1;
-      while (wordStart >= 0 && /[a-zA-Z0-9_]/.test(text[wordStart])) {
-        wordStart--;
-      }
-      wordStart++;
+    const k = e.key;
 
-      if (wordStart < pos) {
-        const rawWord = text.substring(wordStart, pos);
-        const nepaliWord = transliterateWord(rawWord);
-        if (nepaliWord !== rawWord) {
-          e.preventDefault();
-          const extraKey = e.key === 'Enter' ? '\n' : e.key === '.' ? '।' : e.key;
-          const newText = text.substring(0, wordStart) + nepaliWord + extraKey + text.substring(pos);
-          onUpdateContent(activeFile.id, newText);
-          const newCursorPos = wordStart + nepaliWord.length + extraKey.length;
-          setTimeout(() => {
-            target.selectionStart = target.selectionEnd = newCursorPos;
-            handleCursorMove();
-          }, 0);
-          return;
+    if (translitEnabled && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (k.length === 1 && LETTERS.includes(k)) {
+        e.preventDefault();
+        const target = splitTextareaRef.current;
+        if (!target) return;
+
+        let start = splitPhoneticRef.current.start;
+        let oldLen = splitPhoneticRef.current.shown.length;
+        const currentVal = target.value;
+
+        if (!splitPhoneticRef.current.word) {
+          start = target.selectionStart;
+          const end = target.selectionEnd;
+          if (start !== end) {
+            const cutVal = currentVal.substring(0, start) + currentVal.substring(end);
+            splitPhoneticRef.current.start = start;
+            splitPhoneticRef.current.word = k;
+            const text = convertWord(k);
+            splitPhoneticRef.current.shown = text;
+            const newVal = cutVal.substring(0, start) + text + cutVal.substring(start);
+            onUpdateContent(splitFile.id, newVal);
+            const newCursor = start + text.length;
+            setTimeout(() => {
+              target.selectionStart = target.selectionEnd = newCursor;
+            }, 0);
+            return;
+          }
+          splitPhoneticRef.current.start = start;
+          splitPhoneticRef.current.shown = '';
+          oldLen = 0;
         }
+
+        splitPhoneticRef.current.word += k;
+        const text = convertWord(splitPhoneticRef.current.word);
+        const newVal = currentVal.substring(0, start) + text + currentVal.substring(start + oldLen);
+        splitPhoneticRef.current.shown = text;
+        onUpdateContent(splitFile.id, newVal);
+        const newCursor = start + text.length;
+        setTimeout(() => {
+          target.selectionStart = target.selectionEnd = newCursor;
+        }, 0);
+        return;
       }
+
+      if (k === 'Backspace' && splitPhoneticRef.current.word) {
+        e.preventDefault();
+        const target = splitTextareaRef.current;
+        if (!target) return;
+
+        const start = splitPhoneticRef.current.start;
+        const oldLen = splitPhoneticRef.current.shown.length;
+        const currentVal = target.value;
+        splitPhoneticRef.current.word = splitPhoneticRef.current.word.slice(0, -1);
+
+        if (splitPhoneticRef.current.word) {
+          const text = convertWord(splitPhoneticRef.current.word);
+          const newVal = currentVal.substring(0, start) + text + currentVal.substring(start + oldLen);
+          splitPhoneticRef.current.shown = text;
+          onUpdateContent(splitFile.id, newVal);
+          const newCursor = start + text.length;
+          setTimeout(() => {
+            target.selectionStart = target.selectionEnd = newCursor;
+          }, 0);
+        } else {
+          const newVal = currentVal.substring(0, start) + currentVal.substring(start + oldLen);
+          resetSplitPhonetic();
+          onUpdateContent(splitFile.id, newVal);
+          setTimeout(() => {
+            target.selectionStart = target.selectionEnd = start;
+          }, 0);
+        }
+        return;
+      }
+
+      resetSplitPhonetic();
+
+      if (/^[0-9]$/.test(k)) {
+        e.preventDefault();
+        const target = splitTextareaRef.current;
+        if (!target) return;
+        const nepDigit = toNepaliDigits(k);
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+        const val = target.value;
+        const newVal = val.substring(0, start) + nepDigit + val.substring(end);
+        onUpdateContent(splitFile.id, newVal);
+        setTimeout(() => {
+          target.selectionStart = target.selectionEnd = start + nepDigit.length;
+        }, 0);
+        return;
+      }
+
+      if (k === '|') {
+        e.preventDefault();
+        const target = splitTextareaRef.current;
+        if (!target) return;
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+        const val = target.value;
+        const newVal = val.substring(0, start) + '।' + val.substring(end);
+        onUpdateContent(splitFile.id, newVal);
+        setTimeout(() => {
+          target.selectionStart = target.selectionEnd = start + 1;
+        }, 0);
+        return;
+      }
+    } else {
+      resetSplitPhonetic();
     }
   };
 
-  const handleCopy = () => {
-    if (activeFile) {
-      const target = textareaRef.current;
-      const selected = target && target.selectionStart !== target.selectionEnd
-        ? target.value.substring(target.selectionStart, target.selectionEnd)
-        : activeFile.content;
-      navigator.clipboard.writeText(selected);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    if (!activeFile) return;
+    const target = textareaRef.current;
+    let selected = '';
+    if (target) {
+      const isSelected = target.selectionStart !== target.selectionEnd;
+      const start = isSelected ? target.selectionStart : savedSelectionRef.current.start;
+      const end = isSelected ? target.selectionEnd : savedSelectionRef.current.end;
+      if (start !== end && start < end) {
+        selected = target.value.substring(start, end);
+      } else {
+        selected = activeFile.content;
+      }
+    } else {
+      selected = activeFile.content;
     }
+    await copyToClipboard(selected);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleCut = () => {
+  const handleCut = async () => {
     if (!activeFile || !textareaRef.current) return;
     const target = textareaRef.current;
-    const start = target.selectionStart;
-    const end = target.selectionEnd;
-    if (start === end) return;
+    const isSelected = target.selectionStart !== target.selectionEnd;
+    const start = isSelected ? target.selectionStart : savedSelectionRef.current.start;
+    const end = isSelected ? target.selectionEnd : savedSelectionRef.current.end;
+    if (start === end || start >= end) return;
     const selected = target.value.substring(start, end);
-    navigator.clipboard.writeText(selected);
+    await copyToClipboard(selected);
     const newVal = target.value.substring(0, start) + target.value.substring(end);
+    resetPhonetic();
     onUpdateContent(activeFile.id, newVal);
     setTimeout(() => {
+      target.focus();
       target.selectionStart = target.selectionEnd = start;
       handleCursorMove();
     }, 0);
@@ -344,31 +652,53 @@ export const Editor: React.FC<EditorProps> = ({
 
   const handlePaste = async () => {
     if (!activeFile || !textareaRef.current) return;
-    try {
-      const text = await navigator.clipboard.readText();
-      const target = textareaRef.current;
-      const start = target.selectionStart;
-      const end = target.selectionEnd;
-      const val = target.value;
-      const newVal = val.substring(0, start) + text + val.substring(end);
-      onUpdateContent(activeFile.id, newVal);
-      setTimeout(() => {
-        target.selectionStart = target.selectionEnd = start + text.length;
-        handleCursorMove();
-      }, 0);
-    } catch {
-      // Ignore clipboard permission issues
+    const target = textareaRef.current;
+    resetPhonetic();
+    target.focus();
+    let text = await readFromClipboard();
+    if (text === null || text === undefined) {
+      try {
+        const promptVal = window.prompt('यहाँ टाँस्नुहोस् (Paste text here):');
+        if (promptVal !== null && promptVal !== '') {
+          text = promptVal;
+        } else {
+          return;
+        }
+      } catch {
+        return;
+      }
     }
+    const isSelected = target.selectionStart !== target.selectionEnd;
+    const start = isSelected ? target.selectionStart : savedSelectionRef.current.start;
+    const end = isSelected ? target.selectionEnd : savedSelectionRef.current.end;
+    const val = target.value;
+    const safeStart = Math.min(start, val.length);
+    const safeEnd = Math.min(end, val.length);
+    const newVal = val.substring(0, safeStart) + text + val.substring(safeEnd);
+    onUpdateContent(activeFile.id, newVal);
+    setTimeout(() => {
+      target.focus();
+      target.selectionStart = target.selectionEnd = safeStart + text.length;
+      handleCursorMove();
+    }, 0);
   };
 
   const handleSelectAll = () => {
     if (textareaRef.current) {
+      textareaRef.current.focus();
       textareaRef.current.select();
     }
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    if (textareaRef.current) {
+      savedSelectionRef.current = {
+        start: textareaRef.current.selectionStart,
+        end: textareaRef.current.selectionEnd,
+      };
+    }
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
@@ -381,7 +711,7 @@ export const Editor: React.FC<EditorProps> = ({
   const handleDownload = () => {
     if (!activeFile) return;
     const element = document.createElement('a');
-    const file = new Blob([activeFile.content], { type: 'text/plain;charset=utf-8' });
+    const file = new Blob(['\uFEFF' + activeFile.content], { type: 'text/plain;charset=utf-8' });
     element.href = URL.createObjectURL(file);
     element.download = ensureNepaliExtension(activeFile.name);
     document.body.appendChild(element);
@@ -411,7 +741,6 @@ export const Editor: React.FC<EditorProps> = ({
     <div className="flex-1 flex flex-col bg-[#060911] border-r border-[#1E293B] overflow-hidden relative select-none">
       {/* 1. Authentic IDE Tab Bar */}
       <div
-        onContextMenu={(e) => e.preventDefault()}
         className="h-10 bg-[#0B0F19] border-b border-[#1E293B] flex items-center justify-between px-2 select-none overflow-x-auto no-scrollbar"
       >
         <div className="flex items-center space-x-0.5 min-w-0">
@@ -545,6 +874,18 @@ export const Editor: React.FC<EditorProps> = ({
           </button>
 
           <button
+            onClick={handleCopy}
+            className={`p-1.5 rounded transition-colors text-xs flex items-center space-x-1 ${
+              copied
+                ? 'text-emerald-400 bg-emerald-500/10'
+                : 'hover:text-slate-200 hover:bg-[#0F172A]'
+            }`}
+            title="कोड प्रतिलिपि गर्नुहोस् (Copy Code - Ctrl+C)"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+          </button>
+
+          <button
             onClick={handleManualSaveTrigger}
             className={`p-1.5 rounded transition-colors text-xs flex items-center space-x-1 ${
               savedFeedback
@@ -591,9 +932,9 @@ export const Editor: React.FC<EditorProps> = ({
         </div>
 
         <div className="flex items-center space-x-3 text-[10px] text-slate-500 font-devanagari">
-          <span>{toNepaliDigits(linesCount)} पंक्तिहरू</span>
+          <span>{translitEnabled ? toNepaliDigits(linesCount) : linesCount} {translitEnabled ? 'पंक्तिहरू' : 'lines'}</span>
           <span>•</span>
-          <span>{toNepaliDigits(charsCount)} अक्षरहरू</span>
+          <span>{translitEnabled ? toNepaliDigits(charsCount) : charsCount} {translitEnabled ? 'अक्षरहरू' : 'chars'}</span>
         </div>
       </div>
 
@@ -662,7 +1003,7 @@ export const Editor: React.FC<EditorProps> = ({
                       : 'hover:text-slate-400'
                   }`}
                 >
-                  {toNepaliDigits(lineNum)}
+                  {translitEnabled ? toNepaliDigits(lineNum) : lineNum}
                 </div>
               );
             })}
@@ -693,8 +1034,13 @@ export const Editor: React.FC<EditorProps> = ({
               }}
               onScroll={handleScroll}
               onKeyDown={handleKeyDown}
+              onPaste={() => resetPhonetic()}
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
+              onMouseDown={resetPhonetic}
+              onMouseUp={handleCursorMove}
+              onSelect={handleCursorMove}
+              onBlur={resetPhonetic}
               onClick={handleCursorMove}
               onKeyUp={handleCursorMove}
               spellCheck={false}
@@ -742,7 +1088,7 @@ export const Editor: React.FC<EditorProps> = ({
               >
                 {Array.from({ length: Math.max(splitContent.split('\n').length, 1) }).map((_, i) => (
                   <div key={i} className="hover:text-slate-400">
-                    {toNepaliDigits(i + 1)}
+                    {translitEnabled ? toNepaliDigits(i + 1) : (i + 1)}
                   </div>
                 ))}
               </div>
@@ -765,6 +1111,10 @@ export const Editor: React.FC<EditorProps> = ({
                     onUpdateContent(splitFile.id, e.target.value);
                   }}
                   onScroll={handleSplitScroll}
+                  onKeyDown={handleSplitKeyDown}
+                  onPaste={() => resetSplitPhonetic()}
+                  onMouseDown={resetSplitPhonetic}
+                  onBlur={resetSplitPhonetic}
                   spellCheck={false}
                   autoCapitalize="off"
                   autoComplete="off"
@@ -786,14 +1136,17 @@ export const Editor: React.FC<EditorProps> = ({
             y={contextMenu.y}
             onClose={() => setContextMenu(null)}
             onRun={onRun}
+            onSave={handleManualSaveTrigger}
             onFormat={handleFormatCode}
             onCopy={handleCopy}
             onCut={handleCut}
             onPaste={handlePaste}
             onSelectAll={handleSelectAll}
+            onNewFile={onAddFile}
             onToggleTranslit={() => onToggleTranslit?.()}
             onAskAi={() => onOpenAi?.()}
             translitEnabled={translitEnabled}
+            isAiAvailable={isAiAvailable}
           />
         )}
 
@@ -852,7 +1205,7 @@ export const Editor: React.FC<EditorProps> = ({
 
           <span className="text-slate-600 hidden sm:inline">|</span>
 
-          <span className="text-slate-500 hidden sm:inline">Spaces: २</span>
+          <span className="text-slate-500 hidden sm:inline">Spaces: {translitEnabled ? '२' : '2'}</span>
         </div>
 
         {/* Open Source & Author Credit */}
@@ -893,6 +1246,39 @@ export const Editor: React.FC<EditorProps> = ({
           </span>
         </div>
       </footer>
+
+      {/* Right-Click Tab Context Menu */}
+      <TabContextMenu
+        menu={tabContextMenu}
+        onClose={() => setTabContextMenu(null)}
+        onCloseTab={(id) => {
+          if (onCloseTab) onCloseTab(id);
+          else onDeleteFile(id);
+        }}
+        onCloseOthers={onCloseOthers}
+        onCloseToRight={onCloseToRight}
+        onCloseAll={onCloseAll}
+        onSplitRight={handleSplitRight}
+        onSplitDown={handleSplitDown}
+        onRename={startRenaming}
+        onDeleteFile={onDeleteFile}
+        onMoveFile={onMoveFile}
+        availableFolders={allFolderPaths}
+        onCopyName={(name) => copyToClipboard(name)}
+        onDownload={(file) => {
+          const element = document.createElement('a');
+          const blob = new Blob(['\uFEFF' + file.content], { type: 'text/plain;charset=utf-8' });
+          element.href = URL.createObjectURL(blob);
+          element.download = ensureNepaliExtension(file.name);
+          document.body.appendChild(element);
+          element.click();
+          document.body.removeChild(element);
+        }}
+        canCloseOthers={files.length > 1}
+        canCloseToRight={Boolean(onCloseToRight)}
+        canCloseAll={Boolean(onCloseAll)}
+        translitEnabled={translitEnabled}
+      />
     </div>
   );
 };

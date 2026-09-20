@@ -29,6 +29,7 @@ fn run(file: &Path) -> Output {
         .arg(file)
         .current_dir(file.parent().unwrap())
         .env("NEPALI_DB", db)
+        .env("NEPALI_SCRIPT", "devanagari")
         .output()
         .expect("run nepali-core-cli")
 }

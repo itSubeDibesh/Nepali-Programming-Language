@@ -12,21 +12,32 @@ import {
   ShieldCheck,
   Sparkles,
   Layers,
+  FileCode2,
+  HelpCircle,
+  Cpu,
+  FolderArchive,
 } from 'lucide-react';
+import { CURRENT_STUDIO_VERSION, UpdateInfo, checkForAppUpdates } from '@/lib/updateChecker';
+import { toNepaliDigits } from '../lib/numbers';
+import { copyToClipboard } from '../lib/clipboard';
 
 interface DownloadModalProps {
   isOpen: boolean;
   onClose: () => void;
   translitEnabled?: boolean;
+  updateInfo?: UpdateInfo | null;
 }
 
 export const DownloadModal: React.FC<DownloadModalProps> = ({
   isOpen,
   onClose,
   translitEnabled = true,
+  updateInfo: initialUpdateInfo,
 }) => {
   const [detectedOs, setDetectedOs] = useState<'mac' | 'windows' | 'linux'>('mac');
   const [copiedCli, setCopiedCli] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(initialUpdateInfo || null);
+  const [isLoadingRelease, setIsLoadingRelease] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -37,19 +48,40 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
     }
   }, []);
 
+  useEffect(() => {
+    if (isOpen && !updateInfo) {
+      setIsLoadingRelease(true);
+      checkForAppUpdates()
+        .then((info) => setUpdateInfo(info))
+        .catch(() => {})
+        .finally(() => setIsLoadingRelease(false));
+    }
+  }, [isOpen, updateInfo]);
+
   if (!isOpen) return null;
+
+  const versionTag = updateInfo?.latestVersion || CURRENT_STUDIO_VERSION;
+  const releasesBase = 'https://github.com/itSubeDibesh/Nepali-Programming-Language/releases';
+  const latestReleaseUrl = updateInfo?.downloadUrl || `${releasesBase}/latest`;
+
+  // Find specific platform assets if available in release
+  const assets = updateInfo?.assets || [];
+  const macAsset = assets.find((a) => a.name.endsWith('.dmg') || a.name.includes('mac') || a.name.includes('darwin'));
+  const winAsset = assets.find((a) => a.name.endsWith('.msi') || a.name.endsWith('.exe') || a.name.includes('windows'));
+  const linuxDebAsset = assets.find((a) => a.name.endsWith('.deb') || a.name.endsWith('.AppImage') || a.name.includes('linux'));
+
+  const macDownloadUrl = macAsset?.downloadUrl || `${releasesBase}/download/v${versionTag}/Nepali.Studio-${versionTag}-macOS.dmg`;
+  const winDownloadUrl = winAsset?.downloadUrl || `${releasesBase}/download/v${versionTag}/nepali-windows-x86_64.msi`;
+  const linuxDownloadUrl = linuxDebAsset?.downloadUrl || `${releasesBase}/download/v${versionTag}/nepali-linux-x86_64.deb`;
 
   const cliCommand =
     'curl -fsSL https://raw.githubusercontent.com/itSubeDibesh/Nepali-Programming-Language/main/scripts/install.sh | bash';
 
-  const handleCopyCli = () => {
-    navigator.clipboard.writeText(cliCommand);
+  const handleCopyCli = async () => {
+    await copyToClipboard(cliCommand);
     setCopiedCli(true);
     setTimeout(() => setCopiedCli(false), 2000);
   };
-
-  const releasesUrl =
-    'https://github.com/itSubeDibesh/Nepali-Programming-Language/releases';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
@@ -64,11 +96,11 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
               <h2 className="text-base font-semibold text-white flex items-center gap-2 font-devanagari">
                 <span>नेपाली स्टुडियो डेस्कटप डाउनलोड</span>
                 <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-mono font-normal border border-emerald-500/30">
-                  v1.0.0
+                  v{versionTag}
                 </span>
               </h2>
               <p className="text-xs text-slate-400 font-devanagari">
-                पूर्ण अफलाइन, डिस्क फाइल सेव, र तीव्र नेटिभ गति (Native OS, SQLite, Python/Rust)
+                पूर्ण अफलाइन, डिस्क फाइल सेभ, र नेटिभ सिस्टम इन्टरप (Tauri + Rust + SQLite + Python)
               </p>
             </div>
           </div>
@@ -81,7 +113,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto space-y-6">
+        <div className="p-6 overflow-y-auto space-y-5">
           {/* OS Download Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* macOS */}
@@ -103,18 +135,20 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
                   <span className="font-semibold text-sm">macOS</span>
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed font-devanagari">
-                  Apple Silicon (M1-M4) &amp; Intel. .dmg इन्स्टलर।
+                  Apple Silicon (M1-M4) र Intel. .dmg इन्स्टलर।
                 </p>
               </div>
-              <a
-                href="https://github.com/itSubeDibesh/Nepali-Programming-Language/releases/download/v1.0.0/Nepali.Studio-1.0.0-macOS.dmg"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 flex items-center justify-center space-x-1.5 w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition-colors shadow-sm"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>.DMG डाउनलोड</span>
-              </a>
+              <div className="mt-4 space-y-1.5">
+                <a
+                  href={macDownloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center space-x-1.5 w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition-colors shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>.DMG डाउनलोड</span>
+                </a>
+              </div>
             </div>
 
             {/* Windows */}
@@ -139,15 +173,17 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
                   Windows 10 / 11 (64-bit). .msi / .exe इन्स्टलर।
                 </p>
               </div>
-              <a
-                href="https://github.com/itSubeDibesh/Nepali-Programming-Language/releases/download/v1.0.0/nepali-windows-x86_64.exe"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 flex items-center justify-center space-x-1.5 w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition-colors shadow-sm"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>.MSI डाउनलोड</span>
-              </a>
+              <div className="mt-4 space-y-1.5">
+                <a
+                  href={winDownloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center space-x-1.5 w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition-colors shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>.MSI / .EXE डाउनलोड</span>
+                </a>
+              </div>
             </div>
 
             {/* Linux */}
@@ -172,16 +208,35 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
                   Ubuntu/Debian (.deb) र Universal (.AppImage).
                 </p>
               </div>
-              <a
-                href="https://github.com/itSubeDibesh/Nepali-Programming-Language/releases/download/v1.0.0/nepali-linux-x86_64.tar.gz"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 flex items-center justify-center space-x-1.5 w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition-colors shadow-sm"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>.DEB / AppImage</span>
-              </a>
+              <div className="mt-4 space-y-1.5">
+                <a
+                  href={linuxDownloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center space-x-1.5 w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition-colors shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>.DEB / AppImage</span>
+                </a>
+              </div>
             </div>
+          </div>
+
+          {/* Direct Releases Page Link Banner */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+            <div className="flex items-center space-x-2 text-slate-300 font-devanagari">
+              <FileCode2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>सबै बाइनरीहरू र रिलीज नोटहरू GitHub मा उपलब्ध छन्:</span>
+            </div>
+            <a
+              href={latestReleaseUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 font-medium transition-colors border border-emerald-500/30 text-xs font-mono flex-shrink-0"
+            >
+              <span>GitHub Releases</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
 
           {/* CLI One-Liner Install */}
@@ -219,7 +274,8 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
           {/* macOS Gatekeeper tip */}
           <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 space-y-1">
             <div className="flex items-center space-x-1.5 text-amber-400 font-semibold font-devanagari">
-              <span>💡 macOS मा एप खुल्न समस्या भएमा (Gatekeeper Note):</span>
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>macOS मा एप खुल्न समस्या भएमा (Gatekeeper Note):</span>
             </div>
             <p className="text-slate-400 font-mono text-[10px] bg-slate-950 px-2 py-1 rounded border border-slate-800 select-all">
               xattr -cr /Applications/&quot;Nepali Studio.app&quot;
@@ -230,10 +286,18 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
           <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400 font-devanagari">
             <div className="flex items-center space-x-2">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-              <span>१००% अफलाइन र गोप्य (No tracking)</span>
+              <span>१००% अफलाइन र सुरक्षित (No tracking)</span>
             </div>
             <div className="flex items-center space-x-2">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+              <span>नेटिभ एआई सपोर्ट (AI Ask, Listen, Speak)</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Cpu className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+              <span>नेटिभ बाइटकोड VM र डिस्क I/O</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <FolderArchive className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
               <span>स्थानीय डिस्क फाइलहरू खोल्ने र सेभ गर्ने</span>
             </div>
           </div>
@@ -257,7 +321,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
 
           <div className="flex items-center space-x-3">
             <a
-              href={releasesUrl}
+              href={releasesBase}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center space-x-1.5 text-slate-300 hover:text-emerald-400 transition-colors font-medium font-mono text-[11px]"

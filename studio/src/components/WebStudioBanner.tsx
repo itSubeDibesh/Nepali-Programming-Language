@@ -80,6 +80,12 @@ export default function WebStudioBanner() {
           href="https://github.com/itSubeDibesh/Nepali-Programming-Language/releases/latest"
           target="_blank"
           rel="noopener noreferrer"
+          onClick={(e) => {
+            if (typeof window !== 'undefined') {
+              e.preventDefault();
+              window.dispatchEvent(new CustomEvent('open-download-modal'));
+            }
+          }}
           style={{
             display: 'inline-flex',
             alignItems: 'center',

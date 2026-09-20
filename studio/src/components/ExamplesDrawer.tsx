@@ -58,12 +58,12 @@ export const ExamplesDrawer: React.FC<ExamplesDrawerProps> = ({
         </div>
 
         <div className="flex space-x-1 overflow-x-auto text-[11px] pb-1">
-          {['all', 'basics', 'dates', 'input', 'math', 'arrays', 'sqlite'].map((cat) => (
+          {['all', 'basics', 'control', 'functions', 'algorithms', 'data', 'dates', 'system', 'interop'].map((cat) => (
             <button
               key={cat}
               onClick={() => setCategory(cat)}
-              className={`px-2 py-0.5 rounded capitalize whitespace-nowrap ${
-                category === cat ? 'bg-indigo-600 text-white font-medium' : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+              className={`px-2 py-0.5 rounded capitalize whitespace-nowrap text-[10px] ${
+                category === cat ? 'bg-emerald-600 text-white font-medium' : 'bg-slate-900 text-slate-400 hover:text-slate-200'
               }`}
             >
               {cat === 'all' ? 'सबै' : cat}

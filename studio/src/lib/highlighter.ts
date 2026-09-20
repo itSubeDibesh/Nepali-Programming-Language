@@ -1,21 +1,19 @@
 // Devanagari & Nepali Language Syntax Tokenizer for Studio Editor
 
 export const VAR_KEYWORDS = new Set([
-  "राखौँ", "राखौं", "राखौ", "rakha", "rakhau", "rakhaun", "rakhom", "man"
+  "राखौँ", "राखौं", "राखौ", "rakha", "rakhau", "rakhaun"
 ]);
 
 export const FN_KEYWORDS = new Set([
   "काम", "kaam",
-  "पठाउँ", "पठाउं", "पठाउ", "पठाऔँ", "pathau", "pathaun", "pathaum",
-  "फर्कनुहोस्", "pharkanuhos", "fn"
+  "पठाउँ", "पठाउं", "पठाउ", "पठाऔँ", "पठाऔं", "pathau", "pathaun", "pathaum"
 ]);
 
 export const CONTROL_KEYWORDS = new Set([
   "यदि", "yadi",
-  "अथवा", "athawa", "athwa", "natra", "नत्र",
-  "भने", "bhane", "bhaye", "भए",
-  "जबसम्म", "jabasamma",
-  "भएसम्म", "bhayesamma",
+  "भए", "भने", "bhaye", "bhane",
+  "नत्र", "अथवा", "natra", "athawa", "athwa",
+  "भएसम्म", "जबसम्म", "bhayesamma", "jabasamma",
   "आयात", "aayat",
   "र", "ra",
   "वा", "wa",
@@ -23,19 +21,18 @@ export const CONTROL_KEYWORDS = new Set([
 ]);
 
 export const BUILTINS = new Set([
-  "भनौँ", "भनौं", "भनौ", "bhana", "bhanau", "bhanom", "bhanaun",
-  "लेख्नुहोस्", "lekhnuhos", "छाप्नुहोस्", "chhapnuhos",
+  "भनौँ", "भनौं", "भनौ", "लेख्नुहोस्", "छाप्नुहोस्", "bhana", "bhanau", "bhanaun", "lekhnuhos", "chhapnuhos",
+  "लम्बाइ", "lambai",
+  "अक्षर", "akshar",
+  "संकेत", "sanket",
+  "थप्नुहोस्", "thapnuhos",
   "आज", "aaja",
   "मिति_बनाउनुहोस्", "miti_banaunuhos",
   "मिति_पढ्नुहोस्", "miti_padhnuhos",
   "दिन_फरक", "din_farak", "din_pharak",
   "उमेर", "umer", "umera",
-  "हप्ताको_दिन", "haptako_din",
-  "इनपुट", "input", "inapt",
-  "लम्बाइ", "lambai",
-  "अक्षर", "akshar",
-  "संकेत", "sanket",
-  "थप्नुहोस्", "thapnuhos",
+  "हप्ताको_दिन", "haptako_दिन", "haptako_din",
+  "इनपुट", "input",
   "ओएस_लेख्नुहोस्", "os_lekhnuhos",
   "ओएस_पढ्नुहोस्", "os_padhnuhos",
   "ओएस_सूची", "os_soochee", "os_suchi",
@@ -63,9 +60,9 @@ export const BUILTINS = new Set([
 ]);
 
 export const LITERALS = new Set([
-  "सहि", "sahi", "साँच्चै", "saanchchai", "saachchai",
-  "गलत", "galat", "झूट", "jhoot", "jhut",
-  "केहीछैन", "kehichaina", "शून्य", "shoonya", "shunya"
+  "सहि", "सही", "साँचो", "साँच्चै", "sahi", "saanchai",
+  "गलत", "झूट", "झुट", "galat", "jhoot", "jhut",
+  "केहीछैन", "शून्य", "kehichaina", "shoonya", "shunya"
 ]);
 
 export function highlightNepaliCode(code: string): string {

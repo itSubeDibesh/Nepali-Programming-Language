@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { RunMode } from '../lib/types';
 import { getI18n } from '../lib/i18n';
-import { getAvailableModes } from '../lib/env';
+import { getAvailableModes, isDesktopApp } from '../lib/env';
 
 interface NavbarProps {
   onRun: () => void;
@@ -29,8 +29,11 @@ interface NavbarProps {
   onToggleInspector?: () => void;
   onOpenShare: () => void;
   isAiOpen: boolean;
+  isAiAvailable?: boolean;
   isInspectorOpen?: boolean;
   onOpenDownload?: () => void;
+  onOpenUpdate?: () => void;
+  hasUpdate?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -46,8 +49,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleInspector,
   onOpenShare,
   isAiOpen,
+  isAiAvailable = false,
   isInspectorOpen,
   onOpenDownload,
+  onOpenUpdate,
+  hasUpdate,
 }) => {
   const i18n = getI18n(translitEnabled).navbar;
 
@@ -77,9 +83,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div>
             <div className="font-semibold text-sm tracking-wide text-white flex items-center space-x-1.5">
               <span>{i18n.title}</span>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.2 rounded font-mono font-normal border border-emerald-500/30">
-                v1.0
-              </span>
+              <button
+                onClick={onOpenUpdate}
+                className="text-[10px] bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 px-1.5 py-0.5 rounded font-mono font-medium border border-emerald-500/30 transition-all flex items-center space-x-1"
+                title="सफ्टवेयर अपडेट जाँच्नुहोस्"
+              >
+                <span>v1.1.0</span>
+                {hasUpdate && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+              </button>
             </div>
           </div>
         </div>
@@ -176,18 +187,20 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {/* AI Assistant Toggle */}
-        <button
-          onClick={onToggleAi}
-          className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition-colors ${
-            isAiOpen
-              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-              : 'bg-[#060911] border-[#1E293B] text-slate-400 hover:text-slate-200'
-          }`}
-          title="एआई सहायक (AI Assistant)"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="hidden md:inline font-devanagari">{i18n.aiAssistant}</span>
-        </button>
+        {isAiAvailable && (
+          <button
+            onClick={onToggleAi}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition-colors ${
+              isAiOpen
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                : 'bg-[#060911] border-[#1E293B] text-slate-400 hover:text-slate-200'
+            }`}
+            title="एआई सहायक (AI Assistant)"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden md:inline font-devanagari">{i18n.aiAssistant}</span>
+          </button>
+        )}
 
         {/* Output Terminal Toggle */}
         {onToggleInspector && (
@@ -205,16 +218,35 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        {/* Download Desktop App Button */}
-        {onOpenDownload && (
-          <button
-            onClick={onOpenDownload}
-            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 text-xs transition-colors shadow-sm font-medium"
-            title="डेस्कटप एप डाउनलोड गर्नुहोस् (Download Desktop App)"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline font-devanagari">डाउनलोड</span>
-          </button>
+        {/* Download Desktop App (Web) or Check Updates (Desktop) */}
+        {isDesktopApp() ? (
+          onOpenUpdate && (
+            <button
+              onClick={onOpenUpdate}
+              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition-colors shadow-sm font-medium ${
+                hasUpdate
+                  ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-300 animate-pulse'
+                  : 'bg-[#060911] hover:bg-[#0F172A] border-[#1E293B] text-slate-300'
+              }`}
+              title="सफ्टवेयर अपडेट जाँच गर्नुहोस् (Check for Updates)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline font-devanagari">
+                {hasUpdate ? 'नयाँ अपडेट' : 'अपडेट'}
+              </span>
+            </button>
+          )
+        ) : (
+          onOpenDownload && (
+            <button
+              onClick={onOpenDownload}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 text-xs transition-colors shadow-sm font-medium"
+              title="डेस्कटप एप डाउनलोड गर्नुहोस् (Download Desktop App)"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline font-devanagari">डाउनलोड</span>
+            </button>
+          )
         )}
         {/* GitHub Repository Link */}
         <a

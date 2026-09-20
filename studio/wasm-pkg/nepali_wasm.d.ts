@@ -2,27 +2,44 @@
 /* eslint-disable */
 
 /**
+ * Dump the Abstract Syntax Tree (AST) of a Nepali program as an indented tree.
+ */
+export function ast_dump(code: string): string;
+
+/**
  * Parse a program and return diagnostics (for editor integration).
  */
 export function check(code: string): string;
 
 /**
- * Run a Nepali program and return its stdout as a string.
- * Only pure language features work (no filesystem, no processes).
+ * Disassemble a Nepali program into human-readable bytecode instructions.
+ */
+export function disassemble(code: string): string;
+
+/**
+ * Run a Nepali program using Tree-walker interpreter and return stdout.
  */
 export function run(code: string): string;
+
+/**
+ * Run a Nepali program using the Bytecode Stack VM and return stdout.
+ */
+export function run_vm(code: string): string;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly ast_dump: (a: number, b: number) => [number, number, number, number];
     readonly check: (a: number, b: number) => [number, number];
+    readonly disassemble: (a: number, b: number) => [number, number, number, number];
     readonly run: (a: number, b: number) => [number, number, number, number];
+    readonly run_vm: (a: number, b: number) => [number, number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
-    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __externref_table_dealloc: (a: number) => void;
+    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;
 }
 

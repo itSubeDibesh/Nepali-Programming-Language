@@ -27,6 +27,7 @@ export interface I18nDictionary {
     examplesTitle: string;
     docsTitle: string;
     newFile: string;
+    newFolder: string;
     resetFiles: string;
     autoSaveEnabled: string;
     autoSaveDesc: string;
@@ -45,6 +46,7 @@ export interface I18nDictionary {
     preview: string;
     hidePreview: string;
     load: string;
+    saveToFolder: string;
     searchDocs: string;
     insertSnippet: string;
   };
@@ -136,6 +138,7 @@ export const I18N_NEPALI: I18nDictionary = {
     examplesTitle: 'उदाहरण पुस्तकालय (Examples)',
     docsTitle: 'भाषा सन्दर्भ (Docs & Reference)',
     newFile: 'नयाँ फाइल थप्नुहोस्',
+    newFolder: 'नयाँ फोल्डर बनाउनुहोस्',
     resetFiles: 'पूर्वनिर्धारितमा रिसेट गर्नुहोस्',
     autoSaveEnabled: 'स्वत: बचत सक्षम छ',
     autoSaveDesc: 'सबै कोड ब्राउजरको लोकल स्टोरेजमा सुरक्षित हुन्छ।',
@@ -154,6 +157,7 @@ export const I18N_NEPALI: I18nDictionary = {
     preview: 'हेर्नुहोस्',
     hidePreview: 'लुकाउनुहोस्',
     load: 'लोड गर्नुहोस्',
+    saveToFolder: 'उदाहरण फोल्डरमा राख्नुहोस्',
     searchDocs: 'भाषा नियम र कुञ्जीशब्द खोज्नुहोस्...',
     insertSnippet: 'घुसाउनुहोस्',
   },
@@ -245,6 +249,7 @@ export const I18N_ENGLISH: I18nDictionary = {
     examplesTitle: 'Example Recipes',
     docsTitle: 'Language Reference & Docs',
     newFile: 'New File',
+    newFolder: 'New Folder',
     resetFiles: 'Reset Workspace to Defaults',
     autoSaveEnabled: 'Auto-save Enabled',
     autoSaveDesc: 'All edits are saved instantly to local browser storage.',
@@ -263,6 +268,7 @@ export const I18N_ENGLISH: I18nDictionary = {
     preview: 'Preview',
     hidePreview: 'Hide',
     load: 'Load Recipe',
+    saveToFolder: 'Save to Examples Folder',
     searchDocs: 'Search keywords, syntax, builtins...',
     insertSnippet: 'Insert',
   },

@@ -41,7 +41,8 @@ fn every_tour_example_prints_exactly_its_expected_output() {
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_nepali-core-cli"));
         cmd.arg(&file)
             .current_dir(tour_dir())
-            .env("NEPALI_DB", db_dir.join("tour.db"));
+            .env("NEPALI_DB", db_dir.join("tour.db"))
+            .env("NEPALI_SCRIPT", "devanagari");
         if needs_os {
             cmd.arg("--mode").arg("os");
         }

@@ -51,6 +51,14 @@ export const metadata: Metadata = {
     siteName: 'Nepali Studio',
     locale: 'ne_NP',
     type: 'website',
+    images: [
+      {
+        url: '/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: 'नेपाली स्टुडियो | Nepali Programming Language IDE',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
@@ -58,6 +66,7 @@ export const metadata: Metadata = {
     description:
       'Devanagari-first developer environment for the Nepali Programming Language created by Dibesh Raj Subedi.',
     creator: '@itSubeDibesh',
+    images: ['/opengraph-image'],
   },
 };
 

@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { generateAutonomousAiResponse } from '../../../lib/bakedInAiEngine';
 
 function findNepaliBinary(): string | null {
   if (process.env.NEPALI_BIN && fs.existsSync(process.env.NEPALI_BIN)) {
@@ -33,98 +34,97 @@ function findNepaliBinary(): string | null {
   return null;
 }
 
+export async function GET() {
+  return NextResponse.json({
+    available: true,
+    engine: 'baked-in-ai',
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { q } = await req.json();
-    if (!q || typeof q !== 'string') {
+    const body = await req.json();
+    const question = body.question || body.q || '';
+    const codeContext = body.codeContext || body.code || '';
+    const activeFileName = body.activeFileName || body.fileName || '';
+    const files = Array.isArray(body.files) ? body.files : [];
+
+    if (!question || typeof question !== 'string' || !question.trim()) {
       return NextResponse.json({ error: 'प्रश्न खाली छ (Question is empty)' }, { status: 400 });
     }
 
-    const projectRoot = path.resolve(process.cwd(), '..');
+    // 1. Try Local Rust CLI (nepali ask) if available
     const cliBin = findNepaliBinary();
+    if (cliBin) {
+      const projectRoot = path.resolve(process.cwd(), '..');
+      const envPath = [
+        path.join(os.homedir(), '.cargo/bin'),
+        path.join(os.homedir(), '.local/bin'),
+        '/opt/homebrew/bin',
+        '/usr/local/bin',
+        process.env.PATH || '',
+      ].join(':');
 
-    const envPath = [
-      path.join(os.homedir(), '.cargo/bin'),
-      path.join(os.homedir(), '.local/bin'),
-      '/opt/homebrew/bin',
-      '/usr/local/bin',
-      process.env.PATH || ''
-    ].join(':');
+      const spawnEnv = {
+        ...process.env,
+        PATH: envPath,
+        PYO3_USE_ABI3_FORWARD_COMPATIBILITY: '1',
+        NEPALI_SCRIPT: 'devanagari',
+        NEPALI_DIGITS: 'devanagari',
+      };
 
-    const spawnEnv = {
-      ...process.env,
-      PATH: envPath,
-      PYO3_USE_ABI3_FORWARD_COMPATIBILITY: '1',
-      NEPALI_SCRIPT: 'devanagari',
-      NEPALI_DIGITS: 'devanagari',
-    };
-
-    return new Promise<NextResponse>((resolve) => {
-      let child;
-
-      if (cliBin) {
-        child = spawn(cliBin, ['ask', q], {
+      const cliResult = await new Promise<{ answer: string; codeSnippet?: string } | null>((resolve) => {
+        const child = spawn(cliBin, ['ask', question], {
           cwd: projectRoot,
           env: spawnEnv,
         });
-      } else {
-        child = spawn(
-          'cargo',
-          ['run', '--quiet', '--manifest-path', path.join(projectRoot, 'crates/nepali-core/Cargo.toml'), '--', 'ask', q],
-          {
-            cwd: projectRoot,
-            env: spawnEnv,
+
+        let stdout = '';
+        const timer = setTimeout(() => {
+          child.kill('SIGKILL');
+          resolve(null);
+        }, 3000);
+
+        child.stdout?.on('data', (d) => {
+          stdout += d.toString();
+        });
+
+        child.on('error', () => {
+          clearTimeout(timer);
+          resolve(null);
+        });
+
+        child.on('close', (code) => {
+          clearTimeout(timer);
+          if (code === 0 && stdout.trim().length > 0) {
+            const match = stdout.match(/```(?:nepali|nep)?\s*([\s\S]*?)```/i);
+            const snippet = match ? match[1].trim() : undefined;
+            resolve({
+              answer: stdout.trim(),
+              codeSnippet: snippet,
+            });
+          } else {
+            resolve(null);
           }
-        );
+        });
+      });
+
+      if (cliResult) {
+        return NextResponse.json({
+          answer: cliResult.answer,
+          codeSnippet: cliResult.codeSnippet,
+          engine: 'नेपाली नेटिभ एआई (Native AI)',
+        });
       }
+    }
 
-      let stdout = '';
-      let stderr = '';
-
-      child.stdout?.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      child.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      // AI queries might consult large offline index or call local LLM (timeout 900s)
-      const timer = setTimeout(() => {
-        child.kill('SIGKILL');
-        resolve(
-          NextResponse.json({
-            error: 'AI जवाफ समय सकियो (AI response timed out)',
-          }, { status: 504 })
-        );
-      }, 900000);
-
-      child.on('error', (err) => {
-        clearTimeout(timer);
-        resolve(
-          NextResponse.json({
-            error: `AI इन्जिन चलाउन सकिएन: ${err.message}`,
-          }, { status: 500 })
-        );
-      });
-
-      child.on('close', (code) => {
-        clearTimeout(timer);
-        if (code === 0) {
-          resolve(NextResponse.json({ text: stdout }));
-        } else {
-          resolve(
-            NextResponse.json({
-              error: stderr || stdout || 'AI जवाफ प्राप्त हुन सकेन (Failed to get AI response)',
-            }, { status: 500 })
-          );
-        }
-      });
-    });
+    // 2. Pure Autonomous Baked-In AI Engine with Multi-File Context
+    const aiResult = await generateAutonomousAiResponse(question, codeContext, activeFileName, files);
+    return NextResponse.json(aiResult);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: `सर्भरमा त्रुटि (Internal Server Error): ${message}` },
+      { error: `एआई सेवामा समस्या: ${message}` },
       { status: 500 }
     );
   }

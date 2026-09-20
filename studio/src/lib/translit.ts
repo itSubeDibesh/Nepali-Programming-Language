@@ -1,29 +1,82 @@
+// Roman -> Devanagari phonetic typing with full keyword dictionary and parity with core engine
 export const KEYWORDS: Record<string, string> = {
-  // Commands and keywords
+  // Declarations & Variables
+  mana: "माना",
+  manau: "मानौँ",
+  manom: "मानौँ",
   rakha: "राखौँ",
   rakhau: "राखौँ",
   rakhom: "राखौँ",
   kaam: "काम",
+  karyabidhi: "कार्यविधि",
+  kaaryabidhi: "कार्यविधि",
+
+  // Control Flow
   yadi: "यदि",
   bhaye: "भए",
   natra: "नत्र",
+  jabsamma: "जबसम्म",
   bhayesamma: "भएसम्म",
   pathau: "पठाउँ",
   pathaum: "पठाउँ",
+  farka: "पठाउँ",
+  farkaunuhos: "पठाउँ",
   bhana: "भनौँ",
   bhanau: "भनौँ",
   bhanom: "भनौँ",
-  sahi: "सहि",
-  galat: "गलत",
+  lekha: "लेख",
+  lekh: "लेख",
+  pratyek: "प्रत्येक",
+  samrachana: "संरचना",
+  shreni: "श्रेणी",
+  awastha: "अवस्था",
+  roka: "रोक",
+  jaari: "जारी",
+
+  // Values & Literals
+  satya: "सत्य",
+  sahi: "सत्य",
+  asatya: "असत्य",
+  galat: "असत्य",
+  shunya: "शुन्य",
+  khali: "खाली",
   kehichaina: "केहीछैन",
+  chha: "छ",
+  chhaina: "छैन",
+  ho: "हो",
+
+  // Logical operators
   aayat: "आयात",
   ra: "र",
   wa: "वा",
   hoina: "होइन",
+
+  // Built-ins: Strings, Arrays, Math
   lambai: "लम्बाइ",
   akshar: "अक्षर",
   sanket: "संकेत",
+  thap: "थप",
   thapnuhos: "थप्नुहोस्",
+  hatau: "हटाउ",
+  hataunuhos: "हटाउनुहोस्",
+  jod: "जोड",
+  ghatau: "घटाउ",
+  gunan: "गुणन",
+  bhag: "भाग",
+  pratishat: "प्रतिशत",
+  ghatank: "घातांक",
+  bargamul: "वर्गमूल",
+  barga_mool: "वर्गमूल",
+  purnanka: "पूर्णांक",
+  dashamlav: "दशमलव",
+  shabda: "शब्द",
+  sankhya: "संख्या",
+  talika: "तालिका",
+  suchi: "सूची",
+  dhancha: "ढाँचा",
+  prakar: "प्रकार",
+
+  // Date & Time
   aaja: "आज",
   miti_banaunuhos: "मिति_बनाउनुहोस्",
   miti_padhnuhos: "मिति_पढ्नुहोस्",
@@ -31,7 +84,10 @@ export const KEYWORDS: Record<string, string> = {
   umer: "उमेर",
   umera: "उमेर",
   haptako_din: "हप्ताको_दिन",
+
+  // I/O & System
   input: "इनपुट",
+  inaput: "इनपुट",
   inapt: "इनपुट",
   input_sodhnuhos: "इनपुट",
   os_lekhnuhos: "ओएस_लेख्नुहोस्",
@@ -63,6 +119,10 @@ export const KEYWORDS: Record<string, string> = {
   nepal: "नेपाल",
   nepali: "नेपाली",
   namaskar: "नमस्कार",
+  namaste: "नमस्ते",
+  dhanyabad: "धन्यवाद",
+  dhanyabaad: "धन्यवाद",
+  swagatam: "स्वागतम्",
   tapainko: "तपाईंको",
   tapain: "तपाईं",
   tapai: "तपाईं",
@@ -99,9 +159,9 @@ export const KEYWORDS: Record<string, string> = {
   bhaktapur: "भक्तपुर",
 };
 
-const HALANT = "्";
+export const HALANT = "्";
 
-const CONSONANTS: [string, string][] = [
+export const CONSONANTS: [string, string][] = [
   ["chh", "छ"],
   ["ksh", "क्ष"],
   ["gy", "ज्ञ"],
@@ -111,18 +171,26 @@ const CONSONANTS: [string, string][] = [
   ["ng", "ङ"],
   ["ch", "च"],
   ["jh", "झ"],
+  ["Th", "ठ"],
+  ["Dh", "ढ"],
   ["th", "थ"],
   ["dh", "ध"],
   ["ph", "फ"],
   ["bh", "भ"],
   ["sh", "श"],
+  ["Sh", "ष"],
   ["k", "क"],
   ["g", "ग"],
+  ["c", "च"],
   ["j", "ज"],
+  ["T", "ट"],
+  ["D", "ड"],
+  ["N", "ण"],
   ["t", "त"],
   ["d", "द"],
   ["n", "न"],
   ["p", "प"],
+  ["f", "फ"],
   ["b", "ब"],
   ["m", "म"],
   ["y", "य"],
@@ -132,129 +200,131 @@ const CONSONANTS: [string, string][] = [
   ["v", "व"],
   ["s", "स"],
   ["h", "ह"],
+  ["q", "क"],
+  ["z", "ज"],
 ];
 
-const INDEPENDENT_VOWELS: [string, string][] = [
-  ["aa", "आ"],
-  ["ii", "ई"],
-  ["uu", "ऊ"],
-  ["ai", "ऐ"],
-  ["au", "औ"],
-  ["ee", "ई"],
-  ["oo", "ऊ"],
-  ["a", "अ"],
-  ["i", "इ"],
-  ["u", "उ"],
-  ["e", "ए"],
-  ["o", "ओ"],
+export const VOWELS: [string, string, string][] = [
+  ["aa", "आ", "ा"],
+  ["ai", "ऐ", "ै"],
+  ["au", "औ", "ौ"],
+  ["ee", "ई", "ी"],
+  ["ii", "ई", "ी"],
+  ["oo", "ऊ", "ू"],
+  ["uu", "ऊ", "ू"],
+  ["a", "अ", ""],
+  ["i", "इ", "ि"],
+  ["u", "उ", "ु"],
+  ["e", "ए", "े"],
+  ["o", "ओ", "ो"],
 ];
 
-const DEPENDENT_MATRAS: [string, string][] = [
-  ["aa", "ा"],
-  ["ii", "ी"],
-  ["uu", "ू"],
-  ["ai", "ै"],
-  ["au", "ौ"],
-  ["ee", "ी"],
-  ["oo", "ू"],
-  ["a", ""],
-  ["i", "ि"],
-  ["u", "ु"],
-  ["e", "े"],
-  ["o", "ो"],
-];
-
-const DIGITS: Record<string, string> = {
-  "0": "०",
-  "1": "१",
-  "2": "२",
-  "3": "३",
-  "4": "४",
-  "5": "५",
-  "6": "६",
-  "7": "७",
-  "8": "८",
-  "9": "९",
+export const MODIFIERS: Record<string, string> = {
+  M: "ं",
+  H: "ः",
+  "~": "ँ",
+  "|": "।",
 };
 
-export function transliterateWord(w: string): string {
-  if (!w) return "";
-  const lower = w.toLowerCase();
-  if (KEYWORDS[lower]) return KEYWORDS[lower];
+const DEV_DIGITS = "०१२३४५६७८९";
 
-  let res = "";
+export function toDevanagariDigit(ch: string): string {
+  return /^[0-9]$/.test(ch) ? DEV_DIGITS[parseInt(ch, 10)] || ch : ch;
+}
+
+function matchEntry<T extends [string, ...any[]]>(table: T[], s: string, i: number): T | null {
+  for (const e of table) {
+    if (s.startsWith(e[0], i)) return e;
+  }
+  return null;
+}
+
+function lowerAt(s: string, i: number): string {
+  return s.slice(0, i) + s[i].toLowerCase() + s.slice(i + 1);
+}
+
+const isUpper = (c: string) => c !== c.toLowerCase() && c === c.toUpperCase();
+
+export function transliterate(word: string): string {
+  if (!word) return "";
+  const rest = word.slice(1);
+  if (
+    word.length > 1 &&
+    isUpper(word[0]) &&
+    rest === rest.toLowerCase() &&
+    rest !== rest.toUpperCase() &&
+    !/^(Th|Dh|Sh)/.test(word)
+  ) {
+    word = word[0].toLowerCase() + rest;
+  }
+
+  const out: string[] = [];
   let i = 0;
-  let lastWasConsonant = false;
+  const n = word.length;
 
-  while (i < lower.length) {
-    if (lower[i] >= "0" && lower[i] <= "9") {
-      if (res.endsWith(HALANT)) {
-        res = res.slice(0, -HALANT.length);
-      }
-      res += DIGITS[lower[i]] || lower[i];
-      i++;
-      lastWasConsonant = false;
+  while (i < n) {
+    const ch = word[i];
+    if (ch in MODIFIERS) {
+      out.push(MODIFIERS[ch]);
+      i += 1;
       continue;
     }
 
-    if (lastWasConsonant) {
-      let matched = false;
-      for (const [rom, matra] of DEPENDENT_MATRAS) {
-        if (lower.startsWith(rom, i)) {
-          if (res.endsWith(HALANT)) {
-            res = res.slice(0, -HALANT.length);
-          }
-          res += matra;
-          i += rom.length;
-          matched = true;
-          lastWasConsonant = false;
-          break;
-        }
-      }
-      if (matched) continue;
-      lastWasConsonant = false;
+    let cons = matchEntry(CONSONANTS, word, i);
+    if (!cons && isUpper(ch)) {
+      cons = matchEntry(CONSONANTS, lowerAt(word, i), i);
     }
 
-    let matchedConsonant = false;
-    for (const [rom, nep] of CONSONANTS) {
-      if (lower.startsWith(rom, i)) {
-        res += nep + HALANT;
-        i += rom.length;
-        matchedConsonant = true;
-        lastWasConsonant = true;
-        break;
+    if (cons) {
+      out.push(cons[1]);
+      i += cons[0].length;
+      const vow = matchEntry(VOWELS, word, i);
+      if (vow) {
+        out.push(vow[2]);
+        i += vow[0].length;
+      } else if (
+        i < n &&
+        (matchEntry(CONSONANTS, word, i) || (isUpper(word[i]) && matchEntry(CONSONANTS, lowerAt(word, i), i)))
+      ) {
+        out.push(HALANT);
       }
+      continue;
     }
-    if (matchedConsonant) continue;
 
-    let matchedVowel = false;
-    for (const [rom, nep] of INDEPENDENT_VOWELS) {
-      if (lower.startsWith(rom, i)) {
-        res += nep;
-        i += rom.length;
-        matchedVowel = true;
-        lastWasConsonant = false;
-        break;
-      }
+    let vow = matchEntry(VOWELS, word, i);
+    if (!vow && isUpper(ch)) {
+      vow = matchEntry(VOWELS, lowerAt(word, i), i);
     }
-    if (matchedVowel) continue;
+    if (vow) {
+      out.push(vow[1]);
+      i += vow[0].length;
+      continue;
+    }
 
-    if (res.endsWith(HALANT)) {
-      res = res.slice(0, -HALANT.length);
+    if (/^[0-9]$/.test(ch)) {
+      out.push(toDevanagariDigit(ch));
+      i += 1;
+      continue;
     }
-    res += lower[i];
-    i++;
-    lastWasConsonant = false;
+
+    out.push(ch);
+    i += 1;
   }
 
-  if (res.endsWith(HALANT)) {
-    res = res.slice(0, -HALANT.length);
-  }
-
-  return res;
+  return out.join("");
 }
+
+export function convertWord(word: string): string {
+  if (!word) return "";
+  const lower = word.toLowerCase();
+  const kw = KEYWORDS[lower];
+  if (kw !== undefined) return kw;
+  return transliterate(word);
+}
+
+export const transliterateWord = convertWord;
 
 export function transliterateText(text: string): string {
   if (!text) return "";
-  return text.replace(/[a-zA-Z0-9_]+/g, (match) => transliterateWord(match));
+  return text.replace(/[a-zA-Z0-9_]+/g, (match) => convertWord(match));
 }

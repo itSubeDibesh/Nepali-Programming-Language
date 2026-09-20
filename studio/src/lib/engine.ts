@@ -144,6 +144,75 @@ export class NepaliEngine {
       };
     }
   }
+
+  async disassemble(code: string): Promise<string> {
+    // 1. Try Native Desktop invoke if available
+    if (typeof window !== 'undefined' && ((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__ || (window as any).ipc)) {
+      try {
+        const tauriInvoke = (window as any).__TAURI_INTERNALS__?.invoke || (window as any).__TAURI__?.core?.invoke || (window as any).__TAURI__?.invoke;
+        if (typeof tauriInvoke === 'function') {
+          const res = await tauriInvoke('disassemble_nepali_code', { code });
+          if (res) return String(res);
+        }
+      } catch (e) {
+        // Fallback to WASM
+      }
+    }
+
+    // 2. WASM execution
+    try {
+      const ready = await this.initWasm();
+      if (ready && this.wasmModule && this.wasmModule.disassemble) {
+        return this.wasmModule.disassemble(code);
+      }
+    } catch (err: any) {
+      return `बाइटकोड त्रुटि: ${err.message || err}`;
+    }
+
+    return '// बाइटकोड इन्जिन लोड हुन सकेन';
+  }
+
+  async astDump(code: string): Promise<string> {
+    if (!code || !code.trim()) return '// कोड खाली छ (Code is empty)';
+
+    // 1. Try Native Desktop invoke if available
+    if (typeof window !== 'undefined' && ((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__ || (window as any).ipc)) {
+      try {
+        const tauriInvoke = (window as any).__TAURI_INTERNALS__?.invoke || (window as any).__TAURI__?.core?.invoke || (window as any).__TAURI__?.invoke;
+        if (typeof tauriInvoke === 'function') {
+          const res = await tauriInvoke('get_ast_dump', { code });
+          if (res) return String(res);
+        }
+      } catch (e) {
+        // Fallback to WASM
+      }
+    }
+
+    // 2. WASM execution
+    try {
+      const ready = await this.initWasm();
+      if (ready && this.wasmModule && this.wasmModule.ast_dump) {
+        return this.wasmModule.ast_dump(code);
+      }
+    } catch (err: any) {
+      return `AST त्रुटि: ${err.message || err}`;
+    }
+
+    return '// AST इन्स्पेक्टर उपलब्ध छैन';
+  }
+
+  async checkDiagnostics(code: string): Promise<string> {
+    try {
+      const ready = await this.initWasm();
+      if (ready && this.wasmModule && this.wasmModule.check) {
+        return this.wasmModule.check(code);
+      }
+    } catch (e) {
+      // Ignored
+    }
+    return '';
+  }
 }
 
 export const engine = new NepaliEngine();
+

@@ -8,9 +8,11 @@ import {
   Sparkles,
   Terminal,
   Play,
+  Layers,
 } from 'lucide-react';
 import { RunMode } from '../lib/types';
 import { getI18n } from '../lib/i18n';
+import { isDesktopApp } from '../lib/env';
 
 export type ActiveSidebarTab = 'files' | 'examples' | 'cheatsheet' | null;
 
@@ -18,28 +20,40 @@ interface ActivityBarProps {
   activeTab: ActiveSidebarTab;
   onSelectTab: (tab: ActiveSidebarTab) => void;
   isAiOpen: boolean;
+  isAiAvailable?: boolean;
   onToggleAi: () => void;
   isInspectorOpen: boolean;
   onToggleInspector: () => void;
+  isAstInspectorOpen?: boolean;
+  onToggleAstInspector?: () => void;
   onRun: () => void;
   isRunning: boolean;
   mode: RunMode;
   onModeChange: (m: RunMode) => void;
   translitEnabled?: boolean;
   onOpenDownload?: () => void;
+  onOpenUpdate?: () => void;
+  hasUpdate?: boolean;
 }
 
 export const ActivityBar: React.FC<ActivityBarProps> = ({
   activeTab,
   onSelectTab,
   isAiOpen,
+  isAiAvailable = false,
   onToggleAi,
   isInspectorOpen,
   onToggleInspector,
+  isAstInspectorOpen = false,
+  onToggleAstInspector,
   onRun,
   isRunning,
+  mode,
+  onModeChange,
   translitEnabled = true,
   onOpenDownload,
+  onOpenUpdate,
+  hasUpdate,
 }) => {
   const i18n = getI18n(translitEnabled).activityBar;
 
@@ -107,27 +121,45 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
       {/* Bottom Utility Tools (AI, Inspector, Run) */}
       <div className="flex flex-col items-center space-y-2 w-full">
         {/* AI Assistant Toggle */}
-        <button
-          onClick={onToggleAi}
-          className={`p-2.5 rounded-xl transition-all relative group ${
-            isAiOpen
-              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
-          }`}
-          title={i18n.ai}
-        >
-          <Sparkles className="w-5 h-5 text-emerald-400" />
-        </button>
-
-        {/* Download Desktop App Modal Trigger */}
-        {onOpenDownload && (
+        {isAiAvailable && (
           <button
-            onClick={onOpenDownload}
-            className="p-2.5 rounded-xl transition-all text-slate-400 hover:text-emerald-400 hover:bg-[#0F172A] relative group"
-            title="डेस्कटप एप डाउनलोड गर्नुहोस् (Download Desktop App)"
+            onClick={onToggleAi}
+            className={`p-2.5 rounded-xl transition-all relative group ${
+              isAiOpen
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
+            }`}
+            title={i18n.ai}
           >
-            <Download className="w-5 h-5" />
+            <Sparkles className="w-5 h-5 text-emerald-400" />
           </button>
+        )}
+
+        {/* Download Desktop App (Web) or Check Updates (Desktop) */}
+        {isDesktopApp() ? (
+          onOpenUpdate && (
+            <button
+              onClick={onOpenUpdate}
+              className={`p-2.5 rounded-xl transition-all relative group ${
+                hasUpdate
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
+              }`}
+              title="सफ्टवेयर अपडेट जाँच गर्नुहोस् (Check for Updates)"
+            >
+              <Sparkles className="w-5 h-5 text-amber-400" />
+            </button>
+          )
+        ) : (
+          onOpenDownload && (
+            <button
+              onClick={onOpenDownload}
+              className="p-2.5 rounded-xl transition-all text-slate-400 hover:text-emerald-400 hover:bg-[#0F172A] relative group"
+              title="डेस्कटप एप डाउनलोड गर्नुहोस् (Download Desktop App)"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+          )
         )}
         {/* Bottom Inspector / Terminal Toggle */}
         <button
@@ -141,6 +173,21 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
         >
           <Terminal className="w-5 h-5" />
         </button>
+
+        {/* Bytecode & AST Inspector Toggle */}
+        {onToggleAstInspector && (
+          <button
+            onClick={onToggleAstInspector}
+            className={`p-2.5 rounded-xl transition-all relative group ${
+              isAstInspectorOpen
+                ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
+            }`}
+            title="बाइटकोड र AST निरीक्षक (Bytecode & AST Inspector)"
+          >
+            <Layers className="w-5 h-5" />
+          </button>
+        )}
 
         {/* Quick Mini Run Trigger */}
         <button

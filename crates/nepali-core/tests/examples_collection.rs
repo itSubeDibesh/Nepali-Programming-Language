@@ -67,6 +67,7 @@ fn every_example_prints_exactly_its_expected_output() {
             .current_dir(&dir)
             .env("NEPALI_DB", &db)
             .env("HOME", &home)
+            .env("NEPALI_SCRIPT", "devanagari")
             .output()
             .unwrap_or_else(|e| panic!("cannot run nepali-core-cli for {name}: {e}"));
 

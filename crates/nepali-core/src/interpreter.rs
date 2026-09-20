@@ -978,14 +978,14 @@ impl Interpreter {
             // `plugins/go-example` (Go) side by side, see CLAUDE.md.
             // गो_चलाउनुहोस् exists for real Go-code UX, not as a second
             // implementation pretending to be separate.
-            "रस्ट_चलाउनुहोस्" | "गो_चलाउनुहोस्" => {
+            "रस्ट_चलाउनुहोस्" | "रुस्ट_चलाउनुहोस्" | "गो_चलाउनुहोस्" => {
                 let lib_path = expect_string(name, args, 0)?;
                 let fn_name = expect_string(name, args, 1)?;
                 // Safe: expect_string above already errored out if
                 // args.len() < 2, so this slice is always in bounds.
                 host.call(&lib_path, &fn_name, &args[2..])
             }
-            _ => unreachable!("is_host_rust_builtin only admits the two names handled above"),
+            _ => unreachable!("is_host_rust_builtin only admits the names handled above"),
         }
     }
 
@@ -1847,6 +1847,7 @@ pub const BUILTINS: &[&str] = &[
     "डाटाबेस_सोध्नुहोस्",
     "पाइथन_चलाउनुहोस्",
     "रस्ट_चलाउनुहोस्",
+    "रुस्ट_चलाउनुहोस्",
     "गो_चलाउनुहोस्",
     "जेएस_चलाउनुहोस्",
     "टिएस_चलाउनुहोस्",
@@ -1900,7 +1901,7 @@ fn is_host_python_builtin(name: &str) -> bool {
 }
 
 fn is_host_rust_builtin(name: &str) -> bool {
-    matches!(name, "रस्ट_चलाउनुहोस्" | "गो_चलाउनुहोस्")
+    matches!(name, "रस्ट_चलाउनुहोस्" | "रुस्ट_चलाउनुहोस्" | "गो_चलाउनुहोस्")
 }
 
 fn is_host_js_builtin(name: &str) -> bool {

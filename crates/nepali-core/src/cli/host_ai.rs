@@ -113,16 +113,42 @@ impl LocalAi {
         if self.model.borrow().is_some() {
             return Ok(());
         }
-        let model_path = env::var("NEPALI_AI_MODEL_PATH").map_err(|_| {
-            "एआई_सोध्नुहोस् needs NEPALI_AI_MODEL_PATH set to a real local GGUF model file \
-             (e.g. a Qwen2.5-Instruct GGUF quantized checkpoint) - none was set"
-                .to_string()
-        })?;
-        let tokenizer_path = env::var("NEPALI_AI_TOKENIZER_PATH").map_err(|_| {
-            "एआई_सोध्नुहोस् needs NEPALI_AI_TOKENIZER_PATH set to that model's real \
-             tokenizer.json - none was set"
-                .to_string()
-        })?;
+        let (model_path, tokenizer_path) = match (env::var("NEPALI_AI_MODEL_PATH"), env::var("NEPALI_AI_TOKENIZER_PATH")) {
+            (Ok(m), Ok(t)) => (m, t),
+            _ => {
+                let mut found = None;
+                if let Ok(home) = env::var("HOME") {
+                    let candidates = [
+                        (format!("{home}/.nepali-ai/llm-large/model.gguf"), format!("{home}/.nepali-ai/llm-large/tokenizer.json")),
+                        (format!("{home}/.nepali-ai/llm/model.gguf"), format!("{home}/.nepali-ai/llm/tokenizer.json")),
+                        (format!("{home}/.cache/nepali/model.gguf"), format!("{home}/.cache/nepali/tokenizer.json")),
+                    ];
+                    for (m, t) in candidates {
+                        if std::path::Path::new(&m).exists() && std::path::Path::new(&t).exists() {
+                            found = Some((m, t));
+                            break;
+                        }
+                    }
+                }
+                if found.is_none() {
+                    let system_candidates = [
+                        ("/usr/local/share/nepali-ai/llm/model.gguf".to_string(), "/usr/local/share/nepali-ai/llm/tokenizer.json".to_string()),
+                        ("/opt/homebrew/share/nepali-ai/llm/model.gguf".to_string(), "/opt/homebrew/share/nepali-ai/llm/tokenizer.json".to_string()),
+                    ];
+                    for (m, t) in system_candidates {
+                        if std::path::Path::new(&m).exists() && std::path::Path::new(&t).exists() {
+                            found = Some((m, t));
+                            break;
+                        }
+                    }
+                }
+                found.ok_or_else(|| {
+                    "एआई_सोध्नुहोस् needs NEPALI_AI_MODEL_PATH set to a real local GGUF model file \
+                     (e.g. a Qwen2.5-Instruct GGUF quantized checkpoint) - none was set"
+                        .to_string()
+                })?
+            }
+        };
 
         let device = Device::Cpu;
         let mut reader = BufReader::new(

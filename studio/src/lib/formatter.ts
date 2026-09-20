@@ -1,8 +1,67 @@
 // Nepali Programming Language Code Formatter & Auto-Indenter
+import { toNepaliDigits } from './numbers';
 
-export function formatNepaliCode(code: string): string {
+const DEVANAGARI_DIGITS = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
+
+export function convertCodeDigitsToNepali(code: string): string {
+  let out = '';
+  let i = 0;
+  const n = code.length;
+
+  while (i < n) {
+    // 1. Single-line comment: // ...
+    if (code[i] === '/' && code[i + 1] === '/') {
+      while (i < n && code[i] !== '\n') {
+        out += code[i++];
+      }
+      continue;
+    }
+
+    // 2. Multi-line comment: /* ... */
+    if (code[i] === '/' && code[i + 1] === '*') {
+      out += code[i++];
+      out += code[i++];
+      while (i < n && !(code[i - 1] === '*' && code[i] === '/')) {
+        out += code[i++];
+      }
+      if (i < n) out += code[i++];
+      continue;
+    }
+
+    // 3. String literals: "..." or '...'
+    if (code[i] === '"' || code[i] === "'") {
+      const quote = code[i];
+      out += code[i++];
+      while (i < n && code[i] !== quote) {
+        if (code[i] === '\\' && i + 1 < n) {
+          out += code[i++];
+          out += code[i++];
+        } else {
+          out += code[i++];
+        }
+      }
+      if (i < n) out += code[i++];
+      continue;
+    }
+
+    // 4. Convert ASCII numbers to Devanagari numerals
+    if (/[0-9]/.test(code[i])) {
+      out += DEVANAGARI_DIGITS[parseInt(code[i], 10)];
+      i++;
+      continue;
+    }
+
+    out += code[i++];
+  }
+
+  return out;
+}
+
+export function formatNepaliCode(code: string, convertDigits = true): string {
   if (!code) return '';
-  const lines = code.split('\n');
+
+  const processedCode = convertDigits ? convertCodeDigitsToNepali(code) : code;
+  const lines = processedCode.split('\n');
   let indentLevel = 0;
   const indentStr = '  '; // 2 spaces
   const result: string[] = [];
@@ -23,7 +82,7 @@ export function formatNepaliCode(code: string): string {
       indentLevel = Math.max(0, indentLevel - 1);
     }
 
-    // Format operators and spacing around Nepali punctuation if needed
+    // Indent line
     const currentIndent = indentStr.repeat(indentLevel);
     result.push(currentIndent + line);
 

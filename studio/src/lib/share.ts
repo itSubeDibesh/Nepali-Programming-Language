@@ -1,7 +1,26 @@
 // Share utility to compress and encode Nepali programs into URL hashes
 
-export function encodeCodeToUrl(code: string, fileName = 'script.nep'): string {
-  if (typeof window === 'undefined') return '';
+export const PUBLIC_STUDIO_URL = 'https://nepali.dibe.sh';
+
+export function getPublicBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const origin = window.location.origin;
+    // Only use current origin if it's a real non-local public HTTPS domain
+    if (
+      origin &&
+      origin.startsWith('https://') &&
+      !origin.includes('localhost') &&
+      !origin.includes('127.0.0.1') &&
+      !origin.includes('tauri://') &&
+      !origin.includes('0.0.0.0')
+    ) {
+      return origin;
+    }
+  }
+  return PUBLIC_STUDIO_URL;
+}
+
+export function encodeCodeToUrl(code: string, fileName = 'script.nep', forceLocal = false): string {
   const payload = JSON.stringify({ name: fileName, code });
   // Base64 encode UTF-8 string safely
   const bytes = new TextEncoder().encode(payload);
@@ -10,9 +29,9 @@ export function encodeCodeToUrl(code: string, fileName = 'script.nep'): string {
     binary += String.fromCharCode(bytes[i]);
   }
   const base64 = btoa(binary);
-  const url = new URL(window.location.href);
-  url.hash = `code=${encodeURIComponent(base64)}`;
-  return url.toString();
+
+  const baseUrl = forceLocal && typeof window !== 'undefined' ? window.location.origin : getPublicBaseUrl();
+  return `${baseUrl}/#code=${encodeURIComponent(base64)}`;
 }
 
 export function decodeCodeFromUrl(): { name: string; code: string } | null {

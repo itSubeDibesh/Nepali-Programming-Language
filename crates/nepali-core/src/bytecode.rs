@@ -335,3 +335,68 @@ impl Default for Compiler {
         Self::new()
     }
 }
+
+use alloc::format;
+
+impl Chunk {
+    pub fn disassemble(&self, name: &str) -> String {
+        let mut out = String::new();
+        out.push_str(&format!("=== {} ({} opcodes) ===\n", name, self.code.len()));
+        for (i, op) in self.code.iter().enumerate() {
+            out.push_str(&format!("{:04}  {}\n", i, op.display()));
+        }
+        out
+    }
+}
+
+impl OpCode {
+    pub fn display(&self) -> String {
+        match self {
+            OpCode::ConstNumber(n) => format!("CONST_NUM      {}", n),
+            OpCode::ConstString(s) => format!("CONST_STR      {:?}", s),
+            OpCode::ConstBool(b) => format!("CONST_BOOL     {}", if *b { "सहि (true)" } else { "गलत (false)" }),
+            OpCode::ConstNull => "CONST_NULL     केहीछैन".into(),
+            OpCode::Add => "ADD            (+)".into(),
+            OpCode::Sub => "SUB            (-)".into(),
+            OpCode::Mul => "MUL            (*)".into(),
+            OpCode::Div => "DIV            (/)".into(),
+            OpCode::Mod => "MOD            (%)".into(),
+            OpCode::Neg => "NEG            (-unary)".into(),
+            OpCode::Eq => "EQ             (==)".into(),
+            OpCode::NotEq => "NOT_EQ         (!=)".into(),
+            OpCode::Lt => "LT             (<)".into(),
+            OpCode::Gt => "GT             (>)".into(),
+            OpCode::Lte => "LTE            (<=)".into(),
+            OpCode::Gte => "GTE            (>=)".into(),
+            OpCode::Pop => "POP".into(),
+            OpCode::Not => "NOT            (होइन)".into(),
+            OpCode::ToBool => "TO_BOOL        (सत्य/असत्य)".into(),
+            OpCode::Print(argc) => format!("PRINT          (argc: {})", argc),
+            OpCode::GetVar(name) => format!("GET_VAR        {}", name),
+            OpCode::SetVar(name) => format!("SET_VAR        {}", name),
+            OpCode::DefineVar(name) => format!("DEFINE_VAR     {}", name),
+            OpCode::JumpIfFalse(target) => format!("JUMP_IF_FALSE  -> {:04}", target),
+            OpCode::Jump(target) => format!("JUMP           -> {:04}", target),
+            OpCode::Call(name, argc) => format!("CALL           {} (argc: {})", name, argc),
+            OpCode::Return => "RETURN         (पठाउँ)".into(),
+            OpCode::MakeArray(len) => format!("MAKE_ARRAY     (len: {})", len),
+            OpCode::Index => "INDEX          ([])".into(),
+            OpCode::IndexAssign => "INDEX_ASSIGN   ([]=)".into(),
+            OpCode::MakeClosure(idx) => format!("MAKE_CLOSURE   (template #{})", idx),
+            OpCode::CallValue(argc) => format!("CALL_VALUE     (argc: {})", argc),
+        }
+    }
+}
+
+pub fn disassemble_program(program: &[Stmt]) -> String {
+    let (top_chunk, templates) = Compiler::compile(program);
+    let mut out = String::new();
+    out.push_str(&top_chunk.disassemble("<top-level>"));
+    for (i, t) in templates.iter().enumerate() {
+        out.push('\n');
+        let header = format!("Function #{} `{}`({})", i, t.name, t.params.join(", "));
+        out.push_str(&t.chunk.disassemble(&header));
+    }
+    out
+}
+

@@ -15,8 +15,8 @@ pub mod resolver;
 pub mod tokens;
 pub mod vm;
 
-pub use ast::{BinOp, Expr, Stmt};
-pub use bytecode::Compiler;
+pub use ast::{dump_ast, BinOp, Expr, Stmt};
+pub use bytecode::{disassemble_program, Chunk, Compiler, FunctionTemplate, OpCode};
 pub use formatter::format;
 pub use interpreter::{
     call_builtin, date_to_value, day_of_week_name, days_in_month, days_to_ymd, default_read_line,
