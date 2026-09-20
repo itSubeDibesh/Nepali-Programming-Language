@@ -37,6 +37,7 @@ export interface I18nDictionary {
     catBasics: string;
     catControl: string;
     catFunctions: string;
+    catAlgorithms: string;
     catData: string;
     catDates: string;
     catSystem: string;
@@ -138,11 +139,12 @@ export const I18N_NEPALI: I18nDictionary = {
     catAll: 'सबै',
     catBasics: 'आधारभूत',
     catControl: 'लुप/सर्त',
-    catFunctions: 'फंक्सन',
+    catFunctions: 'फङ्क्सन',
+    catAlgorithms: 'एल्गोरिदम',
     catData: 'डाटा',
-    catDates: 'मिति',
-    catSystem: 'प्रणाली',
-    catInterop: 'पाइथन',
+    catDates: 'मिति/पात्रो',
+    catSystem: 'प्रणाली/डिस्क',
+    catInterop: 'इन्टरप (Go/Rust/Python/JS)',
     preview: 'हेर्नुहोस्',
     hidePreview: 'लुकाउनुहोस्',
     load: 'लोड गर्नुहोस्',
@@ -241,10 +243,11 @@ export const I18N_ENGLISH: I18nDictionary = {
     catBasics: 'Basics',
     catControl: 'Loops/Cond',
     catFunctions: 'Functions',
+    catAlgorithms: 'Algorithms',
     catData: 'Data',
-    catDates: 'Dates',
-    catSystem: 'System',
-    catInterop: 'Python',
+    catDates: 'Dates & BS',
+    catSystem: 'System & OS',
+    catInterop: 'Interop (Go/Rust/Python)',
     preview: 'Preview',
     hidePreview: 'Hide',
     load: 'Load Recipe',

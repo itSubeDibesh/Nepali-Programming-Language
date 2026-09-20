@@ -25,7 +25,7 @@ export interface RecipeItem {
   id: string;
   title: string;
   nepaliTitle: string;
-  category: 'basics' | 'dates' | 'input' | 'math' | 'loops' | 'arrays' | 'sqlite' | 'agent' | 'control' | 'functions' | 'data' | 'system' | 'interop';
+  category: 'basics' | 'dates' | 'input' | 'math' | 'loops' | 'arrays' | 'sqlite' | 'agent' | 'control' | 'functions' | 'algorithms' | 'data' | 'system' | 'interop';
   description: string;
   code: string;
 }

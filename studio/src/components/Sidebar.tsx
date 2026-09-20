@@ -283,6 +283,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 { id: 'basics', label: i18n.catBasics },
                 { id: 'control', label: i18n.catControl },
                 { id: 'functions', label: i18n.catFunctions },
+                { id: 'algorithms', label: i18n.catAlgorithms },
                 { id: 'data', label: i18n.catData },
                 { id: 'dates', label: i18n.catDates },
                 { id: 'system', label: i18n.catSystem },
