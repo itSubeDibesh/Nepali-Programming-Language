@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import {
+  Download,
   Play,
   Cpu,
   Terminal,
@@ -28,6 +29,7 @@ interface NavbarProps {
   onOpenShare: () => void;
   isAiOpen: boolean;
   isInspectorOpen?: boolean;
+  onOpenDownload?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -44,6 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenShare,
   isAiOpen,
   isInspectorOpen,
+  onOpenDownload,
 }) => {
   const i18n = getI18n(translitEnabled).navbar;
 
@@ -201,6 +204,17 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
+        {/* Download Desktop App Button */}
+        {onOpenDownload && (
+          <button
+            onClick={onOpenDownload}
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 text-xs transition-colors shadow-sm font-medium"
+            title="डेस्कटप एप डाउनलोड गर्नुहोस् (Download Desktop App)"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline font-devanagari">डाउनलोड</span>
+          </button>
+        )}
         {/* Share Button */}
         <button
           onClick={onOpenShare}

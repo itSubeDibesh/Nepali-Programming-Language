@@ -65,7 +65,7 @@ export default function WebStudioBanner() {
       {/* Right: download link + close */}
       <span style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
         <a
-          href="/download"
+          href="https://github.com/itSubeDibesh/Nepali-Programming-Language/releases/latest"
           target="_blank"
           rel="noopener noreferrer"
           style={{

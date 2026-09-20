@@ -10,6 +10,7 @@ import { CodeFile, RecipeItem } from '../lib/types';
 import { EXAMPLES } from '../lib/examples';
 import { DOCS_CATALOG } from '../lib/docs';
 import {
+  Download,
   FileCode,
   Plus,
   Trash2,
@@ -41,6 +42,7 @@ interface SidebarProps {
   onSelectExample: (ex: RecipeItem) => void;
   onInsertCode: (snippet: string) => void;
   onResetWorkspace: () => void;
+  onOpenDownload?: () => void;
 }
 
 
@@ -94,6 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onInsertCode,
   onResetWorkspace,
   translitEnabled = true,
+  onOpenDownload,
 }) => {
   const i18n = getI18n(translitEnabled).sidebar;
   const [docSearch, setDocSearchState] = useState<string>(getInitialDocSearch);
@@ -321,6 +324,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-[10px] text-slate-500 font-devanagari">
               {i18n.autoSaveDesc}
             </p>
+            {onOpenDownload && (
+              <button
+                onClick={onOpenDownload}
+                className="w-full mt-2 flex items-center justify-center space-x-1.5 py-1.5 px-2 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 text-[10px] font-devanagari transition-colors font-medium shadow-sm"
+              >
+                <Download className="w-3 h-3" />
+                <span>डेस्कटप एप डाउनलोड (.dmg / .msi / .deb)</span>
+              </button>
+            )}
           </div>
         </div>
       )}

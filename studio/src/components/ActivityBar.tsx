@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import {
+  Download,
   FolderOpen,
   BookOpen,
   HelpCircle,
@@ -25,6 +26,7 @@ interface ActivityBarProps {
   mode: RunMode;
   onModeChange: (m: RunMode) => void;
   translitEnabled?: boolean;
+  onOpenDownload?: () => void;
 }
 
 export const ActivityBar: React.FC<ActivityBarProps> = ({
@@ -37,6 +39,7 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
   onRun,
   isRunning,
   translitEnabled = true,
+  onOpenDownload,
 }) => {
   const i18n = getI18n(translitEnabled).activityBar;
 
@@ -116,6 +119,16 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
           <Sparkles className="w-5 h-5 text-emerald-400" />
         </button>
 
+        {/* Download Desktop App Modal Trigger */}
+        {onOpenDownload && (
+          <button
+            onClick={onOpenDownload}
+            className="p-2.5 rounded-xl transition-all text-slate-400 hover:text-emerald-400 hover:bg-[#0F172A] relative group"
+            title="डेस्कटप एप डाउनलोड गर्नुहोस् (Download Desktop App)"
+          >
+            <Download className="w-5 h-5" />
+          </button>
+        )}
         {/* Bottom Inspector / Terminal Toggle */}
         <button
           onClick={onToggleInspector}

@@ -7,6 +7,7 @@ import { Editor } from './Editor';
 import { Terminal } from './Terminal';
 import { AiAssistant } from './AiAssistant';
 import { ShareModal } from './ShareModal';
+import { DownloadModal } from './DownloadModal';
 import { InputModal } from './InputModal';
 import { ToastContainer, ToastMessage } from './Toast';
 import { ConfirmModal, ConfirmDialogState } from './ConfirmModal';
@@ -192,6 +193,7 @@ export default function StudioWorkspace() {
   const [isAiOpen, setIsAiOpen] = useState<boolean>(getInitialAiOpen);
   const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(getInitialTerminalOpen);
   const [isShareOpen, setIsShareOpen] = useState<boolean>(false);
+  const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
   const [isSaved, setIsSaved] = useState<boolean>(true);
 
   // App-level Toast Notifications & Confirm Dialogs
@@ -578,6 +580,7 @@ export default function StudioWorkspace() {
         onOpenShare={() => setIsShareOpen(true)}
         isAiOpen={isAiOpen}
         isInspectorOpen={isTerminalOpen}
+        onOpenDownload={() => setIsDownloadOpen(true)}
       />
 
       {/* Main IDE Workspace */}
@@ -682,6 +685,12 @@ export default function StudioWorkspace() {
       {/* App-Level Toast Notifications Stack */}
       <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
 
+      {/* Download Desktop App Modal */}
+      <DownloadModal
+        isOpen={isDownloadOpen}
+        onClose={() => setIsDownloadOpen(false)}
+        translitEnabled={translitEnabled}
+      />
       {/* Share Code Modal */}
       <ShareModal
         isOpen={isShareOpen}
