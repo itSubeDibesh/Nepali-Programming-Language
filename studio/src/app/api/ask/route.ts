@@ -155,11 +155,17 @@ export async function POST(req: NextRequest) {
       });
 
       if (cliResult) {
-        return NextResponse.json({
-          answer: cliResult.answer,
-          codeSnippet: cliResult.codeSnippet,
-          engine: 'नेपाली नेटिभ एआई (स्थानीय Qwen GGUF मोडेल)',
-        });
+        const cleanAns = cliResult.answer.trim().replace(/\s+/g, '');
+        const cleanCode = codeContext.trim().replace(/\s+/g, '');
+        const isMereEcho = cleanCode.length > 0 && (cleanAns === cleanCode || (cleanAns.includes(cleanCode) && cleanAns.length <= cleanCode.length + 25));
+
+        if (!isMereEcho && cliResult.answer.trim().length > 10) {
+          return NextResponse.json({
+            answer: cliResult.answer,
+            codeSnippet: cliResult.codeSnippet,
+            engine: 'नेपाली नेटिभ एआई (स्थानीय Qwen GGUF मोडेल)',
+          });
+        }
       }
       // Native model failed at runtime (corrupt/unsupported weights, OOM,
       // etc.) - fall through to the baked-in engine rather than erroring out.

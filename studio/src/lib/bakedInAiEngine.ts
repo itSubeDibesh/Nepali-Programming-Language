@@ -546,8 +546,9 @@ export function explainNepaliCodeSemantics(code: string, activeFileName: string,
   const cleanQ = (userQuery || '').toLowerCase();
   const isLoopCountQuery = hasLoop && (
     /किन.*(सोध|चल|पटक|चोटि|चोति|चोटी|loop|while|भएसम्म|iteration|count|आएन|आयेअन|भएन|मिलेन|ओत|ओटा|वटा)/i.test(cleanQ) ||
-    /(?:२|3|३|2|५|5|कति)\s*(?:पटक|चोटि|चोति|चोटी|चक्र|times|किन|ओत|ओटा|वटा|आएन|आयेअन)/i.test(cleanQ) ||
-    /सोधेअन|सोधेन|सोध्या|भएन|किन|आएन|आयेअन|मिलेन|गन्ती/i.test(cleanQ)
+    /(?:२|3|३|2|५|5|कति)\s*(?:पटक|चोटि|चोति|चोटी|चक्र|times|किन|ओत|ओटा|वटा|आएन|आयेअन|सोध)/i.test(cleanQ) ||
+    /(?:सोध्नु|सोध्न|सोधेको|हुनु)\s*(?:पर्ने|होइन|हैन|थियो)/i.test(cleanQ) ||
+    /सोधेअन|सोधेन|सोध्या|भएन|किन|आएन|आयेअन|मिलेन|गन्ती|होइन|हैन/i.test(cleanQ)
   );
 
   if (isLoopCountQuery && loopCondition) {

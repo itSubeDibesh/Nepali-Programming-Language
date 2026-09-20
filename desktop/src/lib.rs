@@ -249,10 +249,14 @@ fn ask_nepali_ai(
             if let Ok(out) = std::process::Command::new(bin).args(["ask", &prompt]).output() {
                 if out.status.success() {
                     let text = String::from_utf8_lossy(&out.stdout).to_string();
-                    if !text.trim().is_empty() {
+                    let clean_text = text.trim();
+                    let clean_prompt_echo = prompt.trim();
+                    let is_echo = !clean_prompt_echo.is_empty() && clean_text == clean_prompt_echo;
+
+                    if !clean_text.is_empty() && !is_echo {
                         return Ok(serde_json::json!({
-                            "answer": text.trim(),
-                            "engine": "नेपाली नेटिभ एआई (Native Engine)",
+                            "answer": clean_text,
+                            "engine": "नेपाली नेटिभ एआई (स्थानीय Qwen GGUF मोडेल)",
                         }));
                     }
                 }

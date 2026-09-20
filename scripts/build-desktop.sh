@@ -21,6 +21,7 @@ echo "======================================================================"
 echo "==> [1/3] Building Modern Studio Next.js standalone bundle..."
 cd "$STUDIO_DIR"
 npm ci || npm install
+rm -rf .next
 npm run build
 
 # 2. Build Native Engine Binary with GUI feature
