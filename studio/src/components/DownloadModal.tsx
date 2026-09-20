@@ -229,23 +229,39 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-3 border-t border-[#1E293B] bg-[#060911]/60 text-xs">
-          <a
-            href={releasesUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center space-x-1.5 text-slate-400 hover:text-emerald-400 transition-colors"
-          >
-            <span>सबै रिलिजहरू र स्रोत कोड (GitHub)</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-[#1E293B] hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-          >
-            बन्द गर्नुहोस्
-          </button>
+        {/* Footer with Creator & Open Source Info */}
+        <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-3.5 border-t border-[#1E293B] bg-[#060911]/80 gap-3 text-xs">
+          <div className="flex items-center space-x-2 text-slate-400 text-[11px] font-devanagari">
+            <span className="text-slate-500">निर्माता:</span>
+            <a
+              href="https://dibe.sh"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-2 transition-colors"
+            >
+              दिबेश राज सुवेदी (dibe.sh)
+            </a>
+            <span className="text-slate-600">•</span>
+            <span className="text-slate-400 font-mono">MIT License</span>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <a
+              href={releasesUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center space-x-1.5 text-slate-300 hover:text-emerald-400 transition-colors font-medium font-mono text-[11px]"
+            >
+              <span>GitHub Repository</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+            <button
+              onClick={onClose}
+              className="px-4 py-1.5 rounded-lg bg-[#1E293B] hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+            >
+              बन्द गर्नुहोस्
+            </button>
+          </div>
         </div>
       </div>
     </div>

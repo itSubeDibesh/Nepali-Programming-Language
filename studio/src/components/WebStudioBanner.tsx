@@ -60,6 +60,18 @@ export default function WebStudioBanner() {
         <span style={{ color: '#9ca3af', marginLeft: '0.25rem' }}>
           (View, run &amp; compile only — no file save or disk access.)
         </span>
+        <span style={{ color: '#64748b' }}>•</span>
+        <span style={{ color: '#94a3b8' }}>
+          खुला स्रोत (Open Source) — निर्माता:{' '}
+          <a
+            href="https://dibe.sh"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#34d399', fontWeight: 600, textDecoration: 'underline' }}
+          >
+            दिबेश राज सुवेदी (dibe.sh)
+          </a>
+        </span>
       </span>
 
       {/* Right: download link + close */}

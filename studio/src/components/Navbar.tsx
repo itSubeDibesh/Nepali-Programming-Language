@@ -2,6 +2,7 @@
 import React from 'react';
 import {
   Download,
+  Github,
   Play,
   Cpu,
   Terminal,
@@ -215,6 +216,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden sm:inline font-devanagari">डाउनलोड</span>
           </button>
         )}
+        {/* GitHub Repository Link */}
+        <a
+          href="https://github.com/itSubeDibesh/Nepali-Programming-Language"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-[#060911] border border-[#1E293B] text-slate-300 hover:text-white hover:bg-[#0F172A] text-xs transition-colors"
+          title="खुला स्रोत कोड (Open Source on GitHub)"
+        >
+          <Github className="w-3.5 h-3.5 text-slate-400" />
+          <span className="hidden xl:inline font-mono">GitHub</span>
+        </a>
         {/* Share Button */}
         <button
           onClick={onOpenShare}

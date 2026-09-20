@@ -855,6 +855,30 @@ export const Editor: React.FC<EditorProps> = ({
           <span className="text-slate-500 hidden sm:inline">Spaces: २</span>
         </div>
 
+        {/* Open Source & Author Credit */}
+        <div className="hidden lg:flex items-center space-x-2 text-[10px] text-slate-400">
+          <a
+            href="https://github.com/itSubeDibesh/Nepali-Programming-Language"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-emerald-400 transition-colors flex items-center gap-1 text-slate-400 font-devanagari"
+            title="खुला स्रोत कोड (Open Source on GitHub)"
+          >
+            <span>खुला स्रोत (Open Source)</span>
+          </a>
+          <span className="text-slate-600">•</span>
+          <span className="text-slate-500 font-devanagari">निर्माता:</span>
+          <a
+            href="https://dibe.sh"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-400 hover:text-emerald-300 font-semibold transition-colors flex items-center gap-0.5 font-devanagari"
+            title="दिबेश राज सुवेदी (Dibesh Raj Subedi Portfolio)"
+          >
+            दिबेश राज सुवेदी (dibe.sh)
+          </a>
+        </div>
+
         <div className="flex items-center space-x-3">
           <span className="font-devanagari">
             {translitEnabled
