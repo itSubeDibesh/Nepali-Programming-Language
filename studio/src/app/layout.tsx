@@ -1,5 +1,25 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter, JetBrains_Mono, IBM_Plex_Sans_Devanagari } from 'next/font/google';
 import './globals.css';
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  display: 'swap',
+});
+
+const ibmPlexDevanagari = IBM_Plex_Sans_Devanagari({
+  weight: ['400', '500', '600', '700'],
+  subsets: ['devanagari'],
+  variable: '--font-devanagari',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'नेपाली स्टुडियो | Nepali Programming Language IDE',
@@ -32,15 +52,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ne" className="dark">
+    <html lang="ne" className={`dark ${inter.variable} ${jetbrainsMono.variable} ${ibmPlexDevanagari.variable}`}>
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Devanagari:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body className="bg-[#060911] text-slate-100 font-sans antialiased overflow-hidden h-screen w-screen selection:bg-emerald-500/30">
         {children}

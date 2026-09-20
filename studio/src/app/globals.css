@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 :root {
-  --font-mono: 'JetBrains Mono', monospace;
-  --font-devanagari: 'IBM Plex Sans', sans-serif;
-  --font-sans: 'Inter', sans-serif;
+  --font-mono: var(--font-mono), 'JetBrains Mono', monospace;
+  --font-devanagari: var(--font-devanagari), 'IBM Plex Sans Devanagari', sans-serif;
+  --font-sans: var(--font-sans), 'Inter', sans-serif;
 }
 
 /* Custom modern scrollbars */
