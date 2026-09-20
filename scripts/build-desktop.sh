@@ -51,8 +51,9 @@ if [ "$OS_NAME" = "Darwin" ]; then
     # Copy Icons
     if [ -f "$ROOT_DIR/os-integration/macos/AppIcon.icns" ]; then
         cp -f "$ROOT_DIR/os-integration/macos/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
-    fi
-    if [ -f "$ROOT_DIR/os-integration/macos/DocIcon.icns" ]; then
+        # .nep / .nepali files show the same न icon as the app — copy AppIcon as DocIcon
+        cp -f "$ROOT_DIR/os-integration/macos/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/DocIcon.icns"
+    elif [ -f "$ROOT_DIR/os-integration/macos/DocIcon.icns" ]; then
         cp -f "$ROOT_DIR/os-integration/macos/DocIcon.icns" "$APP_BUNDLE/Contents/Resources/DocIcon.icns"
     fi
     

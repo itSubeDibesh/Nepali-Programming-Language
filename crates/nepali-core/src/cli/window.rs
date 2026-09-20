@@ -143,6 +143,18 @@ pub fn run_window(port: u16, nepali_bin: Option<&str>) -> ExitCode {
         .build(&window)
         .expect("failed to create native webview for nepali studio");
 
+    // On macOS: immediately activate the app and bring the window front so the
+    // dock icon stops bouncing the moment the webview is ready.
+    // NSRunningApplication.current.activateWithOptions(.activateIgnoringOtherApps)
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command as Cmd;
+        // Use osascript to activate — avoids pulling in objc crate just for this
+        let _ = Cmd::new("osascript")
+            .args(["-e", "tell application \"Nepali Studio\" to activate"])
+            .spawn();
+    }
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
         match event {
