@@ -38,6 +38,15 @@ export NODE_ENV=production
 export PORT=$PORT
 export HOSTNAME=127.0.0.1
 
+# Configure Bundled AI Model Paths if present
+if [ -f "$RESOURCES_DIR/models/llm/model.gguf" ] && [ -f "$RESOURCES_DIR/models/llm/tokenizer.json" ]; then
+  export NEPALI_AI_MODEL_PATH="$RESOURCES_DIR/models/llm/model.gguf"
+  export NEPALI_AI_TOKENIZER_PATH="$RESOURCES_DIR/models/llm/tokenizer.json"
+elif [ -f "$RESOURCES_DIR/models/llm-small/model.gguf" ] && [ -f "$RESOURCES_DIR/models/llm-small/tokenizer.json" ]; then
+  export NEPALI_AI_MODEL_PATH="$RESOURCES_DIR/models/llm-small/model.gguf"
+  export NEPALI_AI_TOKENIZER_PATH="$RESOURCES_DIR/models/llm-small/tokenizer.json"
+fi
+
 # 1. Start Modern Next.js Studio Standalone Server in background
 if [ -n "$NODE_BIN" ] && [ -f "$STUDIO_SERVER_DIR/server.js" ]; then
   cd "$STUDIO_SERVER_DIR" || exit 1

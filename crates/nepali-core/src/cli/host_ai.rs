@@ -132,6 +132,23 @@ impl LocalAi {
                     }
                 }
                 if found.is_none() {
+                    if let Ok(exe) = env::current_exe() {
+                        if let Some(parent) = exe.parent() {
+                            let bundle_candidates = [
+                                (parent.join("../Resources/models/llm/model.gguf"), parent.join("../Resources/models/llm/tokenizer.json")),
+                                (parent.join("../Resources/models/llm-small/model.gguf"), parent.join("../Resources/models/llm-small/tokenizer.json")),
+                                (parent.join("models/llm/model.gguf"), parent.join("models/llm/tokenizer.json")),
+                            ];
+                            for (m, t) in bundle_candidates {
+                                if m.exists() && t.exists() {
+                                    found = Some((m.to_string_lossy().to_string(), t.to_string_lossy().to_string()));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if found.is_none() {
                     let system_candidates = [
                         ("/usr/local/share/nepali-ai/llm/model.gguf".to_string(), "/usr/local/share/nepali-ai/llm/tokenizer.json".to_string()),
                         ("/opt/homebrew/share/nepali-ai/llm/model.gguf".to_string(), "/opt/homebrew/share/nepali-ai/llm/tokenizer.json".to_string()),

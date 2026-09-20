@@ -68,6 +68,23 @@ if [ "$OS_NAME" = "Darwin" ]; then
             cp -a "$STUDIO_DIR/public" "$APP_BUNDLE/Contents/Resources/studio/"
         fi
     fi
+
+    # Bundle Native Baked-In GGUF AI Model
+    MODEL_SRC=""
+    if [ -f "$HOME/.nepali-ai/llm-small/model.gguf" ]; then
+        MODEL_SRC="$HOME/.nepali-ai/llm-small"
+    elif [ -f "$HOME/.nepali-ai/llm-large/model.gguf" ]; then
+        MODEL_SRC="$HOME/.nepali-ai/llm-large"
+    elif [ -f "$HOME/.nepali-ai/llm/model.gguf" ]; then
+        MODEL_SRC="$HOME/.nepali-ai/llm"
+    fi
+
+    if [ -n "$MODEL_SRC" ]; then
+        echo "==> Bundling Native GGUF AI Model from $MODEL_SRC..."
+        mkdir -p "$APP_BUNDLE/Contents/Resources/models/llm"
+        cp -f "$MODEL_SRC/model.gguf" "$APP_BUNDLE/Contents/Resources/models/llm/model.gguf"
+        cp -f "$MODEL_SRC/tokenizer.json" "$APP_BUNDLE/Contents/Resources/models/llm/tokenizer.json"
+    fi
     
     # Ad-hoc code sign to satisfy macOS Gatekeeper
     if command -v codesign >/dev/null 2>&1; then
