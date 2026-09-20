@@ -52,11 +52,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ne" className={`dark ${inter.variable} ${jetbrainsMono.variable} ${ibmPlexDevanagari.variable}`}>
+    <html lang="ne" suppressHydrationWarning className={`dark ${inter.variable} ${jetbrainsMono.variable} ${ibmPlexDevanagari.variable}`}>
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </head>
-      <body className="bg-[#060911] text-slate-100 font-sans antialiased overflow-hidden h-screen w-screen selection:bg-emerald-500/30">
+      <body suppressHydrationWarning className="bg-[#060911] text-slate-100 font-sans antialiased overflow-hidden h-screen w-screen selection:bg-emerald-500/30">
         {children}
       </body>
     </html>
