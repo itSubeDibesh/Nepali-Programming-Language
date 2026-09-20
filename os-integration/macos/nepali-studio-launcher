@@ -1,28 +1,78 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Native macOS Launcher for Nepali Studio Desktop IDE
+# Standalone Native macOS Launcher for Nepali Studio Desktop IDE
 # ==============================================================================
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="$(cd "$DIR/../.." && pwd)"
+RESOURCES_DIR="$APP_DIR/Contents/Resources"
+STUDIO_SERVER_DIR="$RESOURCES_DIR/studio"
 TARGET_FILE="${1:-}"
 
-# Always prefer the self-contained bundled binary
+PORT=8765
+
+# Locate Node.js executable across standard macOS user & package paths
+NODE_BIN=""
+for p in \
+  "$(command -v node 2>/dev/null)" \
+  "$HOME/.local/share/tokless/node/bin/node" \
+  "$HOME/.local/bin/node" \
+  /opt/homebrew/bin/node \
+  /usr/local/bin/node \
+  "$HOME"/.nvm/versions/node/*/bin/node \
+  "$HOME"/.asdf/shims/node \
+  "$HOME"/.volta/bin/node \
+  /usr/bin/node; do
+  if [ -n "$p" ] && [ -x "$p" ]; then
+    NODE_BIN="$p"
+    break
+  fi
+done
+
+NODE_DIR="$(dirname "$NODE_BIN" 2>/dev/null)"
+export PATH="$DIR:$NODE_DIR:$HOME/.cargo/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+export NODE_ENV=production
+export PORT=$PORT
+
+SERVER_PID=""
+
+# 1. Start Modern Next.js Studio Standalone Server
+if [ -n "$NODE_BIN" ] && [ -f "$STUDIO_SERVER_DIR/server.js" ]; then
+  cd "$STUDIO_SERVER_DIR" || exit 1
+  "$NODE_BIN" server.js >/tmp/nepali_studio_server.log 2>&1 &
+  SERVER_PID=$!
+elif [ -d "$APP_DIR/../../studio" ] && [ -n "$NODE_BIN" ]; then
+  cd "$APP_DIR/../../studio" || exit 1
+  PORT=$PORT "$NODE_BIN" node_modules/.bin/next start >/tmp/nepali_studio_server.log 2>&1 &
+  SERVER_PID=$!
+fi
+
+cleanup() {
+  if [ -n "$SERVER_PID" ]; then
+    kill "$SERVER_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT INT TERM
+
+# Wait up to 2 seconds for server to bind port
+for _ in {1..20}; do
+  if curl -s "http://127.0.0.1:$PORT" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.1
+done
+
+# 2. Launch Native WebKit Desktop Window
 if [ -x "$DIR/nepali" ]; then
   EXEC_BIN="$DIR/nepali"
 elif [ -x "$HOME/.local/bin/nepali" ]; then
   EXEC_BIN="$HOME/.local/bin/nepali"
-elif [ -x "/usr/local/bin/nepali" ]; then
-  EXEC_BIN="/usr/local/bin/nepali"
-elif command -v nepali >/dev/null 2>&1; then
-  EXEC_BIN="$(command -v nepali)"
 else
   EXEC_BIN="nepali"
 fi
 
-export PATH="$DIR:$HOME/.local/bin:/usr/local/bin:$PATH"
-export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
-
 if [ -n "$TARGET_FILE" ] && [ -f "$TARGET_FILE" ]; then
-  exec "$EXEC_BIN" studio "$TARGET_FILE"
+  "$EXEC_BIN" studio --window --port "$PORT" "$TARGET_FILE"
 else
-  exec "$EXEC_BIN" studio
+  "$EXEC_BIN" studio --window --port "$PORT"
 fi

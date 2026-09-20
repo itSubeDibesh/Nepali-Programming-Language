@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Cross-Platform Desktop IDE Build & Packaging Script
-# Targets: macOS (.app/.dmg), Linux (.deb/AppImage), Windows (.exe/.msi)
+# Packages modern Next.js Studio + Rust compiler into standalone native apps
 # ==============================================================================
 set -euo pipefail
 
@@ -17,8 +17,8 @@ echo "======================================================================"
 echo "  Building Nepali Programming Language — Standalone Desktop IDE"
 echo "======================================================================"
 
-# 1. Build Studio Frontend Assets
-echo "==> [1/3] Building Studio frontend assets..."
+# 1. Build Modern Studio Standalone Bundle
+echo "==> [1/3] Building Modern Studio Next.js standalone bundle..."
 cd "$STUDIO_DIR"
 npm ci || npm install
 npm run build
@@ -40,13 +40,15 @@ if [ "$OS_NAME" = "Darwin" ]; then
     APP_BUNDLE="$OUTPUT_DIR/Nepali Studio.app"
     rm -rf "$APP_BUNDLE"
     mkdir -p "$APP_BUNDLE/Contents/MacOS"
-    mkdir -p "$APP_BUNDLE/Contents/Resources"
+    mkdir -p "$APP_BUNDLE/Contents/Resources/studio"
     
+    # Copy Native Binary & Launcher
     cp -f "$RELEASE_BIN" "$APP_BUNDLE/Contents/MacOS/nepali"
     cp -f "$ROOT_DIR/os-integration/macos/nepali-studio-launcher" "$APP_BUNDLE/Contents/MacOS/nepali-studio-launcher"
     cp -f "$ROOT_DIR/os-integration/macos/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
     chmod +x "$APP_BUNDLE/Contents/MacOS/nepali-studio-launcher" "$APP_BUNDLE/Contents/MacOS/nepali"
     
+    # Copy Icons
     if [ -f "$ROOT_DIR/os-integration/macos/AppIcon.icns" ]; then
         cp -f "$ROOT_DIR/os-integration/macos/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
     fi
@@ -54,18 +56,45 @@ if [ "$OS_NAME" = "Darwin" ]; then
         cp -f "$ROOT_DIR/os-integration/macos/DocIcon.icns" "$APP_BUNDLE/Contents/Resources/DocIcon.icns"
     fi
     
-    # Also copy to ~/Applications
+    # Bundle Modern Studio Standalone Server & Static Chunks
+    if [ -d "$STUDIO_DIR/.next/standalone" ]; then
+        cp -a "$STUDIO_DIR/.next/standalone/." "$APP_BUNDLE/Contents/Resources/studio/"
+        mkdir -p "$APP_BUNDLE/Contents/Resources/studio/.next"
+        if [ -d "$STUDIO_DIR/.next/static" ]; then
+            cp -a "$STUDIO_DIR/.next/static" "$APP_BUNDLE/Contents/Resources/studio/.next/"
+        fi
+        if [ -d "$STUDIO_DIR/public" ]; then
+            cp -a "$STUDIO_DIR/public" "$APP_BUNDLE/Contents/Resources/studio/"
+        fi
+    fi
+    
+    # Register & install to ~/Applications
     mkdir -p "$HOME/Applications"
+    rm -rf "$HOME/Applications/Nepali Studio.app"
     cp -rf "$APP_BUNDLE" "$HOME/Applications/"
-    echo "✓ Built macOS Application: $APP_BUNDLE (and installed to ~/Applications/)"
+    
+    LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
+    if [ -f "$LSREGISTER" ]; then
+        "$LSREGISTER" -f -R "$HOME/Applications/Nepali Studio.app" >/dev/null 2>&1 || true
+    fi
+    
+    echo "✓ Built and installed modern macOS Application: ~/Applications/Nepali Studio.app"
 
 elif [ "$OS_NAME" = "Linux" ]; then
     # Linux Package
     LINUX_DIST="$OUTPUT_DIR/nepali-studio-linux-x64"
     rm -rf "$LINUX_DIST"
-    mkdir -p "$LINUX_DIST/bin" "$LINUX_DIST/share/applications" "$LINUX_DIST/share/icons"
+    mkdir -p "$LINUX_DIST/bin" "$LINUX_DIST/share/nepali-studio" "$LINUX_DIST/share/applications" "$LINUX_DIST/share/icons"
     
     cp -f "$RELEASE_BIN" "$LINUX_DIST/bin/nepali"
+    cp -a "$STUDIO_DIR/.next/standalone/." "$LINUX_DIST/share/nepali-studio/"
+    mkdir -p "$LINUX_DIST/share/nepali-studio/.next"
+    if [ -d "$STUDIO_DIR/.next/static" ]; then
+        cp -a "$STUDIO_DIR/.next/static" "$LINUX_DIST/share/nepali-studio/.next/"
+    fi
+    if [ -d "$STUDIO_DIR/public" ]; then
+        cp -a "$STUDIO_DIR/public" "$LINUX_DIST/share/nepali-studio/"
+    fi
     cp -f "$ROOT_DIR/os-integration/desktop/nepali-studio.desktop" "$LINUX_DIST/share/applications/"
     cp -f "$ROOT_DIR/os-integration/icons/nepali.svg" "$LINUX_DIST/share/icons/"
     
@@ -79,5 +108,5 @@ else
 fi
 
 echo "======================================================================"
-echo "  Build Completed Successfully! Outputs located in $OUTPUT_DIR"
+echo "  Build Completed Successfully! Standalone IDE ready in dist/"
 echo "======================================================================"
