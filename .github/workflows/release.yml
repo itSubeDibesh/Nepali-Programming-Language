@@ -1,111 +1,95 @@
-name: Release
+name: Release & Multi-Platform Build
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            archive: nepali-{version}-x86_64-linux.tar.gz
-            use_musl: true
-          - target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
-            archive: nepali-{version}-aarch64-linux.tar.gz
-            use_musl: true
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            archive: nepali-{version}-aarch64-macos.tar.gz
-          - target: x86_64-apple-darwin
-            os: macos-13
-            archive: nepali-{version}-x86_64-macos.tar.gz
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            archive: nepali-{version}-x86_64-windows.zip
-
-    runs-on: ${{ matrix.os }}
-    name: ${{ matrix.target }}
-
+  build-macos:
+    name: Build macOS Application & DMG
+    runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      - name: Install Rust
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'studio/package-lock.json'
+
+      - name: Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Desktop App & DMG
+        run: |
+          chmod +x scripts/build-desktop.sh
+          ./scripts/build-desktop.sh
+
+      - name: Upload macOS Release Asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          targets: ${{ matrix.target }}
+          files: |
+            dist/*.dmg
 
-      - name: Install cross-compilation tools (Linux musl)
-        if: matrix.use_musl
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y musl-tools
-          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu
-            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
-          fi
-
-      - name: Build (release, portable features)
-        run: >
-          cargo build --release
-          --target ${{ matrix.target }}
-          --manifest-path crates/nepali-core/Cargo.toml
-          --no-default-features --features rust-interop,js-interop
-
-      - name: Rename binary (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          BIN="crates/nepali-core/target/${{ matrix.target }}/release/nepali-core-cli"
-          VERSION="${GITHUB_REF_NAME#v}"
-          ARCHIVE="${{ matrix.archive }}"
-          ARCHIVE="${ARCHIVE/\{version\}/$VERSION}"
-          cp "$BIN" nepali
-          tar czf "$ARCHIVE" nepali
-          echo "ASSET=$ARCHIVE" >> "$GITHUB_ENV"
-
-      - name: Rename binary (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $bin = "crates/nepali-core/target/${{ matrix.target }}/release/nepali-core-cli.exe"
-          $version = "${GITHUB_REF_NAME#v}"
-          $archive = "${{ matrix.archive }}".Replace("{version}", $version)
-          Copy-Item $bin nepali.exe
-          Compress-Archive -Path nepali.exe -DestinationPath $archive
-          echo "ASSET=$archive" >> "$GITHUB_ENV"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.target }}
-          path: ${{ env.ASSET }}
-
-  release:
-    needs: build
+  build-linux:
+    name: Build Linux CLI & Engine
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
+      - name: Install build dependencies & Python dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3-dev pkg-config
 
-      - name: Generate SHA256SUMS
-        working-directory: artifacts
-        run: sha256sum * > SHA256SUMS
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Create GitHub Release
+      - name: Build release binary
+        run: |
+          cargo build --release --manifest-path crates/nepali-core/Cargo.toml --bin nepali-core-cli --no-default-features --features python-interop,rust-interop,js-interop,cache,studio,db
+          mkdir -p dist
+          cp crates/nepali-core/target/release/nepali-core-cli dist/nepali-linux-x86_64
+          chmod +x dist/nepali-linux-x86_64
+          tar -czvf dist/nepali-linux-x86_64.tar.gz -C dist nepali-linux-x86_64
+
+      - name: Upload Linux Release Asset
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: artifacts/*
-          generate_release_notes: true
+          files: |
+            dist/nepali-linux-x86_64.tar.gz
+            dist/nepali-linux-x86_64
+
+  build-windows:
+    name: Build Windows CLI & Engine
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        shell: bash
+        run: |
+          cargo build --release --manifest-path crates/nepali-core/Cargo.toml --bin nepali-core-cli --no-default-features --features rust-interop,js-interop,cache,studio,db
+          mkdir -p dist
+          cp crates/nepali-core/target/release/nepali-core-cli.exe dist/nepali-windows-x86_64.exe
+
+      - name: Upload Windows Release Asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/nepali-windows-x86_64.exe
