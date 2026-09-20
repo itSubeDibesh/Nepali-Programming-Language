@@ -355,6 +355,31 @@ export default function StudioWorkspace() {
     });
   };
 
+  const handleCloseTab = (id: string) => {
+    if (files.length <= 1) {
+      showToast('info', 'ट्याब बन्द गर्न मिल्दैन', 'सम्पादकमा कम्तिमा एउटा फाइल खुला रहनुपर्छ।');
+      return;
+    }
+    const targetFile = files.find((f) => f.id === id);
+    const nextFiles = files.filter((f) => f.id !== id);
+    setFiles(nextFiles);
+    if (activeFileId === id) {
+      handleSetActiveFileId(nextFiles[0].id);
+    }
+    saveFilesToStorage(nextFiles);
+    showToast('info', 'ट्याब बन्द गरियो', `"${targetFile?.name || 'फाइल'}" ट्याब बन्द भयो।`);
+  };
+
+  const handleCloseOthers = (id: string) => {
+    const targetFile = files.find((f) => f.id === id);
+    if (!targetFile) return;
+    const nextFiles = [targetFile];
+    setFiles(nextFiles);
+    handleSetActiveFileId(id);
+    saveFilesToStorage(nextFiles);
+    showToast('info', 'अन्य ट्याबहरू बन्द गरियो', `"${targetFile.name}" बाहेक अन्य ट्याबहरू हटाइयो।`);
+  };
+
   const handleRenameFile = (id: string, newName: string) => {
     const validatedName = ensureNepaliExtension(newName);
     const nextFiles = files.map((f) => (f.id === id ? { ...f, name: validatedName } : f));
@@ -490,6 +515,8 @@ export default function StudioWorkspace() {
                 onAddFile={handleAddFile}
                 onDeleteFile={handleDeleteFile}
                 onRenameFile={handleRenameFile}
+                onCloseTab={handleCloseTab}
+                onCloseOthers={handleCloseOthers}
                 translitEnabled={translitEnabled}
                 onRun={handleRun}
                 onSave={handleManualSave}

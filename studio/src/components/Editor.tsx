@@ -8,6 +8,7 @@ import { getDocumentationForSymbol, DocItem } from '../lib/docs';
 import { toNepaliDigits } from '../lib/numbers';
 import { formatNepaliCode } from '../lib/formatter';
 import { ContextMenu } from './ContextMenu';
+import { TabContextMenu, TabContextMenuState } from './TabContextMenu';
 import {
   FileCode,
   Plus,
@@ -31,6 +32,8 @@ interface EditorProps {
   onAddFile: () => void;
   onDeleteFile: (id: string) => void;
   onRenameFile: (id: string, newName: string) => void;
+  onCloseTab?: (id: string) => void;
+  onCloseOthers?: (id: string) => void;
   translitEnabled: boolean;
   onRun: () => void;
   onSave: () => void;
@@ -47,6 +50,8 @@ export const Editor: React.FC<EditorProps> = ({
   onAddFile,
   onDeleteFile,
   onRenameFile,
+  onCloseTab,
+  onCloseOthers,
   translitEnabled,
   onRun,
   onSave,
@@ -66,6 +71,7 @@ export const Editor: React.FC<EditorProps> = ({
 
   // Custom Context Menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [tabContextMenu, setTabContextMenu] = useState<TabContextMenuState | null>(null);
 
   // File Renaming state
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
@@ -325,7 +331,10 @@ export const Editor: React.FC<EditorProps> = ({
   return (
     <div className="flex-1 flex flex-col bg-[#060911] border-r border-[#1E293B] overflow-hidden relative select-none">
       {/* 1. Authentic IDE Tab Bar */}
-      <div className="h-10 bg-[#0B0F19] border-b border-[#1E293B] flex items-center justify-between px-2 select-none overflow-x-auto no-scrollbar">
+      <div
+        onContextMenu={(e) => e.preventDefault()}
+        className="h-10 bg-[#0B0F19] border-b border-[#1E293B] flex items-center justify-between px-2 select-none overflow-x-auto no-scrollbar"
+      >
         <div className="flex items-center space-x-0.5 min-w-0">
           {files.map((file) => {
             const isActive = file.id === activeFileId;
@@ -339,6 +348,11 @@ export const Editor: React.FC<EditorProps> = ({
                   e.preventDefault();
                   e.stopPropagation();
                   startRenaming(file);
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setTabContextMenu({ x: e.clientX, y: e.clientY, file });
                 }}
                 className={`group relative flex items-center space-x-2 px-3.5 py-2 text-xs cursor-pointer transition-all select-none border-r border-[#1E293B]/60 ${
                   isActive
