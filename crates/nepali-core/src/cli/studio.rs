@@ -262,7 +262,7 @@ fn handle_request(
                 })
                 .unwrap_or("");
             let name = name.split('/').last().unwrap_or(name);
-            if name.ends_with(".nep") {
+            if name.ends_with(".nep") || name.ends_with(".nepali") || name.ends_with(".नेपाली") || name.ends_with(".नेप") {
                 let p = config.examples_dir.join(name);
                 if p.exists() {
                     if let Ok(code) = fs::read_to_string(&p) {
@@ -319,7 +319,7 @@ fn list_examples(dir: &Path) -> String {
             .filter(|p| {
                 p.file_name()
                     .and_then(|n| n.to_str())
-                    .map(|n| n.starts_with(char::is_numeric) && n.ends_with(".nep"))
+                    .map(|n| n.starts_with(char::is_numeric) && (n.ends_with(".nep") || n.ends_with(".nepali") || n.ends_with(".नेपाली") || n.ends_with(".नेप")))
                     .unwrap_or(false)
             })
             .collect();

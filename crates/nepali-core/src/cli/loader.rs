@@ -11,6 +11,8 @@ use std::path::{Path, PathBuf};
 /// interpreter's Environment already works): an imported file's functions
 /// and top-level variables become visible to whatever imports it.
 ///
+/// Supports .nep, .nepali, .नेपाली, and .नेप extensions automatically.
+///
 /// Importing the same (canonicalized) file twice is a no-op the second
 /// time - this also breaks import cycles, rather than recursing forever.
 pub fn load(entry_path: &Path) -> Result<Vec<Stmt>, String> {
@@ -18,6 +20,24 @@ pub fn load(entry_path: &Path) -> Result<Vec<Stmt>, String> {
     let mut out = Vec::new();
     load_into(entry_path, &mut visited, &mut out)?;
     Ok(out)
+}
+
+fn resolve_import_path(base_dir: &Path, import_str: &str) -> PathBuf {
+    let direct = base_dir.join(import_str);
+    if direct.exists() {
+        return direct;
+    }
+
+    // Try alternative Nepali file extensions if no extension or file not found directly
+    let candidate_extensions = [".nep", ".nepali", ".नेपाली", ".नेप"];
+    for ext in &candidate_extensions {
+        let with_ext = base_dir.join(format!("{}{}", import_str, ext));
+        if with_ext.exists() {
+            return with_ext;
+        }
+    }
+
+    direct
 }
 
 fn load_into(
@@ -49,7 +69,8 @@ fn load_into(
     for stmt in program {
         match stmt {
             Stmt::Import(import_path) => {
-                load_into(&dir.join(&import_path), visited, out)?;
+                let resolved = resolve_import_path(&dir, &import_path);
+                load_into(&resolved, visited, out)?;
             }
             other => out.push(other),
         }

@@ -1,4 +1,5 @@
 'use client';
+import { ensureNepaliExtension } from '../lib/fileUtils';
 import React, { useState, useEffect } from 'react';
 import { Navbar } from '../components/Navbar';
 import { ActivityBar, ActiveSidebarTab } from '../components/ActivityBar';
@@ -330,7 +331,8 @@ export default function StudioPage() {
   };
 
   const handleRenameFile = (id: string, newName: string) => {
-    const nextFiles = files.map((f) => (f.id === id ? { ...f, name: newName } : f));
+    const validatedName = ensureNepaliExtension(newName);
+    const nextFiles = files.map((f) => (f.id === id ? { ...f, name: validatedName } : f));
     setFiles(nextFiles);
     saveFilesToStorage(nextFiles);
     showToast('success', 'नाम परिवर्तन भयो', `फाइलको नयाँ नाम: "${newName}"`);

@@ -1,4 +1,5 @@
 'use client';
+import { ensureNepaliExtension, getFileExtensionBadgeColor } from '../lib/fileUtils';
 import React, { useState } from 'react';
 import { ActiveSidebarTab } from './ActivityBar';
 import { CodeFile, RecipeItem } from '../lib/types';
@@ -69,10 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       setEditingFileId(null);
       return;
     }
-    let finalName = editingFileName.trim();
-    if (!finalName.endsWith('.nep')) {
-      finalName += '.nep';
-    }
+    const finalName = ensureNepaliExtension(editingFileName.trim());
     if (onRenameFile) {
       onRenameFile(id, finalName);
     }
@@ -179,7 +177,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         className="bg-slate-950 text-white px-1.5 py-0.5 rounded border border-emerald-500 outline-none w-full text-xs font-mono"
                       />
                     ) : (
-                      <span className="truncate">{file.name}</span>
+                      <div className="flex items-center space-x-1.5 truncate">
+                        <span className="truncate">{file.name}</span>
+                        <span className={`text-[9px] px-1 py-0.2 rounded border font-mono ${getFileExtensionBadgeColor(file.name).bg} ${getFileExtensionBadgeColor(file.name).text}`}>
+                          {getFileExtensionBadgeColor(file.name).label}
+                        </span>
+                      </div>
                     )}
                   </div>
 

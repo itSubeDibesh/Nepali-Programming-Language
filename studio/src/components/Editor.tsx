@@ -1,4 +1,5 @@
 'use client';
+import { ensureNepaliExtension, getFileExtensionBadgeColor } from '../lib/fileUtils';
 import React, { useRef, useState } from 'react';
 import { CodeFile } from '../lib/types';
 import { transliterateWord } from '../lib/translit';
@@ -297,7 +298,7 @@ export const Editor: React.FC<EditorProps> = ({
     const element = document.createElement('a');
     const file = new Blob([activeFile.content], { type: 'text/plain;charset=utf-8' });
     element.href = URL.createObjectURL(file);
-    element.download = activeFile.name.endsWith('.nep') ? activeFile.name : `${activeFile.name}.nep`;
+    element.download = ensureNepaliExtension(activeFile.name);
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -313,10 +314,7 @@ export const Editor: React.FC<EditorProps> = ({
       setEditingNameId(null);
       return;
     }
-    let finalName = tempName.trim();
-    if (!finalName.endsWith('.nep')) {
-      finalName += '.nep';
-    }
+    const finalName = ensureNepaliExtension(tempName.trim());
     onRenameFile(id, finalName);
     setEditingNameId(null);
   };
@@ -460,7 +458,7 @@ export const Editor: React.FC<EditorProps> = ({
           <button
             onClick={handleDownload}
             className="p-1.5 hover:text-slate-200 hover:bg-[#0F172A] rounded transition-colors"
-            title="डाउनलोड गर्नुहोस् (.nep)"
+            title="डाउनलोड गर्नुहोस् (.nep / .nepali / .नेपाली)"
           >
             <Download className="w-3.5 h-3.5" />
           </button>
