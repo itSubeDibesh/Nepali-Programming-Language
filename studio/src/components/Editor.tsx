@@ -4,9 +4,10 @@ import { CodeFile } from '../lib/types';
 import { transliterateWord } from '../lib/translit';
 import { highlightNepaliCode } from '../lib/highlighter';
 import { getDocumentationForSymbol, DocItem } from '../lib/docs';
+import { toNepaliDigits } from '../lib/numbers';
 import {
   FileCode, Plus, X, Copy, Check, Download, Save,
-  Sparkles, HelpCircle, Info, ExternalLink
+  Sparkles, HelpCircle, Info
 } from 'lucide-react';
 
 interface EditorProps {
@@ -44,6 +45,7 @@ export const Editor: React.FC<EditorProps> = ({
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
   const [showSaveToast, setShowSaveToast] = useState(false);
+  const [useNepaliDigits, setUseNepaliDigits] = useState(true);
 
   // Hover Doc Tooltip State
   const [hoverDoc, setHoverDoc] = useState<{ doc: DocItem; x: number; y: number } | null>(null);
@@ -97,14 +99,14 @@ export const Editor: React.FC<EditorProps> = ({
         if (doc) {
           setHoverDoc({
             doc,
-            x: Math.min(clientX + 10, window.innerWidth - 320),
-            y: Math.min(clientY + 15, window.innerHeight - 200),
+            x: Math.min(clientX + 10, window.innerWidth - 340),
+            y: Math.min(clientY + 15, window.innerHeight - 220),
           });
           return;
         }
       }
       setHoverDoc(null);
-    }, 400);
+    }, 350);
   };
 
   const handleMouseLeave = () => {
@@ -321,14 +323,14 @@ export const Editor: React.FC<EditorProps> = ({
 
       {/* Editor Main Canvas with Syntax Highlighting Layer */}
       <div className="flex-1 flex overflow-hidden relative font-mono text-sm">
-        {/* Line Numbers */}
+        {/* Line Numbers in Devanagari */}
         <div className="w-12 bg-[#060911] py-3.5 select-none text-right pr-3 font-mono text-xs text-slate-600 overflow-hidden leading-6 border-r border-[#1E293B]">
           {lineNumbers.map((num) => (
             <div
               key={num}
-              className={num === cursorPos.line ? 'text-emerald-400 font-bold bg-emerald-500/10 -mr-3 pr-3 rounded-l' : ''}
+              className={num === cursorPos.line ? 'text-emerald-400 font-bold bg-emerald-500/10 -mr-3 pr-3 rounded-l font-devanagari' : 'font-devanagari'}
             >
-              {num}
+              {useNepaliDigits ? toNepaliDigits(num) : num}
             </div>
           ))}
         </div>
@@ -409,14 +411,25 @@ export const Editor: React.FC<EditorProps> = ({
       {/* Status Bar */}
       <div className="h-6 bg-[#0B0F19] border-t border-[#1E293B] px-3.5 flex items-center justify-between text-[11px] text-slate-400 font-mono select-none">
         <div className="flex items-center space-x-4">
-          <span className="text-slate-300 font-semibold">
-            पंक्ति {cursorPos.line}, स्तम्भ {cursorPos.col}
+          <span className="text-slate-300 font-semibold font-devanagari">
+            पंक्ति {useNepaliDigits ? toNepaliDigits(cursorPos.line) : cursorPos.line}, स्तम्भ {useNepaliDigits ? toNepaliDigits(cursorPos.col) : cursorPos.col}
           </span>
-          <span className="text-slate-500">{lineCount} lines</span>
-          <span className="text-slate-500">{charCount} chars</span>
+          <span className="text-slate-500 font-devanagari">
+            {useNepaliDigits ? toNepaliDigits(lineCount) : lineCount} पंक्तिहरू
+          </span>
+          <span className="text-slate-500 font-devanagari">
+            {useNepaliDigits ? toNepaliDigits(charCount) : charCount} वर्णहरू
+          </span>
         </div>
         
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setUseNepaliDigits(!useNepaliDigits)}
+            className="hover:text-emerald-400 transition-colors font-devanagari text-[10px] bg-[#060911] px-1.5 py-0.5 rounded border border-[#1E293B]"
+            title="अंक स्वरूप टगल गर्नुहोस् (Devanagari / ASCII digits)"
+          >
+            {useNepaliDigits ? 'अंक: १२३' : 'Digits: 123'}
+          </button>
           <span className="flex items-center space-x-1.5 text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-devanagari">{translitEnabled ? 'रोमन → नेपाली (F2)' : 'English (F2)'}</span>

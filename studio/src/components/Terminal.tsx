@@ -1,15 +1,18 @@
 'use client';
 import React, { useState } from 'react';
 import { ExecutionResult } from '../lib/types';
+import { toNepaliDigits } from '../lib/numbers';
 import {
   Terminal as TermIcon, CheckCircle2, AlertCircle, Copy, Check,
-  Trash2, Layers, Cpu, AlertTriangle, Maximize2, Minimize2, Search
+  Trash2, Layers, Cpu, AlertTriangle, ChevronDown, ChevronUp, X, Minus
 } from 'lucide-react';
 
 interface TerminalProps {
   result: ExecutionResult | null;
   isRunning: boolean;
   onClear: () => void;
+  onClose: () => void;
+  isOpen: boolean;
   code?: string;
 }
 
@@ -19,12 +22,15 @@ export const Terminal: React.FC<TerminalProps> = ({
   result,
   isRunning,
   onClear,
+  onClose,
+  isOpen,
   code = '',
 }) => {
   const [activeTab, setActiveTab] = useState<TerminalTab>('output');
   const [copied, setCopied] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [filterText, setFilterText] = useState('');
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  if (!isOpen) return null;
 
   const handleCopy = () => {
     if (!result) return;
@@ -38,18 +44,15 @@ export const Terminal: React.FC<TerminalProps> = ({
   };
 
   const hasErrors = result?.exitCode !== 0 && Boolean(result?.stderr);
-  const filteredStdout = (result?.stdout || []).filter((line) =>
-    filterText ? line.toLowerCase().includes(filterText.toLowerCase()) : true
-  );
 
   return (
     <div
-      className={`flex flex-col bg-[#060911] overflow-hidden transition-all select-none border-t border-[#1E293B] ${
-        isExpanded ? 'h-full z-40' : 'h-full'
+      className={`flex flex-col bg-[#060911] border-t border-[#1E293B] shadow-2xl transition-all select-none z-20 ${
+        isMaximized ? 'h-3/4' : 'h-56 md:h-64'
       }`}
     >
-      {/* Top Header Tabs */}
-      <div className="h-9 bg-[#0B0F19] border-b border-[#1E293B] flex items-center justify-between px-3">
+      {/* Dock Header */}
+      <div className="h-9 bg-[#0B0F19] border-b border-[#1E293B] flex items-center justify-between px-3 select-none">
         {/* Tabs */}
         <div className="flex items-center space-x-1">
           <button
@@ -61,10 +64,10 @@ export const Terminal: React.FC<TerminalProps> = ({
             }`}
           >
             <TermIcon className="w-3.5 h-3.5" />
-            <span>कन्सोल (Output)</span>
+            <span className="font-devanagari">आउटपुट (Console)</span>
             {result?.stdout && result.stdout.length > 0 && (
-              <span className="text-[10px] bg-slate-800 text-slate-300 px-1 rounded-full">
-                {result.stdout.length}
+              <span className="text-[10px] bg-slate-800 text-slate-300 px-1 rounded-full font-devanagari">
+                {toNepaliDigits(result.stdout.length)}
               </span>
             )}
           </button>
@@ -78,7 +81,7 @@ export const Terminal: React.FC<TerminalProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>संरचना (AST)</span>
+            <span className="font-devanagari">संरचना (AST)</span>
           </button>
 
           <button
@@ -90,7 +93,7 @@ export const Terminal: React.FC<TerminalProps> = ({
             }`}
           >
             <Cpu className="w-3.5 h-3.5" />
-            <span>बाइटकोड (Bytecode)</span>
+            <span className="font-devanagari">बाइटकोड</span>
           </button>
 
           {hasErrors && (
@@ -103,7 +106,7 @@ export const Terminal: React.FC<TerminalProps> = ({
               }`}
             >
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>त्रुटि (1)</span>
+              <span>त्रुटि (१)</span>
             </button>
           )}
         </div>
@@ -111,20 +114,20 @@ export const Terminal: React.FC<TerminalProps> = ({
         {/* Action Controls */}
         <div className="flex items-center space-x-2">
           {result && (
-            <div className="hidden sm:flex items-center space-x-2 text-[11px] font-mono text-slate-400 mr-1">
+            <div className="flex items-center space-x-2 text-[11px] font-mono text-slate-400 mr-2 font-devanagari">
               {result.exitCode === 0 ? (
                 <span className="flex items-center space-x-1 text-emerald-400">
-                  <CheckCircle2 className="w-3 h-3" />
-                  <span>निकास ० (Exit 0)</span>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>निकास {toNepaliDigits(0)} (Exit 0)</span>
                 </span>
               ) : (
                 <span className="flex items-center space-x-1 text-rose-400">
-                  <AlertCircle className="w-3 h-3" />
-                  <span>त्रुटि कोड {result.exitCode}</span>
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>त्रुटि {toNepaliDigits(result.exitCode)}</span>
                 </span>
               )}
               {result.durationMs !== undefined && (
-                <span className="text-slate-500">{result.durationMs}ms</span>
+                <span className="text-slate-500">{toNepaliDigits(result.durationMs)}ms</span>
               )}
             </div>
           )}
@@ -144,6 +147,22 @@ export const Terminal: React.FC<TerminalProps> = ({
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
+
+          <button
+            onClick={() => setIsMaximized(!isMaximized)}
+            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-[#0F172A] rounded transition-colors"
+            title={isMaximized ? 'साधारण आकार' : 'अधिकतम गर्नुहोस्'}
+          >
+            {isMaximized ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+          </button>
+
+          <button
+            onClick={onClose}
+            className="p-1 text-slate-400 hover:text-rose-400 hover:bg-[#0F172A] rounded transition-colors"
+            title="कन्सोल बन्द गर्नुहोस्"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
@@ -151,14 +170,14 @@ export const Terminal: React.FC<TerminalProps> = ({
       <div className="flex-1 bg-[#060911] p-3 font-mono text-xs overflow-auto select-text font-devanagari leading-relaxed">
         {isRunning ? (
           <div className="flex items-center space-x-2 text-emerald-400 animate-pulse py-2">
-            <div className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-            <span>नेपाली स्क्रिप्ट चल्दैछ...</span>
+            <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+            <span>नेपाली प्रोग्राम चल्दैछ...</span>
           </div>
         ) : activeTab === 'output' ? (
           result ? (
             <div className="space-y-1">
               {/* Stdout */}
-              {filteredStdout.map((line, idx) => (
+              {(result.stdout || []).map((line, idx) => (
                 <div key={idx} className="text-slate-200 whitespace-pre-wrap flex items-start space-x-2">
                   <span className="text-emerald-500 select-none">&gt;</span>
                   <span>{line}</span>
@@ -175,22 +194,19 @@ export const Terminal: React.FC<TerminalProps> = ({
 
               {result.stdout.length === 0 && !result.stderr && (
                 <div className="text-slate-500 italic">
-                  [कुनै आउटपुट उत्पन्न भएन (Program exited without output)]
+                  [कुनै आउटपुट उत्पन्न भएन]
                 </div>
               )}
             </div>
           ) : (
-            <div className="text-slate-500 flex flex-col items-center justify-center h-full space-y-2 select-none py-8">
-              <TermIcon className="w-8 h-8 text-slate-600 stroke-[1.5]" />
-              <p>प्रोग्राम चलाउन माथिको चलाउनुहोस् (Ctrl+Enter) थिच्नुहोस्।</p>
-              <p className="text-[10px] text-slate-600 font-mono">
-                Press Ctrl+Enter / ⌘↵ to execute code
-              </p>
+            <div className="text-slate-500 flex flex-col items-center justify-center h-full space-y-1 select-none py-6">
+              <TermIcon className="w-6 h-6 text-slate-600 stroke-[1.5]" />
+              <p className="text-xs">प्रोग्राम चलाउन माथिको चलाउनुहोस् (Ctrl+Enter / ⌘↵) थिच्नुहोस्।</p>
             </div>
           )
         ) : activeTab === 'ast' ? (
           <div className="space-y-2 text-slate-300">
-            <div className="text-emerald-400 font-bold mb-2">// विश्लेषित प्रोग्राम रूख (Program AST):</div>
+            <div className="text-emerald-400 font-bold mb-1">// विश्लेषित प्रोग्राम रूख (Abstract Syntax Tree):</div>
             <pre className="text-[11px] text-slate-400 leading-5 whitespace-pre overflow-x-auto bg-[#0B0F19] p-3 rounded-lg border border-[#1E293B]">
               {code
                 ? `Program {
@@ -206,7 +222,7 @@ export const Terminal: React.FC<TerminalProps> = ({
           </div>
         ) : activeTab === 'bytecode' ? (
           <div className="space-y-2 text-slate-300">
-            <div className="text-cyan-400 font-bold mb-2">// संकलित भर्चुअल मेसिन बाइटकोड (Bytecode Disassembly):</div>
+            <div className="text-cyan-400 font-bold mb-1">// संकलित भर्चुअल मेसिन बाइटकोड (Bytecode Disassembly):</div>
             <pre className="text-[11px] text-slate-400 leading-5 whitespace-pre overflow-x-auto bg-[#0B0F19] p-3 rounded-lg border border-[#1E293B]">
               {`0000  OP_CALL_BUILTIN   आज (0 args) -> R0
 0002  OP_STORE_VAR      आजको <- R0

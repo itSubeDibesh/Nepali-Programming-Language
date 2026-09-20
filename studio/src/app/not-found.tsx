@@ -19,7 +19,7 @@ export default function NotFound() {
               <path d="M 9,14 A 4,4 0 0,0 17,14 A 3.5,3.5 0 0,1 10,13 Z" fill="#FFFFFF"/>
               <circle cx="13" cy="15" r="1.5" fill="#FFFFFF"/>
               <circle cx="13" cy="33" r="3" fill="#FFFFFF"/>
-              <g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="0.5">
+              <g fill="#FFFFFF" stroke="#FFFFFF" strokeWidth="0.5">
                 <line x1="13" y1="28.5" x2="13" y2="37.5"/>
                 <line x1="8.5" y1="33" x2="17.5" y2="33"/>
                 <line x1="9.8" y1="29.8" x2="16.2" y2="36.2"/>

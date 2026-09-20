@@ -1,8 +1,7 @@
 'use client';
 import React from 'react';
 import {
-  Play, Sparkles, BookOpen, Layers, Terminal as TermIcon,
-  ShieldCheck, ShieldAlert, Cpu, Share2, HelpCircle, Save
+  Play, Sparkles, ShieldCheck, ShieldAlert, Cpu, Share2, HelpCircle
 } from 'lucide-react';
 import { RunMode } from '../lib/types';
 
@@ -30,14 +29,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onModeChange,
   translitEnabled,
   onToggleTranslit,
-  onToggleExamples,
   onToggleAi,
-  onToggleInspector,
   onOpenShare,
-  onManualSave,
   isAiOpen,
-  isExamplesOpen,
-  isInspectorOpen,
 }) => {
   return (
     <header className="h-14 border-b border-[#1E293B] bg-[#0B0F19]/90 backdrop-blur-md px-3 md:px-4 flex items-center justify-between select-none z-30 shadow-md">
@@ -50,7 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <path d="M 9,14 A 4,4 0 0,0 17,14 A 3.5,3.5 0 0,1 10,13 Z" fill="#FFFFFF"/>
             <circle cx="13" cy="15" r="1.5" fill="#FFFFFF"/>
             <circle cx="13" cy="33" r="3" fill="#FFFFFF"/>
-            <g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="0.5">
+            <g fill="#FFFFFF" stroke="#FFFFFF" strokeWidth="0.5">
               <line x1="13" y1="28.5" x2="13" y2="37.5"/>
               <line x1="8.5" y1="33" x2="17.5" y2="33"/>
               <line x1="9.8" y1="29.8" x2="16.2" y2="36.2"/>
@@ -63,7 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="font-bold text-sm tracking-wide text-slate-100 font-devanagari">
               नेपाली स्टुडियो
             </span>
-            <span className="text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.2 rounded">
+            <span className="text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.2 rounded font-semibold">
               IDE v1.0
             </span>
           </div>

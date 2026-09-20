@@ -47,13 +47,13 @@ export default function StudioPage() {
   const [activeSidebarTab, setActiveSidebarTab] = useState<ActiveSidebarTab>('files');
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isSaved, setIsSaved] = useState(true);
 
   // 1. Load shared code from URL hash or localStorage on mount
   useEffect(() => {
     try {
-      // Check shared code in URL
       const shared = decodeCodeFromUrl();
       if (shared) {
         const sharedFile: CodeFile = {
@@ -67,7 +67,6 @@ export default function StudioPage() {
         return;
       }
 
-      // Check localStorage
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -89,7 +88,7 @@ export default function StudioPage() {
 
   const activeFile = files.find((f) => f.id === activeFileId) || files[0];
 
-  // 3. Global shortcut listeners (F2: Transliteration toggle, ⌘+Enter: Run, ⌘+S: Save)
+  // 3. Global shortcut listeners (F2: Transliteration toggle, ⌘+Enter: Run, ⌘+S: Save, ⌘+J: Toggle Terminal)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
@@ -104,6 +103,10 @@ export default function StudioPage() {
         e.preventDefault();
         handleManualSave();
       }
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === '`')) {
+        e.preventDefault();
+        setIsTerminalOpen((prev) => !prev);
+      }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
@@ -117,6 +120,7 @@ export default function StudioPage() {
     if (!activeFile || isRunning) return;
     setIsRunning(true);
     setResult(null);
+    setIsTerminalOpen(true); // Open bottom terminal on run automatically!
 
     const promptHandler = (promptText: string): Promise<string> => {
       return new Promise((resolve) => {
@@ -271,10 +275,10 @@ export default function StudioPage() {
           />
         )}
 
-        {/* Center: Editor & Terminal Dock Split */}
-        <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
-          {/* Main Editor Pane */}
-          <div className="flex-1 h-3/5 md:h-full flex flex-col min-w-0">
+        {/* Center: Full-width Editor with Bottom Collapsible Terminal Dock */}
+        <main className="flex-1 flex flex-col overflow-hidden min-w-0 bg-[#060911]">
+          {/* Main Editor Pane (Full Width) */}
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <Editor
               files={files}
               activeFileId={activeFileId}
@@ -290,15 +294,15 @@ export default function StudioPage() {
             />
           </div>
 
-          {/* Bottom/Right Terminal Dock */}
-          <div className="h-2/5 md:h-full md:w-[420px] lg:w-[480px] flex flex-col border-t md:border-t-0 md:border-l border-[#1E293B]">
-            <Terminal
-              result={result}
-              isRunning={isRunning}
-              onClear={() => setResult(null)}
-              code={activeFile?.content || ''}
-            />
-          </div>
+          {/* Bottom Dock: Collapsible Terminal & Tools */}
+          <Terminal
+            isOpen={isTerminalOpen}
+            onClose={() => setIsTerminalOpen(false)}
+            result={result}
+            isRunning={isRunning}
+            onClear={() => setResult(null)}
+            code={activeFile?.content || ''}
+          />
         </main>
 
         {/* Right Drawer: AI Assistant */}
