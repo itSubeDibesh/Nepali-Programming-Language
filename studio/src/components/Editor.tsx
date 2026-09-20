@@ -1192,30 +1192,30 @@ export const Editor: React.FC<EditorProps> = ({
       )}
 
       {/* 4. Authentic IDE Status Bar */}
-      <footer className="h-6 bg-[#080C16] border-t border-[#1E293B] px-3 flex items-center justify-between text-[11px] text-slate-400 select-none font-mono">
-        <div className="flex items-center space-x-3">
+      <footer className="h-6 shrink-0 bg-[#080C16] border-t border-[#1E293B] px-3 flex items-center justify-between gap-2 text-[11px] text-slate-400 select-none font-mono whitespace-nowrap overflow-hidden">
+        <div className="flex items-center space-x-2 min-w-0">
           <div className="flex items-center space-x-1.5 text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
-            <span className="font-devanagari font-semibold">नेपाली (Nepali)</span>
+            <span className="font-devanagari font-semibold">नेपाली</span>
           </div>
 
           <span className="text-slate-600">|</span>
 
-          <span className="text-slate-400 font-devanagari">
-            {translitEnabled ? '🇳🇵 रोमन → देवनागरी (F2)' : '🔤 English (F2)'}
+          <span className="text-slate-400 font-devanagari hidden sm:inline">
+            {translitEnabled ? 'रोमन → देवनागरी (F2)' : 'English (F2)'}
           </span>
-
-          <span className="text-slate-600">|</span>
-
-          <span>UTF-8</span>
 
           <span className="text-slate-600 hidden sm:inline">|</span>
 
-          <span className="text-slate-500 hidden sm:inline">Spaces: {translitEnabled ? '२' : '2'}</span>
+          <span className="hidden xl:inline">UTF-8</span>
+
+          <span className="text-slate-600 hidden xl:inline">|</span>
+
+          <span className="text-slate-500 hidden xl:inline">Spaces: {translitEnabled ? '२' : '2'}</span>
         </div>
 
-        {/* Open Source & Author Credit & Version Info */}
-        <div className="hidden lg:flex items-center space-x-2 text-[10px] text-slate-400">
+        {/* Open Source & Author Credit & Version Info (hide when editor pane is narrow) */}
+        <div className="hidden xl:flex items-center space-x-2 text-[10px] text-slate-400 min-w-0">
           <a
             href="https://github.com/itSubeDibesh/Nepali-Programming-Language"
             target="_blank"
@@ -1223,7 +1223,7 @@ export const Editor: React.FC<EditorProps> = ({
             className="hover:text-emerald-400 transition-colors flex items-center gap-1 text-slate-400 font-devanagari"
             title="खुला स्रोत कोड (Open Source on GitHub)"
           >
-            <span>खुला स्रोत (Open Source)</span>
+            <span>खुला स्रोत</span>
           </a>
           <span className="text-slate-600">•</span>
           <span className="text-slate-500 font-devanagari">निर्माता:</span>
@@ -1247,7 +1247,7 @@ export const Editor: React.FC<EditorProps> = ({
                 <CloudDownload className={`w-3.5 h-3.5 ${hasUpdate ? 'text-amber-400 animate-pulse' : 'text-emerald-400'}`} />
                 <span className="font-mono text-slate-300 hover:text-white">v{CURRENT_STUDIO_VERSION}</span>
                 {hasUpdate && (
-                  <span className="px-1 py-0.2 text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded font-devanagari">
+                  <span className="px-1 py-0.5 text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded font-devanagari">
                     अपडेट
                   </span>
                 )}
@@ -1256,14 +1256,14 @@ export const Editor: React.FC<EditorProps> = ({
           )}
         </div>
 
-        <div className="flex items-center space-x-3">
-          <span className="font-devanagari">
+        <div className="flex items-center space-x-2 shrink-0">
+          <span className="font-devanagari hidden sm:inline">
             {translitEnabled
               ? `पं. ${toNepaliDigits(cursorPos.line)}, स्त. ${toNepaliDigits(cursorPos.col)}`
               : `Ln ${cursorPos.line}, Col ${cursorPos.col}`}
           </span>
 
-          <span className="text-slate-600">|</span>
+          <span className="text-slate-600 hidden sm:inline">|</span>
 
           <span className="font-devanagari">
             {isSaved ? i18n.statusSaved : i18n.statusUnsaved}

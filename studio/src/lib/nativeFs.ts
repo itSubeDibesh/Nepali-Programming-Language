@@ -91,7 +91,83 @@ export async function openRealDirectory(customPath?: string): Promise<NativeDirR
     }
   }
 
+  // 3. Universal fallback: HTML5 `<input type="file" webkitdirectory>`.
+  //    Opens the real native OS folder chooser in Safari, Firefox, and macOS
+  //    WKWebView (Tauri/wry) where `showDirectoryPicker` is unavailable.
+  try {
+    const picked = await pickDirectoryViaInput();
+    if (picked) return picked;
+  } catch (e) {
+    console.warn('Web directory input fallback error:', e);
+  }
+
   return null;
+}
+
+/**
+ * Opens the native directory chooser via a hidden `<input webkitdirectory>`
+ * element - the only folder-picker mechanism that works in every browser
+ * and WebView (Safari, Firefox, Chrome, macOS WKWebView).
+ */
+function pickDirectoryViaInput(): Promise<NativeDirResult | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.setAttribute('webkitdirectory', '');
+    input.setAttribute('directory', '');
+    input.setAttribute('multiple', '');
+    input.style.display = 'none';
+
+    const cleanup = () => {
+      input.removeEventListener('change', onChange);
+      input.removeEventListener('cancel', onCancel);
+      if (input.parentNode) input.parentNode.removeChild(input);
+    };
+
+    const onChange = async () => {
+      cleanup();
+      const fileList = input.files;
+      if (!fileList || fileList.length === 0) {
+        resolve(null);
+        return;
+      }
+      const dirName = (fileList[0] as any).webkitRelativePath?.split('/')[0] || 'फोल्डर';
+      const files: CodeFile[] = [];
+      const seen = new Set<string>();
+      for (const file of Array.from(fileList)) {
+        const rel = (file as any).webkitRelativePath || file.name;
+        if (!rel || seen.has(rel)) continue;
+        const parts = rel.split('/');
+        if (parts.some((p: string) => p.startsWith('.') || p === 'node_modules' || p === 'target' || p === '.next' || p === 'dist' || p === '__pycache__')) continue;
+        seen.add(rel);
+        if (file.size >= 2 * 1024 * 1024) continue;
+        try {
+          const text = await file.text();
+          files.push({
+            id: rel,
+            name: rel,
+            content: text,
+            isMain: rel === 'main.nep' || rel.endsWith('/main.nep'),
+          });
+        } catch {}
+      }
+      files.sort((a, b) => a.name.localeCompare(b.name));
+      resolve({
+        info: { rootPath: dirName, rootName: dirName, isNativeDisk: true },
+        files,
+      });
+    };
+
+    const onCancel = () => {
+      cleanup();
+      resolve(null);
+    };
+
+    input.addEventListener('change', onChange);
+    input.addEventListener('cancel', onCancel);
+    document.body.appendChild(input);
+    input.click();
+  });
 }
 
 async function scanWebDirectory(dirHandle: any, currentPath: string, files: CodeFile[]) {

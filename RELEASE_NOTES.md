@@ -44,6 +44,11 @@ This release brings real physical directory linking, zero-state workspace suppor
 - **Clean Static & Standalone Next.js Export**: Cleaned Next.js configuration to cleanly build standalone runtime servers and offline static export bundles.
 - **Automated .app & .dmg Installer Creation**: Bundles `.app` and generates distribution `.dmg` via macOS `hdiutil`/`diskutil` with code signing.
 
+### 7. Bug Fixes & Polish
+- **Open Folder Now Works Everywhere**: The "फोल्डर खोल्नुहोस्" (Open Folder) button was silently doing nothing on Safari, Firefox, and the macOS desktop app (WKWebView) where the File System Access API (`showDirectoryPicker`) is unavailable. Added a universal HTML5 `<input type="file" webkitdirectory>` fallback that opens the real native OS folder chooser in every browser and WebView — Tauri IPC and `showDirectoryPicker` are still tried first, then the native-input picker, so the button now reliably links a real folder on all platforms.
+- **AI No Longer False-Flags Devanagari Danda**: The baked-in AI diagnostic engine incorrectly reported `।` (Devanagari Danda, U+0964) as a "stray token" after closing parentheses and string values, generating bogus errors like `लाइन 2 मा मान पछि अनावश्यक शब्द '।' जोडिएको छ` for perfectly valid Nepali statements (`भनौँ(सन्देश)।`). The identifier character class now excludes the danda/double-danda (matching the real lexer), so valid `।`/`॥` terminators are never flagged — genuine stray tokens (e.g. `भनौँ(...)वसम्म्म;`) are still detected and repaired.
+- **Cleaner Editor Status Bar with Dual Sidebars**: The bottom status bar no longer crowds or clips when both the left file sidebar and a right panel (AI / bytecode inspector) are open. Fixed a non-standard `py-0.2` utility, added `whitespace-nowrap`/`overflow-hidden` guarding, and made the left status cluster (transliteration mode, UTF-8, spaces) and the open-source/author/version cluster collapse progressively at `sm`/`xl` breakpoints so the bar stays tidy at any editor width.
+
 ---
 
 ## 🧪 Verification & Stability

@@ -105,10 +105,17 @@ export function diagnoseAndFixNepaliCode(
     let modified = false;
 
     // 1. Check for trailing stray token after closing parenthesis (e.g. `भनौँ(...)वसम्म्म;` or `foo()वसम्म्म`)
-    const strayAfterClosingParens = line.match(/^(\s*(?:भनौँ|print|input|[a-zA-Z_\u0900-\u097F][a-zA-Z0-9_\u0900-\u097F]*)\s*\(.*?\))\s*([a-zA-Z0-9_\u0900-\u097F]+)(?:।|;)?\s*$/);
+    //    Note: the Devanagari danda `।`/`॥` (U+0964/U+0965) are statement
+    //    terminators, not identifiers, so they are excluded from the identifier
+    //    character class - a valid `भनौँ(...)।` must never be flagged as stray.
+    const strayAfterClosingParens = line.match(/^(\s*(?:भनौँ|print|input|[a-zA-Z_\u0900-\u0963\u0966-\u097F][a-zA-Z0-9_\u0900-\u0963\u0966-\u097F]*)\s*\(.*?\))\s*([a-zA-Z0-9_\u0900-\u0963\u0966-\u097F]+)(?:।|;)?\s*$/);
     if (strayAfterClosingParens) {
       const validCall = strayAfterClosingParens[1];
       const strayToken = strayAfterClosingParens[2];
+      if (strayToken === '।' || strayToken === '॥' || strayToken === ';') {
+        fixedLines.push(line);
+        continue;
+      }
       issues.push({
         line: i + 1,
         message: `लाइन ${i + 1} मा कोष्ठक \`)\` पछि अनावश्यक वा गल्ती शब्द \`${strayToken}\` जोडिएको छ, जसले गर्दा 'undefined variable' वा सिन्ट्याक्स त्रुटि आएको हो।`,
@@ -120,10 +127,14 @@ export function diagnoseAndFixNepaliCode(
     }
 
     // 2. Check for trailing stray token after statement closing semicolon/danda (e.g. `भनौँ(...);WebAssembly।` or `x = 5;XYZ`)
-    const trailingStrayMatch = line.match(/^(\s*.*?[;।])\s*([a-zA-Z0-9_\u0900-\u097F]+)(?:।|;)?\s*$/);
+    const trailingStrayMatch = line.match(/^(\s*.*?[;।])\s*([a-zA-Z0-9_\u0900-\u0963\u0966-\u097F]+)(?:।|;)?\s*$/);
     if (trailingStrayMatch) {
       const validPrefix = trailingStrayMatch[1];
       const strayToken = trailingStrayMatch[2];
+      if (strayToken === '।' || strayToken === '॥' || strayToken === ';') {
+        fixedLines.push(line);
+        continue;
+      }
       issues.push({
         line: i + 1,
         message: `लाइन ${i + 1} मा कथन समाप्त भएपछि अनावश्यक शब्द \`${strayToken}\` जोडिएको छ।`,
@@ -135,10 +146,14 @@ export function diagnoseAndFixNepaliCode(
     }
 
     // 3. Check for stray token after string quote or value assignment (e.g. `नाम = "WASM"वसम्म्म;`)
-    const strayAfterQuote = line.match(/^(\s*(?:राखौँ|मानौँ|let|var|const)?\s*[a-zA-Z_\u0900-\u097F][a-zA-Z0-9_\u0900-\u097F]*\s*=\s*(?:"[^"]*"|'[^']*'|[\d\u0966-\u096F]+))\s*([a-zA-Z0-9_\u0900-\u097F]+)(?:।|;)?\s*$/);
+    const strayAfterQuote = line.match(/^(\s*(?:राखौँ|राखौं|मानौँ|let|var|const)?\s*[a-zA-Z_\u0900-\u0963\u0966-\u097F][a-zA-Z0-9_\u0900-\u0963\u0966-\u097F]*\s*=\s*(?:"[^"]*"|'[^']*'|[\d\u0966-\u096F]+(?:\.\d+)?))\s*([a-zA-Z0-9_\u0900-\u0963\u0966-\u097F]+)(?:।|;)?\s*$/);
     if (strayAfterQuote) {
       const validPrefix = strayAfterQuote[1];
       const strayToken = strayAfterQuote[2];
+      if (strayToken === '।' || strayToken === '॥' || strayToken === ';') {
+        fixedLines.push(line);
+        continue;
+      }
       issues.push({
         line: i + 1,
         message: `लाइन ${i + 1} मा मान पछि अनावश्यक शब्द \`${strayToken}\` जोडिएको छ।`,
