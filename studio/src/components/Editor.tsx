@@ -437,18 +437,19 @@ export const Editor: React.FC<EditorProps> = ({
         </div>
 
         {/* Textarea & Syntax Highlight Layer */}
-        <div className="flex-1 relative overflow-hidden">
+        <div className="flex-1 relative overflow-hidden bg-[#060911]">
           {/* Syntax Highlighter Underlay */}
           <pre
             ref={highlighterRef}
             aria-hidden="true"
-            className="absolute inset-0 p-3 m-0 pointer-events-none font-mono text-sm leading-6 whitespace-pre overflow-hidden text-transparent select-none font-devanagari"
+            className="absolute inset-0 p-3 m-0 pointer-events-none font-mono text-sm leading-6 whitespace-pre overflow-hidden text-slate-100 select-none font-devanagari"
+            style={{ tabSize: 2 }}
             dangerouslySetInnerHTML={{
               __html: highlightNepaliCode(activeContent) + '\n\n',
             }}
           />
 
-          {/* Interactive Textarea Input */}
+          {/* Interactive Textarea Input (Text transparent to prevent double render/glitch) */}
           <textarea
             ref={textareaRef}
             value={activeContent}
@@ -467,7 +468,11 @@ export const Editor: React.FC<EditorProps> = ({
             spellCheck={false}
             autoCapitalize="off"
             autoComplete="off"
-            className="absolute inset-0 w-full h-full p-3 m-0 bg-transparent text-slate-100 font-mono text-sm leading-6 resize-none outline-none border-none whitespace-pre overflow-auto font-devanagari caret-emerald-400 selection:bg-emerald-500/30"
+            style={{
+              tabSize: 2,
+              WebkitTextFillColor: 'transparent',
+            }}
+            className="absolute inset-0 w-full h-full p-3 m-0 bg-transparent text-transparent font-mono text-sm leading-6 resize-none outline-none border-none whitespace-pre overflow-auto font-devanagari caret-emerald-400 selection:bg-emerald-500/30"
           />
         </div>
 
