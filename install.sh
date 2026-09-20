@@ -59,17 +59,32 @@ if [ "$OS_TYPE" = "Darwin" ]; then
     mkdir -p "$APP_DIR/Contents/MacOS"
     mkdir -p "$APP_DIR/Contents/Resources"
     
+    # Build custom macOS Apple ICNS icons if not present
+    if [ ! -f "$SCRIPT_DIR/os-integration/macos/AppIcon.icns" ] || [ ! -f "$SCRIPT_DIR/os-integration/macos/DocIcon.icns" ]; then
+        swift "$SCRIPT_DIR/os-integration/macos/generate_icons.swift" "$SCRIPT_DIR/os-integration/macos" >/dev/null 2>&1 || true
+    fi
+
     cp -f "$SCRIPT_DIR/os-integration/macos/Info.plist" "$APP_DIR/Contents/Info.plist"
     cp -f "$SCRIPT_DIR/os-integration/macos/nepali-studio-launcher" "$APP_DIR/Contents/MacOS/nepali-studio-launcher"
     chmod +x "$APP_DIR/Contents/MacOS/nepali-studio-launcher"
+
+    if [ -f "$SCRIPT_DIR/os-integration/macos/AppIcon.icns" ]; then
+        cp -f "$SCRIPT_DIR/os-integration/macos/AppIcon.icns" "$APP_DIR/Contents/Resources/AppIcon.icns"
+    fi
+    if [ -f "$SCRIPT_DIR/os-integration/macos/DocIcon.icns" ]; then
+        cp -f "$SCRIPT_DIR/os-integration/macos/DocIcon.icns" "$APP_DIR/Contents/Resources/DocIcon.icns"
+    fi
     
-    # Register with macOS LaunchServices
+    # Register with macOS LaunchServices & CoreServices
+    if [ -f "$SCRIPT_DIR/os-integration/macos/register_macos.swift" ]; then
+        swift "$SCRIPT_DIR/os-integration/macos/register_macos.swift" >/dev/null 2>&1 || true
+    fi
     LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
     if [ -f "$LSREGISTER" ]; then
-        "$LSREGISTER" -f "$APP_DIR" >/dev/null 2>&1 || true
-        echo -e "${GREEN}✓ macOS LaunchServices registered for .nep and .nepali${NC}"
+        "$LSREGISTER" -f -R "$APP_DIR" >/dev/null 2>&1 || true
+        echo -e "${GREEN}✓ macOS LaunchServices registered for .nep, .nepali, and .नेपाली${NC}"
     fi
-    echo -e "${GREEN}✓ Created macOS application bundle: $APP_DIR${NC}"
+    echo -e "${GREEN}✓ Created macOS application bundle with custom icons: $APP_DIR${NC}"
 
 elif [ "$OS_TYPE" = "Linux" ]; then
     # --- Linux FreeDesktop Setup ---
