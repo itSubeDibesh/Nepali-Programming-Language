@@ -13,6 +13,28 @@ interface AiAssistantProps {
   translitEnabled?: boolean;
 }
 
+
+const DEFAULT_AI_MESSAGES: AiMessage[] = [
+  {
+    id: '1',
+    sender: 'assistant',
+    text: 'नमस्ते! म नेपाली प्रोग्रामिङ सहायक हुँ। तपाईंलाई कोड लेख्न, त्रुटि बुझ्न वा नयाँ कुरा सिक्न कसरी मद्दत गर्न सक्छु?',
+    timestamp: 'अहिले',
+  }
+];
+
+function getInitialAiMessages(): AiMessage[] {
+  if (typeof window === 'undefined') return DEFAULT_AI_MESSAGES;
+  try {
+    const saved = localStorage.getItem('nepali_studio_ai_messages_v1');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return DEFAULT_AI_MESSAGES;
+}
+
 export const AiAssistant: React.FC<AiAssistantProps> = ({
   isOpen,
   onClose,
@@ -20,14 +42,17 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
   currentCode,
   translitEnabled = true,
 }) => {
-  const [messages, setMessages] = useState<AiMessage[]>([
-    {
-      id: '1',
-      sender: 'assistant',
-      text: 'नमस्ते! म नेपाली प्रोग्रामिङ सहायक हुँ। तपाईंलाई कोड लेख्न, त्रुटि बुझ्न वा नयाँ कुरा सिक्न कसरी मद्दत गर्न सक्छु?',
-      timestamp: 'अहिले',
-    }
-  ]);
+  const [messages, setMessagesState] = useState<AiMessage[]>(getInitialAiMessages);
+
+  const setMessages = (updater: AiMessage[] | ((prev: AiMessage[]) => AiMessage[])) => {
+    setMessagesState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try {
+        localStorage.setItem('nepali_studio_ai_messages_v1', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
   const i18n = getI18n(translitEnabled).ai;
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);

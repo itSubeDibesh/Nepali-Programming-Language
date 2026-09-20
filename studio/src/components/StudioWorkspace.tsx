@@ -38,6 +38,7 @@ const STORAGE_KEYS = {
   SIDEBAR_TAB: 'nepali_studio_sidebar_v1',
   AI_OPEN: 'nepali_studio_ai_open_v1',
   TERMINAL_OPEN: 'nepali_studio_terminal_open_v1',
+  LAST_RESULT: 'nepali_studio_last_result_v1',
 };
 
 // Synchronous initial state getters (zero-flicker on reload)
@@ -142,6 +143,18 @@ function getInitialAiOpen(): boolean {
   return false;
 }
 
+
+function getInitialResult(): ExecutionResult | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.LAST_RESULT);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch {}
+  return null;
+}
+
 function getInitialTerminalOpen(): boolean {
   if (typeof window === 'undefined') return false;
   try {
@@ -157,7 +170,18 @@ export default function StudioWorkspace() {
   const [activeFileId, setActiveFileId] = useState<string>(() => getInitialActiveFileId(getInitialFiles()));
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [mode, setMode] = useState<RunMode>(getInitialMode);
-  const [result, setResult] = useState<ExecutionResult | null>(null);
+  const [result, setResultState] = useState<ExecutionResult | null>(getInitialResult);
+
+  const setResult = (res: ExecutionResult | null | ((prev: ExecutionResult | null) => ExecutionResult | null)) => {
+    setResultState((prev) => {
+      const next = typeof res === 'function' ? res(prev) : res;
+      try {
+        if (next) localStorage.setItem(STORAGE_KEYS.LAST_RESULT, JSON.stringify(next));
+        else localStorage.removeItem(STORAGE_KEYS.LAST_RESULT);
+      } catch {}
+      return next;
+    });
+  };
   const [translitEnabled, setTranslitEnabled] = useState<boolean>(getInitialTranslit);
   const [promptRequest, setPromptRequest] = useState<PromptRequest | null>(null);
 

@@ -49,6 +49,25 @@ interface EditorProps {
   onOpenExplorer?: () => void;
 }
 
+
+function getInitialSplitFileId(currentFiles: CodeFile[]): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = localStorage.getItem('nepali_studio_split_file_id_v1');
+    if (saved && currentFiles.some((f) => f.id === saved)) return saved;
+  } catch {}
+  return null;
+}
+
+function getInitialSplitDirection(): 'horizontal' | 'vertical' {
+  if (typeof window === 'undefined') return 'horizontal';
+  try {
+    const saved = localStorage.getItem('nepali_studio_split_dir_v1');
+    if (saved === 'vertical' || saved === 'horizontal') return saved;
+  } catch {}
+  return 'horizontal';
+}
+
 export const Editor: React.FC<EditorProps> = ({
   files,
   activeFileId,
@@ -92,8 +111,23 @@ export const Editor: React.FC<EditorProps> = ({
   const activeContent = activeFile ? activeFile.content : '';
 
   // Split View State
-  const [splitFileId, setSplitFileId] = useState<string | null>(null);
-  const [splitDirection, setSplitDirection] = useState<'horizontal' | 'vertical'>('horizontal');
+  const [splitFileId, setSplitFileIdState] = useState<string | null>(() => getInitialSplitFileId(files));
+  const [splitDirection, setSplitDirectionState] = useState<'horizontal' | 'vertical'>(getInitialSplitDirection);
+
+  const setSplitFileId = (id: string | null) => {
+    setSplitFileIdState(id);
+    try {
+      if (id) localStorage.setItem('nepali_studio_split_file_id_v1', id);
+      else localStorage.removeItem('nepali_studio_split_file_id_v1');
+    } catch {}
+  };
+
+  const setSplitDirection = (dir: 'horizontal' | 'vertical') => {
+    setSplitDirectionState(dir);
+    try {
+      localStorage.setItem('nepali_studio_split_dir_v1', dir);
+    } catch {}
+  };
   const splitTextareaRef = useRef<HTMLTextAreaElement>(null);
   const splitHighlighterRef = useRef<HTMLPreElement>(null);
   const splitLineNumbersRef = useRef<HTMLDivElement>(null);

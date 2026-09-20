@@ -20,6 +20,16 @@ interface TerminalProps {
 
 type TerminalTab = 'output' | 'ast' | 'bytecode' | 'problems';
 
+
+function getInitialTerminalTab(): TerminalTab {
+  if (typeof window === 'undefined') return 'output';
+  try {
+    const saved = localStorage.getItem('nepali_studio_terminal_tab_v1') as TerminalTab;
+    if (saved && ['output', 'ast', 'bytecode', 'problems'].includes(saved)) return saved;
+  } catch {}
+  return 'output';
+}
+
 export const Terminal: React.FC<TerminalProps> = ({
   result,
   isRunning,
@@ -29,7 +39,14 @@ export const Terminal: React.FC<TerminalProps> = ({
   code = '',
   translitEnabled = true,
 }) => {
-  const [activeTab, setActiveTab] = useState<TerminalTab>('output');
+  const [activeTab, setActiveTabState] = useState<TerminalTab>(getInitialTerminalTab);
+
+  const setActiveTab = (tab: TerminalTab) => {
+    setActiveTabState(tab);
+    try {
+      localStorage.setItem('nepali_studio_terminal_tab_v1', tab);
+    } catch {}
+  };
   const [copied, setCopied] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
 

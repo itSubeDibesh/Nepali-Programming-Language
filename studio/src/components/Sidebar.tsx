@@ -43,6 +43,43 @@ interface SidebarProps {
   onResetWorkspace: () => void;
 }
 
+
+function getInitialCategory(): string {
+  if (typeof window === 'undefined') return 'all';
+  try {
+    const saved = localStorage.getItem('nepali_studio_example_cat_v1');
+    if (saved) return saved;
+  } catch {}
+  return 'all';
+}
+
+function getInitialExampleSearch(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const saved = localStorage.getItem('nepali_studio_example_search_v1');
+    if (saved) return saved;
+  } catch {}
+  return '';
+}
+
+function getInitialDocSearch(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const saved = localStorage.getItem('nepali_studio_doc_search_v1');
+    if (saved) return saved;
+  } catch {}
+  return '';
+}
+
+function getInitialPreviewExample(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = localStorage.getItem('nepali_studio_example_preview_v1');
+    if (saved) return saved;
+  } catch {}
+  return null;
+}
+
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onClose,
@@ -59,11 +96,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
   translitEnabled = true,
 }) => {
   const i18n = getI18n(translitEnabled).sidebar;
-  const [docSearch, setDocSearch] = useState('');
-  const [exampleSearch, setExampleSearch] = useState('');
-  const [previewExampleId, setPreviewExampleId] = useState<string | null>(null);
+  const [docSearch, setDocSearchState] = useState<string>(getInitialDocSearch);
+  const [exampleSearch, setExampleSearchState] = useState<string>(getInitialExampleSearch);
+  const [previewExampleId, setPreviewExampleIdState] = useState<string | null>(getInitialPreviewExample);
   const [fileContextMenu, setFileContextMenu] = useState<TabContextMenuState | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategoryState] = useState<string>(getInitialCategory);
+
+  const setDocSearch = (val: string) => {
+    setDocSearchState(val);
+    try {
+      if (val) localStorage.setItem('nepali_studio_doc_search_v1', val);
+      else localStorage.removeItem('nepali_studio_doc_search_v1');
+    } catch {}
+  };
+
+  const setExampleSearch = (val: string) => {
+    setExampleSearchState(val);
+    try {
+      if (val) localStorage.setItem('nepali_studio_example_search_v1', val);
+      else localStorage.removeItem('nepali_studio_example_search_v1');
+    } catch {}
+  };
+
+  const setPreviewExampleId = (updater: string | null | ((prev: string | null) => string | null)) => {
+    setPreviewExampleIdState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try {
+        if (next) localStorage.setItem('nepali_studio_example_preview_v1', next);
+        else localStorage.removeItem('nepali_studio_example_preview_v1');
+      } catch {}
+      return next;
+    });
+  };
+
+  const setSelectedCategory = (cat: string) => {
+    setSelectedCategoryState(cat);
+    try {
+      localStorage.setItem('nepali_studio_example_cat_v1', cat);
+    } catch {}
+  };
   const [editingFileId, setEditingFileId] = useState<string | null>(null);
   const [editingFileName, setEditingFileName] = useState<string>('');
 
