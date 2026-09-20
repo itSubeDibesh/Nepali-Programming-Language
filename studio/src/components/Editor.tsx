@@ -98,25 +98,32 @@ export const Editor: React.FC<EditorProps> = ({
 
   // Interactive Hover Documentation for Devanagari identifiers using exact DOM token matching
   const handleMouseMove = (e: React.MouseEvent<HTMLTextAreaElement>) => {
-    if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined' || !highlighterRef.current) return;
 
-    // Query exact DOM elements physically under the mouse cursor
-    const elements = document.elementsFromPoint(e.clientX, e.clientY);
-    const tokenEl = elements.find((el) => el.hasAttribute('data-token'));
+    try {
+      // Temporarily enable pointer events on highlighter layer for hit-testing
+      highlighterRef.current.style.pointerEvents = 'auto';
+      const elements = document.elementsFromPoint(e.clientX, e.clientY);
+      highlighterRef.current.style.pointerEvents = 'none';
 
-    if (tokenEl) {
-      const token = tokenEl.getAttribute('data-token');
-      if (token) {
-        const doc = getDocumentationForSymbol(token);
-        if (doc) {
-          setHoverDoc({
-            doc,
-            x: Math.min(e.clientX + 12, window.innerWidth - 340),
-            y: e.clientY + 18,
-          });
-          return;
+      const tokenEl = elements.find((el) => el.hasAttribute('data-token'));
+
+      if (tokenEl) {
+        const token = tokenEl.getAttribute('data-token');
+        if (token) {
+          const doc = getDocumentationForSymbol(token);
+          if (doc) {
+            setHoverDoc({
+              doc,
+              x: Math.min(e.clientX + 12, window.innerWidth - 340),
+              y: e.clientY + 18,
+            });
+            return;
+          }
         }
       }
+    } catch {
+      // Fallback
     }
     setHoverDoc(null);
   };
@@ -134,8 +141,12 @@ export const Editor: React.FC<EditorProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Format Code: Shift+Alt+F or Shift+Option+F
-    if (e.shiftKey && e.altKey && e.key.toLowerCase() === 'f') {
+    // Format Code: Shift+Alt+F or Shift+Option+F or Shift+Cmd+F
+    if (
+      e.shiftKey &&
+      (e.altKey || e.metaKey) &&
+      (e.code === 'KeyF' || e.key.toLowerCase() === 'f' || e.key === 'ƒ')
+    ) {
       e.preventDefault();
       handleFormatCode();
       return;

@@ -2,7 +2,8 @@ export interface DocItem {
   name: string;
   devanagari: string;
   romanAlias: string;
-  category: 'keyword' | 'builtin' | 'date' | 'io' | 'array' | 'system';
+  aliases?: string[];
+  category: 'keyword' | 'builtin' | 'date' | 'io' | 'array' | 'system' | 'literal';
   signature: string;
   description: string;
   englishDescription: string;
@@ -10,11 +11,12 @@ export interface DocItem {
 }
 
 export const DOCS_CATALOG: DocItem[] = [
-  // 1. Core Keywords
+  // 1. Core Variable & Keywords
   {
     name: 'राखौँ',
     devanagari: 'राखौँ',
-    romanAlias: 'rakha / man',
+    romanAlias: 'rakha / rakhau / man',
+    aliases: ['राखौँ', 'राखौं', 'राखौ', 'rakha', 'rakhau', 'rakhaun', 'rakhom', 'man'],
     category: 'keyword',
     signature: 'राखौँ चर_नाम = मान।',
     description: 'नयाँ चर (variable) घोषणा गर्न प्रयोग गरिन्छ।',
@@ -25,152 +27,158 @@ export const DOCS_CATALOG: DocItem[] = [
     name: 'यदि',
     devanagari: 'यदि',
     romanAlias: 'yadi',
+    aliases: ['यदि', 'yadi'],
     category: 'keyword',
     signature: 'यदि (सर्त) भने { ... } अथवा { ... }',
     description: 'सर्त परीक्षण (Conditional branching) गर्न प्रयोग गरिन्छ।',
     englishDescription: 'Executes a block if condition is true.',
-    example: 'यदि (उमेर >= १८) भने {\n  भनौँ("मतदान योग्य");\n}'
+    example: 'यदि (उमेर >= १८) भने {\n  भनौँ("मतदान योग्य हुनुहुन्छ।");\n}'
   },
   {
     name: 'अथवा',
     devanagari: 'अथवा',
-    romanAlias: 'athawa / athwa',
+    romanAlias: 'athawa / natra',
+    aliases: ['अथवा', 'athawa', 'athwa', 'नत्र', 'natra'],
     category: 'keyword',
-    signature: 'यदि (...) { ... } अथवा { ... }',
-    description: 'यदि सर्त गलत भएमा वैकल्पिक कोड खण्ड चलाउँछ (else clause)।',
-    englishDescription: 'Alternative branch if preceding condition evaluates to false.',
-    example: 'यदि (x > 0) {\n  भनौँ("धनात्मक");\n} अथवा {\n  भनौँ("ऋणात्मक वा शून्य");\n}'
+    signature: 'अथवा { ... }',
+    description: 'यदि सर्त गलत भएमा वैकल्पिक कोड खण्ड चलाउँछ (else)।',
+    englishDescription: 'Executes alternative code block when "if" condition is false.',
+    example: 'यदि (अंक >= ४०) भने {\n  भनौँ("उत्तीर्ण");\n} अथवा {\n  भनौँ("अनुत्तीर्ण");\n}'
   },
   {
-    name: 'जबसम्म',
-    devanagari: 'जबसम्म / भएसम्म',
-    romanAlias: 'jabasamma / bhaesamma',
+    name: 'भने',
+    devanagari: 'भने',
+    romanAlias: 'bhane / bhaye',
+    aliases: ['भने', 'bhane', 'भए', 'bhaye'],
     category: 'keyword',
-    signature: 'जबसम्म (सर्त) { ... }',
-    description: 'सर्त साँचो भएसम्म लुप दोहोर्याउँछ (While loop)।',
-    englishDescription: 'Repeats execution of code block while condition remains true.',
-    example: 'राखौँ i = 0।\nजबसम्म (i < 5) {\n  भनौँ("गणना:", i);\n  राखौँ i = i + 1;\n}'
+    signature: 'यदि (सर्त) भने { ... }',
+    description: 'यदि सर्तपछि प्रयोग हुने संयोजन शब्द (then block delimiter)।',
+    englishDescription: 'Syntactic keyword marking the conditional then block.',
+    example: 'यदि (सङ्ख्या > ०) भने { भनौँ("सकारात्मक"); }'
+  },
+  {
+    name: 'भएसम्म',
+    devanagari: 'भएसम्म',
+    romanAlias: 'bhayesamma / jabasamma',
+    aliases: ['भएसम्म', 'bhayesamma', 'जबसम्म', 'jabasamma'],
+    category: 'keyword',
+    signature: 'भएसम्म (सर्त) { ... }',
+    description: 'सर्त साँचो भएसम्म लुप चलाउँछ (while loop)।',
+    englishDescription: 'Executes code block repeatedly while condition evaluates to true.',
+    example: 'राखौँ गन्ती = ०।\nभएसम्म गन्ती < ५ {\n  भनौँ(गन्ती);\n  गन्ती = गन्ती + १।\n}'
   },
   {
     name: 'काम',
     devanagari: 'काम',
-    romanAlias: 'kaam',
+    romanAlias: 'kaam / fn',
+    aliases: ['काम', 'kaam', 'fn'],
     category: 'keyword',
-    signature: 'काम कार्य_नाम(तर्क१, तर्क२) { ... पठाउँ नतिजा; }',
-    description: 'नयाँ प्रकार्य (Function) परिभाषित गर्न प्रयोग गरिन्छ।',
-    englishDescription: 'Defines a callable function with parameters and return value.',
-    example: 'काम जोड(क, ख) {\n  पठाउँ क + ख;\n}'
+    signature: 'काम कार्य_नाम(प्यारामिटरहरू) { ... }',
+    description: 'नयाँ प्रयोगकर्ता-परिभाषित कार्य (Function) बनाउन प्रयोग गरिन्छ।',
+    englishDescription: 'Defines a reusable function with arguments and local scope.',
+    example: 'काम जोड्नुहोस्(क, ख) {\n  पठाउँ क + ख।\n}\nभनौँ(जोड्नुहोस्(५, १०));'
   },
   {
     name: 'पठाउँ',
-    devanagari: 'पठाउँ / फर्कनुहोस्',
-    romanAlias: 'pathau / pharkanuhos',
+    devanagari: 'पठाउँ',
+    romanAlias: 'pathau / return',
+    aliases: ['पठाउँ', 'पठाउं', 'पठाउ', 'पठाऔँ', 'pathau', 'pathaun', 'pathaum', 'pharkanuhos', 'फर्कनुहोस्'],
     category: 'keyword',
-    signature: 'पठाउँ मान;',
-    description: 'प्रकार्यबाट नतिजा फर्काउन प्रयोग गरिन्छ (Return statement)।',
-    englishDescription: 'Returns a value from the currently executing function.',
-    example: 'पठाउँ परिणाम;'
+    signature: 'पठाउँ मान।',
+    description: 'कार्यबाट मान फिर्ता पठाउँछ (Return value from function)।',
+    englishDescription: 'Returns an evaluation value from the current function invocation.',
+    example: 'काम दोब्बर(x) {\n  पठाउँ x * २।\n}'
   },
 
-  // 2. Date Builtins (WP9)
+  // 2. Builtin IO & Core Functions
+  {
+    name: 'भनौँ',
+    devanagari: 'भनौँ(मानहरू...)',
+    romanAlias: 'bhana / print',
+    aliases: ['भनौँ', 'भनौं', 'भनौ', 'bhana', 'bhanau', 'bhanom', 'bhanaun', 'लेख्नुहोस्', 'lekhnuhos', 'छाप्नुहोस्', 'chhapnuhos'],
+    category: 'io',
+    signature: 'भनौँ(...मानहरू: कुनै) -> शून्य',
+    description: 'कन्सोलमा सन्देश वा चरको मान छाप्छ (Standard Output)।',
+    englishDescription: 'Prints text or evaluated expressions directly to stdout.',
+    example: 'भनौँ("नमस्ते नेपाल!", २०८१);'
+  },
+  {
+    name: 'इनपुट',
+    devanagari: 'इनपुट(सन्देश)',
+    romanAlias: 'input / prompt',
+    aliases: ['इनपुट', 'input', 'inapt', 'input_sodhnuhos'],
+    category: 'io',
+    signature: 'इनपुट(सन्देश?: स्ट्रिङ) -> स्ट्रिङ',
+    description: 'प्रयोगकर्ताबाट अन्तरक्रियात्मक इनपुट लिन्छ (Interactive User Input)।',
+    englishDescription: 'Prompts user for text input and returns the captured string.',
+    example: 'राखौँ नाम = इनपुट("तपाईंको नाम के हो?");\nभनौँ("स्वागत छ,", नाम);'
+  },
+
+  // 3. Date & Time Builtins
   {
     name: 'आज',
     devanagari: 'आज()',
-    romanAlias: 'aaja()',
+    romanAlias: 'aaja() / today()',
+    aliases: ['आज', 'aaja'],
     category: 'date',
-    signature: 'आज() -> [वर्ष, महिना, दिन]',
-    description: 'प्रणालीको घडीबाट आजको वर्तमान मिति एरेको रूपमा फर्काउँछ।',
-    englishDescription: 'Returns the current local date as [year, month, day] array.',
-    example: 'राखौँ मिति = आज();\nभनौँ("आजको मिति:", मिति);'
-  },
-  {
-    name: 'दिन_फरक',
-    devanagari: 'दिन_फरक(मिति१, मिति२)',
-    romanAlias: 'din_pharak(d1, d2)',
-    category: 'date',
-    signature: 'दिन_फरक(मिति१: पाठ|सूची, मिति२: पाठ|सूची) -> संख्या',
-    description: 'दुई मितिहरू बीचको दिनको फरक (मिति२ - मिति१) गणना गर्छ।',
-    englishDescription: 'Computes total integer days difference between two ISO or Devanagari dates.',
-    example: 'राखौँ फरक = दिन_फरक("2026-01-01", "2026-09-20");\nभनौँ("दिनहरू:", फरक);'
-  },
-  {
-    name: 'उमेर',
-    devanagari: 'उमेर(जन्ममिति)',
-    romanAlias: 'umer(birthdate)',
-    category: 'date',
-    signature: 'उमेर(जन्ममिति: पाठ|सूची) -> संख्या',
-    description: 'जन्ममितिबाट आजसम्म बितेको पूर्ण वर्ष (उमेर) गणना गर्छ।',
-    englishDescription: 'Calculates completed integer years of age from birth date up to today.',
-    example: 'राखौँ मेरो_उमेर = उमेर("2000-05-14");\nभनौँ("उमेर:", मेरो_उमेर, "वर्ष");'
-  },
-  {
-    name: 'हप्ताको_दिन',
-    devanagari: 'हप्ताको_दिन(मिति)',
-    romanAlias: 'haptako_din(d)',
-    category: 'date',
-    signature: 'हप्ताको_दिन(मिति: पाठ|सूची) -> पाठ',
-    description: 'दिइएको मितिको हप्ताको बार (आइतबार, सोमबार, आदि) फर्काउँछ।',
-    englishDescription: 'Returns the day of the week for given date in Nepali.',
-    example: 'राखौँ बार = हप्ताको_दिन(आज());\nभनौँ("आजको बार:", बार);'
+    signature: 'आज() -> मिति_स्ट्रिङ (YYYY-MM-DD)',
+    description: 'वर्तमान क्यालेन्डर मिति स्ट्रिङ ढाँचामा फर्काउँछ।',
+    englishDescription: 'Returns current date in ISO format (YYYY-MM-DD).',
+    example: 'राखौँ चालू_मिति = आज();\nभनौँ("आजको मिति:", चालू_मिति);'
   },
   {
     name: 'मिति_बनाउनुहोस्',
     devanagari: 'मिति_बनाउनुहोस्(वर्ष, महिना, दिन)',
     romanAlias: 'miti_banaunuhos(y, m, d)',
+    aliases: ['मिति_बनाउनुहोस्', 'miti_banaunuhos'],
     category: 'date',
-    signature: 'मिति_बनाउनुहोस्(y: संख्या, m: संख्या, d: संख्या) -> सूची',
-    description: 'वर्ष, महिना र दिन जाँचेर प्रमाणित नयाँ मिति एरे सिर्जना गर्छ।',
-    englishDescription: 'Creates and validates a new date array [y, m, d], checking leap years.',
-    example: 'राखौँ मिति = मिति_बनाउनुहोस्(2026, 9, 20);'
+    signature: 'मिति_बनाउनुहोस्(वर्ष: सङ्ख्या, महिना: सङ्ख्या, दिन: सङ्ख्या) -> स्ट्रिङ',
+    description: 'वर्ष, महिना र दिनबाट मानक मिति स्ट्रिङ बनाउँछ।',
+    englishDescription: 'Creates and validates an ISO date string from year, month, and day integers.',
+    example: 'राखौँ जन्मदिन = मिति_बनाउनुहोस्(२०५५, ५, १२);'
   },
   {
-    name: 'मिति_पढ्नुहोस्',
-    devanagari: 'मिति_पढ्नुहोस्(पाठ)',
-    romanAlias: 'miti_padhnuhos(text)',
+    name: 'दिन_फरक',
+    devanagari: 'दिन_फरक(मिति१, मिति२)',
+    romanAlias: 'din_farak(d1, d2)',
+    aliases: ['दिन_फरक', 'din_farak', 'din_pharak'],
     category: 'date',
-    signature: 'मिति_पढ्नुहोस्(पाठ: पाठ) -> सूची',
-    description: 'आईएसओ पाठ वा देवनागरी अंक २०२६-०९-२० लाई [y, m, d] मा विश्लेषण गर्छ।',
-    englishDescription: 'Parses ISO date strings or Devanagari numerals into [year, month, day].',
-    example: 'राखौँ अंक = मिति_पढ्नुहोस्("२०२६-०९-२०");'
+    signature: 'दिन_फरक(मिति१: स्ट्रिङ, मिति२: स्ट्रिङ) -> सङ्ख्या',
+    description: 'दुई मितिहरू बीचको दिन संख्या गणना गर्दछ।',
+    englishDescription: 'Calculates the absolute difference in days between two date strings.',
+    example: 'राखौँ दिन = दिन_फरक("2026-01-01", "2026-01-15");\nभनौँ("दिन फरक:", दिन);'
+  },
+  {
+    name: 'उमेर',
+    devanagari: 'उमेर(जन्ममिति, सन्दर्भमिति?)',
+    romanAlias: 'umer(birthdate, referenceDate?)',
+    aliases: ['उमेर', 'umer', 'umera'],
+    category: 'date',
+    signature: 'उमेर(जन्ममिति: स्ट्रिङ, सन्दर्भमिति?: स्ट्रिङ) -> सङ्ख्या',
+    description: 'जन्ममितिको आधारमा पूरा भएको वर्ष (उमेर) निकाल्छ।',
+    englishDescription: 'Calculates completed age in years from birthdate.',
+    example: 'राखौँ मेरो_उमेर = उमेर("1998-05-20");\nभनौँ("उमेर वर्ष:", मेरो_उमेर);'
+  },
+  {
+    name: 'हप्ताको_दिन',
+    devanagari: 'हप्ताको_दिन(मिति)',
+    romanAlias: 'haptako_din(date)',
+    aliases: ['हप्ताको_दिन', 'haptako_din'],
+    category: 'date',
+    signature: 'हप्ताको_दिन(मिति: स्ट्रिङ) -> स्ट्रिङ (आइतबार..शनिबार)',
+    description: 'कुनै पनि मितिको बार (हप्ताको दिन) पत्ता लगाउँछ।',
+    englishDescription: 'Returns the day of the week in Nepali for a given date.',
+    example: 'भनौँ("बार:", हप्ताको_दिन("2026-09-20"));'
   },
 
-  // 3. I/O & Builtins
-  {
-    name: 'लेख्नुहोस्',
-    devanagari: 'लेख्नुहोस् / भनौँ / छाप्नुहोस्',
-    romanAlias: 'lekhnuhos / bhana / chhapnuhos',
-    category: 'io',
-    signature: 'लेख्नुहोस्(मान१, मान२, ...)',
-    description: 'कन्सोलमा पाठ वा चरको मान छाप्न प्रयोग गरिन्छ (Standard Output)।',
-    englishDescription: 'Prints one or more values to standard output.',
-    example: 'लेख्नुहोस्("नमस्ते संसार!", 42);'
-  },
-  {
-    name: 'भनौँ',
-    devanagari: 'भनौँ',
-    romanAlias: 'bhana / bhanau',
-    category: 'io',
-    signature: 'भनौँ(मान१, मान२, ...)',
-    description: 'मान कन्सोलमा छाप्न प्रयोग गरिन्छ (Print alias)।',
-    englishDescription: 'Prints values to standard output.',
-    example: 'भनौँ("नमस्ते नेपाल!");'
-  },
-  {
-    name: 'इनपुट',
-    devanagari: 'इनपुट(प्रश्न)',
-    romanAlias: 'input(prompt)',
-    category: 'io',
-    signature: 'इनपुट(प्रश्न: पाठ) -> पाठ',
-    description: 'प्रयोगकर्ताबाट प्रश्न सोधेर पाठ इनपुट लिन्छ।',
-    englishDescription: 'Prompts the user for a line of text input and returns the string.',
-    example: 'राखौँ नाम = इनपुट("नाम के हो? ");'
-  },
+  // 4. Arrays & Sequences
   {
     name: 'लम्बाइ',
-    devanagari: 'लम्बाइ(मान)',
-    romanAlias: 'lambai(val)',
+    devanagari: 'लम्बाइ(सूची_वा_स्ट्रिङ)',
+    romanAlias: 'lambai(arr_or_str)',
+    aliases: ['लम्बाइ', 'lambai'],
     category: 'array',
-    signature: 'लम्बाइ(सूची वा पाठ) -> संख्या',
+    signature: 'लम्बाइ(तत्व: सूची | स्ट्रिङ) -> सङ्ख्या',
     description: 'सूचीको तत्व संख्या वा स्ट्रिङको अक्षर संख्या फर्काउँछ।',
     englishDescription: 'Returns the length of an array or unicode character count of string.',
     example: 'राखौँ सङ्ख्या = [10, 20, 30];\nभनौँ("लम्बाइ:", लम्बाइ(सङ्ख्या));'
@@ -179,23 +187,80 @@ export const DOCS_CATALOG: DocItem[] = [
     name: 'थप्नुहोस्',
     devanagari: 'थप्नुहोस्(सूची, मान)',
     romanAlias: 'thapnuhos(arr, val)',
+    aliases: ['थप्नुहोस्', 'thapnuhos'],
     category: 'array',
     signature: 'थप्नुहोस्(सूची: सूची, मान: कुनै) -> शून्य',
     description: 'सूचीको अन्त्यमा नयाँ तत्व थप्छ (Array push)।',
     englishDescription: 'Appends a new value to the end of an array.',
     example: 'राखौँ सूची = [1, 2];\nथप्नुहोस्(सूची, 3);'
+  },
+
+  // 5. Literals
+  {
+    name: 'सहि',
+    devanagari: 'सहि',
+    romanAlias: 'sahi / true',
+    aliases: ['सहि', 'sahi', 'साँच्चै', 'saanchchai', 'saachchai'],
+    category: 'literal',
+    signature: 'सहि (सत्य मान - boolean true)',
+    description: 'सत्य बुलियन मान (boolean true)।',
+    englishDescription: 'Boolean true constant value.',
+    example: 'राखौँ सक्रिय = सहि;'
+  },
+  {
+    name: 'गलत',
+    devanagari: 'गलत',
+    romanAlias: 'galat / false',
+    aliases: ['गलत', 'galat', 'झूट', 'jhoot', 'jhut'],
+    category: 'literal',
+    signature: 'गलत (असत्य मान - boolean false)',
+    description: 'असत्य बुलियन मान (boolean false)।',
+    englishDescription: 'Boolean false constant value.',
+    example: 'राखौँ समाप्त = गलत;'
+  },
+  {
+    name: 'केहीछैन',
+    devanagari: 'केहीछैन',
+    romanAlias: 'kehichaina / null',
+    aliases: ['केहीछैन', 'kehichaina', 'शून्य', 'shoonya', 'shunya'],
+    category: 'literal',
+    signature: 'केहीछैन (रिक्त मान - null/nil)',
+    description: 'कुनै मान नभएको अवस्था (null/none)।',
+    englishDescription: 'Null / empty value representation.',
+    example: 'राखौँ परिणाम = केहीछैन;'
+  },
+  {
+    name: 'पूर्णविराम',
+    devanagari: '।',
+    romanAlias: 'purna biram (.)',
+    aliases: ['।', '॥'],
+    category: 'keyword',
+    signature: 'वाक्य समाप्ति संकेत (Statement Terminator)',
+    description: 'नेपाली भाषामा स्टेटमेन्टको अन्त्य जनाउन प्रयोग गरिन्छ (Semicolon समतुल्य)।',
+    englishDescription: 'Statement terminator in Nepali programming language.',
+    example: 'भनौँ("नमस्ते")।'
   }
 ];
 
 export function getDocumentationForSymbol(symbol: string): DocItem | null {
   if (!symbol) return null;
-  const clean = symbol.trim().replace(/[()।;,]/g, '');
-  return (
-    DOCS_CATALOG.find(
-      (d) =>
-        d.name === clean ||
-        d.devanagari.includes(clean) ||
-        d.romanAlias.split(/[\s/]+/).includes(clean.toLowerCase())
-    ) || null
+  const clean = symbol.trim().replace(/[()\s;,]/g, '');
+  if (!clean) return null;
+
+  // 1. Direct match on name or aliases
+  const exact = DOCS_CATALOG.find((d) => {
+    if (d.name === clean) return true;
+    if (d.aliases && d.aliases.includes(clean)) return true;
+    if (d.aliases && d.aliases.includes(clean.toLowerCase())) return true;
+    return false;
+  });
+  if (exact) return exact;
+
+  // 2. Match on roman alias words
+  const romanMatch = DOCS_CATALOG.find((d) =>
+    d.romanAlias.split(/[\s/(),]+/).includes(clean.toLowerCase())
   );
+  if (romanMatch) return romanMatch;
+
+  return null;
 }

@@ -102,8 +102,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           <AlignLeft className="w-3.5 h-3.5 text-slate-400" />
           <span>ढाँचा मिलाउनुहोस् (Format)</span>
         </div>
-        <kbd className="text-[10px] font-mono text-slate-500 bg-[#060911] px-1.5 py-0.5 rounded border border-[#1E293B]">
-          ⇧⌥F
+        <kbd className="text-[10px] font-mono text-slate-400 bg-[#060911] px-1.5 py-0.5 rounded border border-[#1E293B]">
+          Shift+Alt+F
         </kbd>
       </button>
 
