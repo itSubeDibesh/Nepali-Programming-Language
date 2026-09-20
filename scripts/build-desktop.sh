@@ -69,6 +69,12 @@ if [ "$OS_NAME" = "Darwin" ]; then
         fi
     fi
     
+    # Ad-hoc code sign to satisfy macOS Gatekeeper
+    if command -v codesign >/dev/null 2>&1; then
+        echo "==> Signing application bundle (ad-hoc)..."
+        codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null || true
+    fi
+
     # Register & install to ~/Applications
     mkdir -p "$HOME/Applications"
     rm -rf "$HOME/Applications/Nepali Studio.app"
