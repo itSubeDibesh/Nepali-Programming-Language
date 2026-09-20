@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
             ...process.env,
             PYO3_USE_ABI3_FORWARD_COMPATIBILITY: '1',
             NEPALI_SCRIPT: 'devanagari',
+            NEPALI_DIGITS: 'devanagari',
           },
         },
         (error, stdout, stderr) => {

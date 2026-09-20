@@ -45,7 +45,6 @@ export const Editor: React.FC<EditorProps> = ({
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
   const [showSaveToast, setShowSaveToast] = useState(false);
-  const [useNepaliDigits, setUseNepaliDigits] = useState(true);
 
   // Hover Doc Tooltip State
   const [hoverDoc, setHoverDoc] = useState<{ doc: DocItem; x: number; y: number } | null>(null);
@@ -153,10 +152,34 @@ export const Editor: React.FC<EditorProps> = ({
       return;
     }
 
-    // Live Transliteration on delimiter
+    // 1. Direct Digit Transliteration (0-9 -> ०-९) when in Nepali mode
     if (
       translitEnabled &&
-      (e.key === ' ' || e.key === 'Enter' || e.key === '।' || e.key === '(' || e.key === ')' || e.key === ',')
+      /^[0-9]$/.test(e.key) &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey
+    ) {
+      e.preventDefault();
+      const target = textareaRef.current;
+      if (!target) return;
+      const nepDigit = toNepaliDigits(e.key);
+      const start = target.selectionStart;
+      const end = target.selectionEnd;
+      const val = target.value;
+      const newVal = val.substring(0, start) + nepDigit + val.substring(end);
+      onUpdateContent(activeFile.id, newVal);
+      setTimeout(() => {
+        target.selectionStart = target.selectionEnd = start + nepDigit.length;
+        handleCursorMove();
+      }, 0);
+      return;
+    }
+
+    // 2. Full Word Transliteration on Delimiters
+    if (
+      translitEnabled &&
+      (e.key === ' ' || e.key === 'Enter' || e.key === '।' || e.key === '(' || e.key === ')' || e.key === ',' || e.key === ';' || e.key === '.')
     ) {
       const target = textareaRef.current;
       if (!target) return;
@@ -174,7 +197,7 @@ export const Editor: React.FC<EditorProps> = ({
         const nepaliWord = transliterateWord(rawWord);
         if (nepaliWord !== rawWord) {
           e.preventDefault();
-          const extraKey = e.key === 'Enter' ? '\n' : e.key;
+          const extraKey = e.key === 'Enter' ? '\n' : e.key === '.' ? '।' : e.key;
           const newText = text.substring(0, wordStart) + nepaliWord + extraKey + text.substring(pos);
           onUpdateContent(activeFile.id, newText);
           const newCursorPos = wordStart + nepaliWord.length + extraKey.length;
@@ -330,7 +353,7 @@ export const Editor: React.FC<EditorProps> = ({
               key={num}
               className={num === cursorPos.line ? 'text-emerald-400 font-bold bg-emerald-500/10 -mr-3 pr-3 rounded-l font-devanagari' : 'font-devanagari'}
             >
-              {useNepaliDigits ? toNepaliDigits(num) : num}
+              {toNepaliDigits(num)}
             </div>
           ))}
         </div>
@@ -410,26 +433,19 @@ export const Editor: React.FC<EditorProps> = ({
 
       {/* Status Bar */}
       <div className="h-6 bg-[#0B0F19] border-t border-[#1E293B] px-3.5 flex items-center justify-between text-[11px] text-slate-400 font-mono select-none">
-        <div className="flex items-center space-x-4">
-          <span className="text-slate-300 font-semibold font-devanagari">
-            पंक्ति {useNepaliDigits ? toNepaliDigits(cursorPos.line) : cursorPos.line}, स्तम्भ {useNepaliDigits ? toNepaliDigits(cursorPos.col) : cursorPos.col}
+        <div className="flex items-center space-x-4 font-devanagari">
+          <span className="text-slate-300 font-semibold">
+            पंक्ति {toNepaliDigits(cursorPos.line)}, स्तम्भ {toNepaliDigits(cursorPos.col)}
           </span>
-          <span className="text-slate-500 font-devanagari">
-            {useNepaliDigits ? toNepaliDigits(lineCount) : lineCount} पंक्तिहरू
+          <span className="text-slate-500">
+            {toNepaliDigits(lineCount)} पंक्तिहरू
           </span>
-          <span className="text-slate-500 font-devanagari">
-            {useNepaliDigits ? toNepaliDigits(charCount) : charCount} वर्णहरू
+          <span className="text-slate-500">
+            {toNepaliDigits(charCount)} वर्णहरू
           </span>
         </div>
         
         <div className="flex items-center space-x-3">
-          <button
-            onClick={() => setUseNepaliDigits(!useNepaliDigits)}
-            className="hover:text-emerald-400 transition-colors font-devanagari text-[10px] bg-[#060911] px-1.5 py-0.5 rounded border border-[#1E293B]"
-            title="अंक स्वरूप टगल गर्नुहोस् (Devanagari / ASCII digits)"
-          >
-            {useNepaliDigits ? 'अंक: १२३' : 'Digits: 123'}
-          </button>
           <span className="flex items-center space-x-1.5 text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-devanagari">{translitEnabled ? 'रोमन → नेपाली (F2)' : 'English (F2)'}</span>
