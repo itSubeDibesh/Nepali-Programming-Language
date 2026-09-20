@@ -23,6 +23,11 @@ fn find_node() -> Option<PathBuf> {
     let mut candidates = vec![
         format!("{home}/.local/share/tokless/node/bin/node"),
         format!("{home}/.local/bin/node"),
+        format!("{home}/.local/share/fnm/current/bin/node"),
+        format!("{home}/.volta/bin/node"),
+        format!("{home}/.asdf/shims/node"),
+        format!("{home}/.local/share/mise/shims/node"),
+        format!("{home}/.nodenv/shims/node"),
         "/opt/homebrew/bin/node".to_string(),
         "/usr/local/bin/node".to_string(),
         "/usr/bin/node".to_string(),
@@ -33,6 +38,17 @@ fn find_node() -> Option<PathBuf> {
     if let Ok(entries) = std::fs::read_dir(nvm_base) {
         for entry in entries.flatten() {
             let p = entry.path().join("bin/node");
+            if p.exists() {
+                candidates.push(p.to_string_lossy().into_owned());
+            }
+        }
+    }
+
+    // Check fnm versions
+    let fnm_multis = PathBuf::from(&home).join(".local/share/fnm/node-versions");
+    if let Ok(entries) = std::fs::read_dir(fnm_multis) {
+        for entry in entries.flatten() {
+            let p = entry.path().join("installation/bin/node");
             if p.exists() {
                 candidates.push(p.to_string_lossy().into_owned());
             }
@@ -68,6 +84,7 @@ fn try_start_bundled_server(port: u16, exe_path: &Path) -> Option<Child> {
             cmd.arg("server.js");
             cmd.current_dir(studio_dir);
             cmd.env("PORT", port.to_string());
+            cmd.env("HOSTNAME", "127.0.0.1");
             cmd.env("NODE_ENV", "production");
             cmd.env("NEPALI_BIN", exe_path);
 

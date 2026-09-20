@@ -16,11 +16,14 @@ for p in \
   "$(command -v node 2>/dev/null)" \
   "$HOME/.local/share/tokless/node/bin/node" \
   "$HOME/.local/bin/node" \
+  "$HOME/.local/share/fnm/current/bin/node" \
+  "$HOME/.volta/bin/node" \
+  "$HOME/.asdf/shims/node" \
+  "$HOME/.local/share/mise/shims/node" \
+  "$HOME/.nodenv/shims/node" \
   /opt/homebrew/bin/node \
   /usr/local/bin/node \
   "$HOME"/.nvm/versions/node/*/bin/node \
-  "$HOME"/.asdf/shims/node \
-  "$HOME"/.volta/bin/node \
   /usr/bin/node; do
   if [ -n "$p" ] && [ -x "$p" ]; then
     NODE_BIN="$p"
@@ -33,6 +36,7 @@ export PATH="$DIR:$NODE_DIR:$HOME/.cargo/bin:$HOME/.local/bin:/opt/homebrew/bin:
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 export NODE_ENV=production
 export PORT=$PORT
+export HOSTNAME=127.0.0.1
 
 # 1. Start Modern Next.js Studio Standalone Server in background
 if [ -n "$NODE_BIN" ] && [ -f "$STUDIO_SERVER_DIR/server.js" ]; then

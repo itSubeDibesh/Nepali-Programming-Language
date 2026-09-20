@@ -36,8 +36,16 @@ This release brings real physical directory linking, zero-state workspace suppor
 - **Dynamic Bytecode Disassembly**: Real-time VM disassembly compiled on-the-fly for any user program instead of static placeholders.
 - **Update Checker**: Built-in automatic release version check with non-intrusive notification modal for desktop and web users.
 
+### 6. Standalone Desktop & macOS App Packaging
+- **Zero-Node Fallback & Native WebKit**: Enhanced native desktop launcher and embedded webview lifecycle to smoothly launch the application bundle across diverse macOS configurations.
+- **Robust Node & Toolchain Detection**: Expanded PATH and Node runtime detection (`fnm`, `mise`, `volta`, `asdf`, `nodenv`, `nvm`, Homebrew) with explicit localhost binding (`127.0.0.1`).
+- **Clean Static & Standalone Next.js Export**: Cleaned Next.js configuration to cleanly build standalone runtime servers and offline static export bundles.
+- **Automated .app & .dmg Installer Creation**: Bundles `.app` and generates distribution `.dmg` via macOS `hdiutil`/`diskutil` with code signing.
+
 ---
 
 ## 🧪 Verification & Stability
 - **170+ Rust Tests Passing**: `crates/nepali-core` test suites fully green (AST, VM, closures, recursion, sandbox, conditions, tour).
 - **Zero-Error Studio Build**: `npm --prefix studio run build` compiles cleanly with Next.js 14 production optimizations.
+- **Desktop Bundle Verified**: macOS `.app` and `.dmg` builds verified locally with instant server readiness.
+
