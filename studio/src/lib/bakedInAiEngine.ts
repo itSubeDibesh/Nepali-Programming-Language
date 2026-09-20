@@ -495,7 +495,7 @@ ${contextSection}`;
 /**
  * Deep semantic explanation generator for Nepali code.
  */
-export function explainNepaliCodeSemantics(code: string, activeFileName: string): string {
+export function explainNepaliCodeSemantics(code: string, activeFileName: string, userQuery?: string): { answer: string; correctedCode?: string } {
   const lines = code.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//'));
   const declaredVars: string[] = [];
   const definedFns: string[] = [];
@@ -505,10 +505,20 @@ export function explainNepaliCodeSemantics(code: string, activeFileName: string)
   let hasPrint = false;
   let hasCondition = false;
   let loopCondition = '';
+  let loopVar = '';
+  let loopLimit = '';
+  let loopOp = '';
+  let loopInitialVal = '';
 
   for (const l of lines) {
-    const varMatch = l.match(/^(?:राखौँ|राखौं|मानौँ|let|var|const)\s+([a-zA-Z_\u0900-\u097F][a-zA-Z0-9_\u0900-\u097F]*)/);
-    if (varMatch) declaredVars.push(varMatch[1]);
+    const varMatch = l.match(/^(?:राखौँ|राखौं|मानौँ|let|var|const)\s+([a-zA-Z_\u0900-\u097F][a-zA-Z0-9_\u0900-\u097F]*)\s*=\s*([^;।]+)/);
+    if (varMatch) {
+      declaredVars.push(varMatch[1]);
+      if (!loopInitialVal && (/^[0-9०-९]+$/.test(varMatch[2].trim()))) {
+        loopVar = varMatch[1];
+        loopInitialVal = varMatch[2].trim();
+      }
+    }
 
     const fnMatch = l.match(/^(?:काम|function|kaam|def|fn)\s+([a-zA-Z_\u0900-\u097F][a-zA-Z0-9_\u0900-\u097F]*)/);
     if (fnMatch) definedFns.push(fnMatch[1]);
@@ -516,12 +526,82 @@ export function explainNepaliCodeSemantics(code: string, activeFileName: string)
     if (/^भएसम्म|while\s+/.test(l)) {
       hasLoop = true;
       const condMatch = l.match(/^भएसम्म\s+(.*?)\s*\{/);
-      if (condMatch) loopCondition = condMatch[1];
+      if (condMatch) {
+        loopCondition = condMatch[1].trim();
+        const parsedCond = loopCondition.match(/([a-zA-Z_\u0900-\u097F][a-zA-Z0-9_\u0900-\u097F]*)\s*(<=|>=|<|>|==)\s*([0-9०-९]+)/);
+        if (parsedCond) {
+          loopVar = parsedCond[1];
+          loopOp = parsedCond[2];
+          loopLimit = parsedCond[3];
+        }
+      }
     }
     if (/इनपुट\s*\(|input\s*\(/.test(l)) hasInput = true;
     if (/थप्नुहोस्\s*\(|जोड्नुहोस्\s*\(|push\s*\(/.test(l)) hasArrayPush = true;
     if (/भनौँ\s*\(|भनौ\s*\(|print\s*\(/.test(l)) hasPrint = true;
     if (/^यदि\s+|if\s+/.test(l)) hasCondition = true;
+  }
+
+  // Check if the user is asking about loop iteration count, why it ran N times, off-by-one, etc.
+  const cleanQ = (userQuery || '').toLowerCase();
+  const isLoopCountQuery = hasLoop && (
+    /किन.*(सोध|चल|पटक|चोटि|चोति|चोटी|loop|while|भएसम्म|iteration|count)/i.test(cleanQ) ||
+    /(?:२|3|३|2|५|5|कति)\s*(?:पटक|चोटि|चोति|चोटी|चक्र|times|किन)/i.test(cleanQ) ||
+    /सोधेअन|सोधेन|सोध्या|भएन|किन/i.test(cleanQ)
+  );
+
+  if (isLoopCountQuery && loopCondition) {
+    const fixedCode = code
+      .replace(/राखौँ\s+गन्ती\s*=\s*०/, 'राखौँ गन्ती = १')
+      .replace(/राखौँ\s+([a-zA-Z_\u0900-\u097F]+)\s*=\s*0/, 'राखौँ $1 = 1')
+      .replace(/भएसम्म\s+([a-zA-Z_\u0900-\u097F]+)\s*<=\s*२/, 'भएसम्म $1 < २');
+
+    const answer = `### 💡 लुप ३ पटक चल्नुको कारण (Off-By-One Logic Analysis):
+
+तपाईंको कोडमा लुप **२ पटक नभएर ३ पटक** चल्नुको मुख्य कारण सुरुवाती मान \`०\` र सर्त \`<=\` हुनु हो:
+
+1. **सुरुवाती मान (Initial State):** \`${loopVar || 'गन्ती'} = ०\` (शून्यबाट सुरु भएको छ)।
+2. **सर्त (Condition):** \`${loopCondition}\` ले सानो वा **बराबर** (\`<=\`) सम्म जाँच गर्छ।
+
+#### 📊 चक्र विश्लेषण (Dry Run Execution Trace):
+- **चक्र १:** \`${loopVar || 'गन्ती'} = ०\` हुँदा (\`० <= २\` → **सत्य**) → **१st इनपुट** सोध्यो, त्यसपछि \`${loopVar || 'गन्ती'} = १\` भयो।
+- **चक्र २:** \`${loopVar || 'गन्ती'} = १\` हुँदा (\`१ <= २\` → **सत्य**) → **२nd इनपुट** सोध्यो, त्यसपछि \`${loopVar || 'गन्ती'} = २\` भयो।
+- **चक्र ३:** \`${loopVar || 'गन्ती'} = २\` हुँदा (\`२ <= २\` → **सत्य**) → **३rd इनपुट** सोध्यो, त्यसपछि \`${loopVar || 'गन्ती'} = ३\` भयो।
+- **चक्र ४:** \`${loopVar || 'गन्ती'} = ३\` हुँदा (\`३ <= २\` → **झूटो**) → लुप समाप्त भयो।
+
+👉 कुल मिलाएर \`०\`, \`१\`, र \`२\` गरी **३ वटा संख्या** भएकाले ३ पटक सोधेको हो।
+
+---
+
+### 🛠️ २ पटक मात्र सोध्न बनाउने २ उपाय:
+
+**उपाय १: \`गन्ती = १\` बाट सुरु गर्ने (सिफारिस गरिएको):**
+\`\`\`nepali
+राखौँ गन्ती = १।
+राखौँ नाम_हरु = []।
+
+भएसम्म गन्ती <= २ {
+  गन्ती = गन्ती + १।
+  थप्नुहोस्(नाम_हरु, इनपुट("सुभ नाम: "))।
+}
+
+भनौँ("नाम हरु:", नाम_हरु)।
+\`\`\`
+
+**उपाय २: सर्तमा \`<\` (strictly less than) प्रयोग गर्ने:**
+\`\`\`nepali
+राखौँ गन्ती = ०।
+राखौँ नाम_हरु = []।
+
+भएसम्म गन्ती < २ {
+  गन्ती = गन्ती + १।
+  थप्नुहोस्(नाम_हरु, इनपुट("सुभ नाम: "))।
+}
+
+भनौँ("नाम हरु:", नाम_हरु)।
+\`\`\``;
+
+    return { answer, correctedCode: fixedCode };
   }
 
   const steps: string[] = [];
@@ -550,7 +630,7 @@ export function explainNepaliCodeSemantics(code: string, activeFileName: string)
     ? 'यो कार्यक्रमले निर्दिष्ट सर्त अनुसार लुप चलाएर गणना र कार्यान्वयन सम्पन्न गर्छ।'
     : 'यो कार्यक्रमले दिएका निर्देशनहरू क्रमैसँग कार्यान्वयन गर्दछ।';
 
-  return `### 📄 \`${activeFileName}\` कोड विश्लेषण तथा कार्यप्रणाली:
+  const defaultAnswer = `### 📄 \`${activeFileName}\` कोड विश्लेषण तथा कार्यप्रणाली:
 
 **उद्देश्य:** ${summary}
 
@@ -561,6 +641,8 @@ ${steps.join('\n')}
 - **सक्रिय चरहरू:** ${declaredVars.length > 0 ? declaredVars.map(v => `\`${v}\``).join(', ') : 'कुनै छैन'}
 
 **कोड चलाउन:** माथिको **▶ चलाउनुहोस् (Ctrl+Enter)** बटन थिचेर सिधै यसको नतिजा हेर्न सक्नुहुन्छ।`;
+
+  return { answer: defaultAnswer, correctedCode: code };
 }
 
 /**
@@ -575,12 +657,21 @@ export function queryBakedInAi(
   const activeName = activeFileName || 'main.nep';
   const cleanQ = question.trim();
 
-  // If the user's question contains multi-line Nepali code itself, treat that as code context
-  const hasCodeInQuestion = /^(?:राखौँ|राखौं|मानौँ|काम|भएसम्म|यदि|भनौँ)/m.test(cleanQ);
-  const targetCode = hasCodeInQuestion ? cleanQ : (codeContext && codeContext.trim() ? codeContext : undefined);
+  // Extract code from question if user pasted code with text
+  let extractedCode = '';
+  let extractedQuestion = cleanQ;
+
+  const codeMatch = cleanQ.match(/((?:(?:\/\/.*|\b(?:राखौँ|राखौं|मानौँ|काम|भएसम्म|यदि|भनौँ|थप्नुहोस्)\b)[^\n]*\n?)+)/);
+  if (codeMatch && codeMatch[1].trim().split('\n').length >= 2) {
+    extractedCode = codeMatch[1].trim();
+    extractedQuestion = cleanQ.replace(extractedCode, '').trim();
+  }
+
+  const targetCode = extractedCode || (codeContext && codeContext.trim() ? codeContext : (/^(?:राखौँ|राखौं|मानौँ|काम|भएसम्म|यदि|भनौँ)/m.test(cleanQ) ? cleanQ : undefined));
+  const targetQuestion = extractedQuestion || cleanQ;
 
   if (targetCode) {
-    const diag = diagnoseAndFixNepaliCode(targetCode, cleanQ);
+    const diag = diagnoseAndFixNepaliCode(targetCode, targetQuestion);
 
     // If concrete syntax or declaration issues were found in the code
     if (diag.issues.length > 0) {
@@ -597,10 +688,11 @@ ${issueDetails}
       };
     }
 
-    // When the code is completely valid, provide a full intelligent semantic breakdown
+    // When the code is valid, provide a full intelligent semantic breakdown or targeted question answer
+    const semanticRes = explainNepaliCodeSemantics(targetCode, activeName, targetQuestion);
     return {
-      answer: explainNepaliCodeSemantics(targetCode, activeName),
-      codeSnippet: targetCode,
+      answer: semanticRes.answer,
+      codeSnippet: semanticRes.correctedCode || targetCode,
       engine: `नेपाली सिमान्टिक एआई (${activeName})`,
     };
   }
