@@ -41,6 +41,7 @@ interface EditorProps {
   isSaved: boolean;
   onToggleTranslit?: () => void;
   onOpenAi?: () => void;
+  onOpenExplorer?: () => void;
 }
 
 export const Editor: React.FC<EditorProps> = ({
@@ -59,6 +60,7 @@ export const Editor: React.FC<EditorProps> = ({
   isSaved,
   onToggleTranslit,
   onOpenAi,
+  onOpenExplorer,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlighterRef = useRef<HTMLPreElement>(null);
@@ -409,18 +411,20 @@ export const Editor: React.FC<EditorProps> = ({
                       <Pencil className="w-3 h-3" />
                     </button>
                   )}
-                  {files.length > 1 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onCloseTab) {
+                        onCloseTab(file.id);
+                      } else {
                         onDeleteFile(file.id);
-                      }}
-                      className="p-0.5 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-300 transition-colors"
-                      title="फाइल बन्द गर्नुहोस् (Close Tab)"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
+                      }
+                    }}
+                    className="p-0.5 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-300 transition-colors"
+                    title={i18n.closeTab}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </div>
               </div>
             );
@@ -480,13 +484,7 @@ export const Editor: React.FC<EditorProps> = ({
             <Download className="w-3.5 h-3.5" />
           </button>
 
-          <button
-            onClick={handleCopy}
-            className="p-1.5 hover:text-slate-200 hover:bg-[#0F172A] rounded transition-colors"
-            title="कोड प्रतिलिपि गर्नुहोस् (Copy Code)"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-          </button>
+
         </div>
       </div>
 
@@ -509,7 +507,46 @@ export const Editor: React.FC<EditorProps> = ({
         </div>
       </div>
 
-      {/* 3. Editor Code Canvas with Custom Right-Click Context Menu */}
+      {/* Empty State when no tabs are open */}
+      {(!activeFile || files.length === 0) ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#060911] text-center select-none space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-2xl shadow-emerald-500/10">
+            <FileCode className="w-8 h-8" />
+          </div>
+          <div className="space-y-2 max-w-sm">
+            <h3 className="text-base font-bold text-slate-200 font-devanagari">
+              {i18n.noOpenTabsTitle || 'कुनै ट्याब खुला छैन'}
+            </h3>
+            <p className="text-xs text-slate-400 font-devanagari leading-relaxed">
+              {i18n.noOpenTabsDesc || 'सम्पादकमा कोड लेख्न नयाँ फाइल सिर्जना गर्नुहोस् वा फाइल अन्वेषकबाट खोल्नुहोस्।'}
+            </p>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={onAddFile}
+              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium font-devanagari shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{i18n.newFileAction || 'नयाँ फाइल (+)'}</span>
+            </button>
+            {onOpenExplorer && (
+              <button
+                onClick={onOpenExplorer}
+                className="flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] border border-[#1E293B] text-slate-300 text-xs font-medium font-devanagari transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Folder className="w-4 h-4 text-emerald-400" />
+                <span>{i18n.openFileAction || 'फाइल अन्वेषक खोल्नुहोस्'}</span>
+              </button>
+            )}
+          </div>
+          <div className="pt-4 border-t border-[#1E293B]/60 text-[11px] text-slate-500 font-mono flex items-center space-x-4">
+            <span><kbd className="px-1.5 py-0.5 rounded bg-[#0B0F19] border border-[#1E293B] text-slate-400">F5</kbd> Run</span>
+            <span><kbd className="px-1.5 py-0.5 rounded bg-[#0B0F19] border border-[#1E293B] text-slate-400">F2</kbd> Language</span>
+            <span><kbd className="px-1.5 py-0.5 rounded bg-[#0B0F19] border border-[#1E293B] text-slate-400">Ctrl+S</kbd> Save</span>
+          </div>
+        </div>
+      ) : (
+      /* 3. Editor Code Canvas with Custom Right-Click Context Menu */
       <div
         onContextMenu={handleContextMenu}
         className="flex-1 flex relative overflow-hidden bg-[#060911]"
@@ -628,6 +665,7 @@ export const Editor: React.FC<EditorProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* 4. Authentic IDE Status Bar */}
       <footer className="h-6 bg-[#080C16] border-t border-[#1E293B] px-3 flex items-center justify-between text-[11px] text-slate-400 select-none font-mono">

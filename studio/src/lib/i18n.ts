@@ -61,6 +61,10 @@ export interface I18nDictionary {
     copyCode: string;
     download: string;
     askAi: string;
+    noOpenTabsTitle: string;
+    noOpenTabsDesc: string;
+    openFileAction: string;
+    newFileAction: string;
     statusNepali: string;
     statusEnglish: string;
     statusSaved: string;
@@ -159,6 +163,10 @@ export const I18N_NEPALI: I18nDictionary = {
     copyCode: 'कोड प्रतिलिपि गर्नुहोस्',
     download: 'डाउनलोड गर्नुहोस्',
     askAi: 'एआई सोध्नुहोस्',
+    noOpenTabsTitle: 'कुनै ट्याब खुला छैन',
+    noOpenTabsDesc: 'सम्पादकमा कोड लेख्न नयाँ फाइल सिर्जना गर्नुहोस् वा फाइल अन्वेषकबाट खोल्नुहोस्।',
+    openFileAction: 'फाइल अन्वेषक खोल्नुहोस्',
+    newFileAction: 'नयाँ फाइल (+)',
     statusNepali: 'नेपाली टाइप सक्रिय (F2)',
     statusEnglish: 'English Mode (F2)',
     statusSaved: 'सुरक्षित छ',
@@ -257,6 +265,10 @@ export const I18N_ENGLISH: I18nDictionary = {
     copyCode: 'Copy Code',
     download: 'Download',
     askAi: 'Ask AI',
+    noOpenTabsTitle: 'No Open Tabs',
+    noOpenTabsDesc: 'Select a file from the explorer or create a new file to start coding.',
+    openFileAction: 'Open File Explorer',
+    newFileAction: 'New File (+)',
     statusNepali: 'Nepali Mode Active (F2)',
     statusEnglish: 'English Mode (F2)',
     statusSaved: 'Saved',

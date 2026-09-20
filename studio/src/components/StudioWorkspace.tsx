@@ -31,6 +31,7 @@ const DEFAULT_CODE = `// नेपाली भाषामा पहिलो �
 
 const STORAGE_KEYS = {
   FILES: 'nepali_studio_files_v1',
+  OPEN_TABS: 'nepali_studio_open_tabs_v1',
   ACTIVE_FILE_ID: 'nepali_studio_active_file_id_v1',
   MODE: 'nepali_studio_mode_v1',
   TRANSLIT: 'nepali_studio_translit_v1',
@@ -63,6 +64,28 @@ function getInitialFiles(): CodeFile[] {
     }
   } catch {}
   return [{ id: '1', name: 'main.nep', content: DEFAULT_CODE, isMain: true }];
+}
+
+
+function getInitialOpenTabs(initialFiles: CodeFile[]): string[] {
+  if (typeof window === 'undefined') {
+    return initialFiles.map((f) => f.id);
+  }
+  try {
+    const shared = decodeCodeFromUrl();
+    if (shared) return ['shared'];
+    const saved = localStorage.getItem(STORAGE_KEYS.OPEN_TABS);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        const valid = parsed.filter((id) => initialFiles.some((f) => f.id === id));
+        if (valid.length > 0) {
+          return valid;
+        }
+      }
+    }
+  } catch {}
+  return initialFiles.map((f) => f.id);
 }
 
 function getInitialActiveFileId(initialFiles: CodeFile[]): string {
@@ -130,6 +153,7 @@ function getInitialTerminalOpen(): boolean {
 
 export default function StudioWorkspace() {
   const [files, setFiles] = useState<CodeFile[]>(getInitialFiles);
+  const [openTabIds, setOpenTabIds] = useState<string[]>(() => getInitialOpenTabs(getInitialFiles()));
   const [activeFileId, setActiveFileId] = useState<string>(() => getInitialActiveFileId(getInitialFiles()));
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [mode, setMode] = useState<RunMode>(getInitialMode);
@@ -185,12 +209,28 @@ export default function StudioWorkspace() {
     } catch {}
   };
 
+  const saveOpenTabsToStorage = (tabs: string[]) => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.OPEN_TABS, JSON.stringify(tabs));
+    } catch {}
+  };
+
   const handleSetActiveFileId = (id: string) => {
     setActiveFileId(id);
     try {
       localStorage.setItem(STORAGE_KEYS.ACTIVE_FILE_ID, id);
     } catch {}
   };
+
+  const handleSelectFile = (id: string) => {
+    if (!openTabIds.includes(id)) {
+      const nextOpen = [...openTabIds, id];
+      setOpenTabIds(nextOpen);
+      saveOpenTabsToStorage(nextOpen);
+    }
+    handleSetActiveFileId(id);
+  };
+
 
   const handleSetMode = (newMode: RunMode) => {
     setMode(newMode);
@@ -240,7 +280,8 @@ export default function StudioWorkspace() {
     });
   };
 
-  const activeFile = files.find((f) => f.id === activeFileId) || files[0];
+  const openFiles = files.filter((f) => openTabIds.includes(f.id));
+  const activeFile = files.find((f) => f.id === activeFileId) || openFiles[0] || files[0] || null;
 
   const handlePrompt = (promptText: string): Promise<string> => {
     return new Promise((resolve) => {
@@ -313,24 +354,28 @@ export default function StudioWorkspace() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [activeFile, mode, isRunning, showToast]);
 
-  const handleAddFile = () => {
+    const handleAddFile = () => {
     const newId = String(Date.now());
-    const newFileName = `file_${files.length + 1}.nep`;
+    const ext = translitEnabled ? '.नेपाली' : '.nep';
+    const newFileName = `कार्यक्रम_${files.length + 1}${ext}`;
     const newFile: CodeFile = {
       id: newId,
       name: newFileName,
       content: '// नयाँ नेपाली फाइल\nभनौँ("नमस्ते")।\n'
     };
     const nextFiles = [...files, newFile];
+    const nextOpen = [...openTabIds, newId];
     setFiles(nextFiles);
+    setOpenTabIds(nextOpen);
     handleSetActiveFileId(newId);
     saveFilesToStorage(nextFiles);
-    showToast('success', 'नयाँ फाइल सिर्जना गरियो', `"${newFileName}" फाइल थपियो।`);
+    saveOpenTabsToStorage(nextOpen);
+    showToast('success', translitEnabled ? 'नयाँ फाइल सिर्जना गरियो' : 'New File Created', `"${newFileName}" ${translitEnabled ? 'थपियो।' : 'added.'}`);
   };
 
   const handleDeleteFile = (id: string) => {
     if (files.length <= 1) {
-      showToast('warning', 'फाइल मेटाउन मिल्दैन', 'परियोजनामा कम्तिमा एउटा फाइल हुनैपर्छ।');
+      showToast('warning', translitEnabled ? 'फाइल मेटाउन मिल्दैन' : 'Cannot Delete File', translitEnabled ? 'परियोजनामा कम्तिमा एउटा फाइल हुनैपर्छ।' : 'Workspace must have at least one file.');
       return;
     }
     const targetFile = files.find((f) => f.id === id);
@@ -346,39 +391,70 @@ export default function StudioWorkspace() {
       variant: 'danger',
       onConfirm: () => {
         const nextFiles = files.filter((f) => f.id !== id);
+        const nextOpen = openTabIds.filter((tabId) => tabId !== id);
         setFiles(nextFiles);
-        if (activeFileId === id) {
-          handleSetActiveFileId(nextFiles[0].id);
-        }
+        setOpenTabIds(nextOpen);
         saveFilesToStorage(nextFiles);
+        saveOpenTabsToStorage(nextOpen);
+
+        if (activeFileId === id) {
+          if (nextOpen.length > 0) {
+            handleSetActiveFileId(nextOpen[0]);
+          } else if (nextFiles.length > 0) {
+            handleSetActiveFileId(nextFiles[0].id);
+            setOpenTabIds([nextFiles[0].id]);
+            saveOpenTabsToStorage([nextFiles[0].id]);
+          } else {
+            handleSetActiveFileId('');
+          }
+        }
         showToast('info', translitEnabled ? 'फाइल मेटाइयो' : 'File Deleted', `"${targetFile.name}" ${translitEnabled ? 'हटाइयो।' : 'deleted.'}`);
       }
     });
   };
 
   const handleCloseTab = (id: string) => {
-    if (files.length <= 1) {
-      showToast('info', 'ट्याब बन्द गर्न मिल्दैन', 'सम्पादकमा कम्तिमा एउटा फाइल खुला रहनुपर्छ।');
-      return;
-    }
-    const targetFile = files.find((f) => f.id === id);
-    const nextFiles = files.filter((f) => f.id !== id);
-    setFiles(nextFiles);
+    const closedIdx = openTabIds.indexOf(id);
+    const nextOpen = openTabIds.filter((tabId) => tabId !== id);
+    setOpenTabIds(nextOpen);
+    saveOpenTabsToStorage(nextOpen);
+
     if (activeFileId === id) {
-      handleSetActiveFileId(nextFiles[0].id);
+      if (nextOpen.length > 0) {
+        const nextIdx = Math.min(closedIdx, nextOpen.length - 1);
+        handleSetActiveFileId(nextOpen[nextIdx]);
+      } else {
+        handleSetActiveFileId('');
+      }
     }
-    saveFilesToStorage(nextFiles);
-    showToast('info', 'ट्याब बन्द गरियो', `"${targetFile?.name || 'फाइल'}" ट्याब बन्द भयो।`);
   };
 
   const handleCloseOthers = (id: string) => {
-    const targetFile = files.find((f) => f.id === id);
-    if (!targetFile) return;
-    const nextFiles = [targetFile];
-    setFiles(nextFiles);
+    const nextOpen = [id];
+    setOpenTabIds(nextOpen);
     handleSetActiveFileId(id);
-    saveFilesToStorage(nextFiles);
-    showToast('info', 'अन्य ट्याबहरू बन्द गरियो', `"${targetFile.name}" बाहेक अन्य ट्याबहरू हटाइयो।`);
+    saveOpenTabsToStorage(nextOpen);
+  };
+
+  const handleResetWorkspace = () => {
+    const i18nModals = getI18n(translitEnabled).modals;
+    setConfirmDialog({
+      isOpen: true,
+      title: i18nModals.resetTitle,
+      message: i18nModals.resetMessage,
+      confirmLabel: i18nModals.resetConfirm,
+      cancelLabel: i18nModals.resetCancel,
+      variant: 'danger',
+      onConfirm: () => {
+        const defaultFiles: CodeFile[] = [{ id: '1', name: 'main.nep', content: DEFAULT_CODE, isMain: true }];
+        setFiles(defaultFiles);
+        setOpenTabIds(['1']);
+        handleSetActiveFileId('1');
+        saveFilesToStorage(defaultFiles);
+        saveOpenTabsToStorage(['1']);
+        showToast('info', translitEnabled ? 'कार्यक्षेत्र रिसेट भयो' : 'Workspace Reset', translitEnabled ? 'फाइलहरू पूर्वनिर्धारित अवस्थामा फर्किए।' : 'Files restored to default.');
+      }
+    });
   };
 
   const handleRenameFile = (id: string, newName: string) => {
@@ -397,50 +473,41 @@ export default function StudioWorkspace() {
   };
 
   const handleSelectExample = (ex: RecipeItem) => {
+    const ext = translitEnabled ? '.नेपाली' : '.nep';
+    const exampleFileName = `${ex.id}${ext}`;
+    const existingFile = files.find((f) => f.name === exampleFileName);
+    if (existingFile) {
+      if (!openTabIds.includes(existingFile.id)) {
+        const nextOpen = [...openTabIds, existingFile.id];
+        setOpenTabIds(nextOpen);
+        saveOpenTabsToStorage(nextOpen);
+      }
+      handleSetActiveFileId(existingFile.id);
+      showToast('info', translitEnabled ? 'उदाहरण खोलियो' : 'Example Opened', `"${exampleFileName}" ${translitEnabled ? 'पहिल्यै खुला छ।' : 'is already open.'}`);
+      return;
+    }
+
     const newId = String(Date.now());
-    const newFileName = `${ex.id}.nep`;
     const newFile: CodeFile = {
       id: newId,
-      name: newFileName,
-      content: ex.code
+      name: exampleFileName,
+      content: ex.code,
     };
     const nextFiles = [...files, newFile];
+    const nextOpen = [...openTabIds, newId];
     setFiles(nextFiles);
+    setOpenTabIds(nextOpen);
     handleSetActiveFileId(newId);
     saveFilesToStorage(nextFiles);
-    showToast('success', 'उदाहरण लोड भयो', `"${ex.nepaliTitle}" नयाँ फाइलमा लोड गरियो।`);
+    saveOpenTabsToStorage(nextOpen);
+    showToast('success', translitEnabled ? 'उदाहरण लोड भयो' : 'Example Loaded', `"${ex.nepaliTitle}" (${exampleFileName})`);
   };
 
   const handleInsertCode = (snippet: string) => {
     if (!activeFile) return;
     const updated = activeFile.content + '\n\n' + snippet;
     handleUpdateContent(activeFile.id, updated);
-    showToast('info', 'कोड घुसाइयो', 'स्निपेट सक्रिय सम्पादकमा थपियो।');
-  };
-
-  const handleResetWorkspace = () => {
-    const i18nModals = getI18n(translitEnabled).modals;
-    setConfirmDialog({
-      isOpen: true,
-      title: i18nModals.resetTitle,
-      message: i18nModals.resetMessage,
-      confirmLabel: i18nModals.resetConfirm,
-      cancelLabel: i18nModals.resetCancel,
-      variant: 'danger',
-      onConfirm: () => {
-        const resetFiles: CodeFile[] = [
-          { id: '1', name: 'main.nep', content: DEFAULT_CODE, isMain: true }
-        ];
-        setFiles(resetFiles);
-        handleSetActiveFileId('1');
-        saveFilesToStorage(resetFiles);
-        try {
-          localStorage.removeItem(STORAGE_KEYS.FILES);
-          localStorage.removeItem(STORAGE_KEYS.ACTIVE_FILE_ID);
-        } catch {}
-        showToast('warning', translitEnabled ? 'कार्यक्षेत्र रिसेट भयो' : 'Workspace Reset', translitEnabled ? 'सबै फाइलहरू पूर्वनिर्धारित अवस्थामा फर्काइयो।' : 'All files restored to default state.');
-      }
-    });
+    showToast('info', translitEnabled ? 'कोड घुसाइयो' : 'Code Inserted', translitEnabled ? 'स्निपेट सक्रिय सम्पादकमा थपियो।' : 'Snippet inserted into editor.');
   };
 
   return (
@@ -497,10 +564,11 @@ export default function StudioWorkspace() {
                 onClose={() => handleSetActiveSidebarTab(null)}
                 files={files}
                 activeFileId={activeFileId}
-                onSelectFile={handleSetActiveFileId}
+                onSelectFile={handleSelectFile}
                 onAddFile={handleAddFile}
                 onDeleteFile={handleDeleteFile}
                 onRenameFile={handleRenameFile}
+                onCloseTab={handleCloseTab}
                 onSelectExample={handleSelectExample}
                 onInsertCode={handleInsertCode}
                 onResetWorkspace={handleResetWorkspace}
@@ -510,9 +578,9 @@ export default function StudioWorkspace() {
             {/* Center Editor */}
             <main className="flex-1 flex flex-col overflow-hidden min-w-0 bg-[#060911]">
               <Editor
-                files={files}
+                files={openFiles}
                 activeFileId={activeFileId}
-                onSelectFile={handleSetActiveFileId}
+                onSelectFile={handleSelectFile}
                 onUpdateContent={handleUpdateContent}
                 onAddFile={handleAddFile}
                 onDeleteFile={handleDeleteFile}
@@ -525,6 +593,7 @@ export default function StudioWorkspace() {
                 isSaved={isSaved}
                 onToggleTranslit={() => handleSetTranslitEnabled((prev) => !prev)}
                 onOpenAi={() => handleSetIsAiOpen(true)}
+                onOpenExplorer={() => handleSetActiveSidebarTab('files')}
               />
             </main>
 

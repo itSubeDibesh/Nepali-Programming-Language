@@ -36,6 +36,7 @@ interface SidebarProps {
   onSelectFile: (id: string) => void;
   onAddFile: () => void;
   onDeleteFile: (id: string) => void;
+  onCloseTab?: (id: string) => void;
   onRenameFile?: (id: string, newName: string) => void;
   onSelectExample: (ex: RecipeItem) => void;
   onInsertCode: (snippet: string) => void;
@@ -50,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectFile,
   onAddFile,
   onDeleteFile,
+  onCloseTab,
   onRenameFile,
   onSelectExample,
   onInsertCode,
@@ -422,7 +424,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         menu={fileContextMenu}
         onClose={() => setFileContextMenu(null)}
         onCloseTab={(id) => {
-          onDeleteFile(id);
+          if (onCloseTab) {
+            onCloseTab(id);
+          } else {
+            onDeleteFile(id);
+          }
         }}
         onRename={(file) => {
           setEditingFileId(file.id);
