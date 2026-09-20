@@ -36,8 +36,20 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="h-14 border-b border-slate-800 bg-slate-925/90 backdrop-blur-md px-4 flex items-center justify-between select-none z-30">
       {/* Brand & Title */}
       <div className="flex items-center space-x-3">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 font-mono font-bold text-white text-base">
-          ने
+        <div className="w-8 h-9 flex items-center justify-center filter drop-shadow-md select-none">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 50" className="w-full h-full">
+            <polygon points="0,0 36,24 16,24 36,48 0,48" fill="#003893"/>
+            <polygon points="3,4 30,22 13,22 30,44 3,44" fill="#DC143C"/>
+            <path d="M 9,14 A 4,4 0 0,0 17,14 A 3.5,3.5 0 0,1 10,13 Z" fill="#FFFFFF"/>
+            <circle cx="13" cy="15" r="1.5" fill="#FFFFFF"/>
+            <circle cx="13" cy="33" r="3" fill="#FFFFFF"/>
+            <g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="0.5">
+              <line x1="13" y1="28.5" x2="13" y2="37.5"/>
+              <line x1="8.5" y1="33" x2="17.5" y2="33"/>
+              <line x1="9.8" y1="29.8" x2="16.2" y2="36.2"/>
+              <line x1="9.8" y1="36.2" x2="16.2" y2="29.8"/>
+            </g>
+          </svg>
         </div>
         <div className="flex flex-col">
           <div className="flex items-center space-x-2">
