@@ -313,7 +313,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
               >
                 <div className="font-devanagari leading-relaxed whitespace-pre-wrap">{m.text}</div>
 
-                {m.codeSnippet && (
+                {m.codeSnippet && m.codeSnippet.trim() !== currentCode.trim() && (
                   <div className="mt-3 p-2.5 bg-[#060911] border border-[#1E293B] rounded-xl font-mono text-[11px] text-emerald-300 overflow-hidden space-y-2">
                     <div className="flex items-center justify-between pb-1.5 border-b border-[#1E293B] text-[10px] text-slate-400">
                       <span className="font-semibold text-emerald-400 font-devanagari">नेपाली कोड</span>
