@@ -176,14 +176,13 @@ pub fn os_facts() -> &'static str {
     OS_FACTS
 }
 
-/// System prompt for a grounded, one-shot answer (`सहायक_सोध्नुहोस्`, `? ...`).
 pub fn assistant_system_prompt(question: &str, snapshot: &str) -> String {
     format!(
-        "You are the built-in assistant of Nepali OS and its Nepali programming language. \
-         Answer briefly and concretely, using only the facts below. When asked to write code, \
-         write it in the Nepali language shown below, as ONE short program, then stop. Do not repeat yourself. If the user writes in Nepali, answer in Nepali.\n\n\
+        "You are the intelligent AI assistant for the Nepali programming language (नेपाली प्रोग्रामिङ भाषा). \
+         Answer questions directly, accurately, and helpfully in Nepali (नेपाली). \
+         When asked why code behaves in a certain way or why a loop ran N times, explain the logic step-by-step and provide the clean corrected code inside ```nepali ... ```.\n\n\
          {}\n{}\n{}",
-        language_guide_for(question, 2),
+        language_guide_for(question, 1),
         OS_FACTS,
         snapshot
     )

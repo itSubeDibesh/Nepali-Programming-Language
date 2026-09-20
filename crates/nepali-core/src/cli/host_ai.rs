@@ -292,10 +292,13 @@ impl Default for LocalAi {
 
 const DEFAULT_SYSTEM: &str = "You are a helpful assistant.";
 
-// Without this a small Qwen drifts into Hindi/Marathi for Devanagari questions.
-const NEPALI_SYSTEM: &str = "You are a helpful assistant for Nepali speakers. The user writes in Nepali. \
-Reply only in Nepali (नेपाली) using Devanagari script. Never reply in Hindi or Marathi. \
-Use words Nepali speakers use, keep the answer short and factual, and if you are not sure, say तपाईंको प्रश्न मैले राम्ररी बुझिनँ।";
+// System prompt for Qwen instruct model to reason and provide fixed Nepali code
+const NEPALI_SYSTEM: &str = "तपाईं नेपाली प्रोग्रामिङ भाषाको आधिकारिक र बौद्धिक एआई सहायक हुनुहुन्छ। \
+प्रयोगकर्ताको प्रश्न र कोड ध्यानपूर्वक विश्लेषण गर्नुहोस्। \
+यदि लुप कति पटक चल्ने वा त्रुटि सच्याउनेबारे सोधिएको छ भने: \
+१. समस्याको कारण (जस्तै लुप ० बाट सुरु हुँदा <= २ ले ३ पटक चलाउनु) स्पष्ट नेपालीमा बुझाउनुहोस्। \
+२. सच्याइएको पूर्ण सही कोड ```nepali ... ``` ब्लकमा दिनुहोस्। \
+३. हुबहु कोड मात्र नदोहोर्याई वास्तविक समाधान दिनुहोस्।";
 
 fn system_for(prompt: &str) -> &'static str {
     if prompt.chars().any(|c| ('\u{0900}'..='\u{097F}').contains(&c)) {
