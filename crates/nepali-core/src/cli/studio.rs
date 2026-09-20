@@ -385,9 +385,17 @@ fn webbrowser_open(url: &str) -> Result<(), String> {
             .map(|_| ())
             .map_err(|e| e.to_string())
     }
-    #[cfg(not(target_os = "macos"))]
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
     {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        let _ = url;
         Ok(())
     }
 }

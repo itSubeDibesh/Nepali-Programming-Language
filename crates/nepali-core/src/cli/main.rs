@@ -766,18 +766,32 @@ fn ask_ai(
 /// directly rather than searched for on `$PATH`, matching how a real
 /// shell treats `./script.sh` differently from a bare command name.
 fn is_real_executable(name: &str) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-
+    #[cfg(unix)]
     fn is_executable_file(path: &Path) -> bool {
+        use std::os::unix::fs::PermissionsExt;
         std::fs::metadata(path)
             .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
             .unwrap_or(false)
     }
 
+    #[cfg(windows)]
+    fn is_executable_file(path: &Path) -> bool {
+        if path.is_file() {
+            return true;
+        }
+        let exe = path.with_extension("exe");
+        exe.is_file()
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    fn is_executable_file(path: &Path) -> bool {
+        path.is_file()
+    }
+
     if name.is_empty() {
         return false;
     }
-    if name.contains('/') {
+    if name.contains('/') || (cfg!(windows) && name.contains('\\')) {
         return is_executable_file(Path::new(name));
     }
     let Ok(path_var) = env::var("PATH") else { return false };
