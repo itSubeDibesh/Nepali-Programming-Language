@@ -1,6 +1,19 @@
 import { RunMode } from './types';
 
 /**
+ * Detects whether the Studio is running inside the standalone native desktop app.
+ */
+export function isDesktopApp(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    Boolean((window as any).__TAURI_INTERNALS__) ||
+    Boolean((window as any).__TAURI__) ||
+    Boolean((window as any).ipc) ||
+    window.location.port === '8765'
+  );
+}
+
+/**
  * Detects whether the Studio is running in a local environment (desktop / localhost / native OS)
  * or a hosted/cloud deployment (e.g. Vercel, Cloudflare, remote server).
  */
@@ -13,12 +26,17 @@ export function isLocalEnvironment(): boolean {
 }
 
 /**
- * Returns the permitted execution modes for the current environment.
- * When hosted, raw 'os' host filesystem mode is completely hidden and isolated.
+ * Returns the permitted execution modes for the current environment:
+ * - Native Desktop IDE: Only supported native modes ('os', 'sandbox') — WASM is hidden.
+ * - Local dev web: ('os', 'sandbox')
+ * - Hosted Cloud / Web: strictly isolated ('sandbox' only)
  */
 export function getAvailableModes(): RunMode[] {
-  if (isLocalEnvironment()) {
-    return ['os', 'wasm', 'sandbox'];
+  if (isDesktopApp()) {
+    return ['os', 'sandbox'];
   }
-  return ['sandbox', 'wasm'];
+  if (isLocalEnvironment()) {
+    return ['os', 'sandbox'];
+  }
+  return ['sandbox'];
 }
