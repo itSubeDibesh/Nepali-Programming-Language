@@ -243,42 +243,53 @@ export default function StudioPage() {
           onModeChange={setMode}
         />
 
-        {/* Collapsible Sidebar (Files, Examples, Cheatsheet) */}
-        {activeSidebarTab && (
-          <Sidebar
-            activeTab={activeSidebarTab}
-            onClose={() => setActiveSidebarTab(null)}
-            files={files}
-            activeFileId={activeFileId}
-            onSelectFile={setActiveFileId}
-            onAddFile={handleAddFile}
-            onDeleteFile={handleDeleteFile}
-            onSelectExample={handleSelectExample}
-            onInsertCode={handleInsertCode}
-            onResetWorkspace={handleResetWorkspace}
-          />
-        )}
+        {/* Center/Right Layout: Top Panes (Sidebar + Editor + AI) + Full-Width Bottom Terminal Dock */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0 bg-[#060911]">
+          {/* Upper Workspace: Sidebars & Editor */}
+          <div className="flex-1 flex overflow-hidden min-h-0 relative">
+            {/* Collapsible Left Sidebar (Files, Examples, Cheatsheet) */}
+            {activeSidebarTab && (
+              <Sidebar
+                activeTab={activeSidebarTab}
+                onClose={() => setActiveSidebarTab(null)}
+                files={files}
+                activeFileId={activeFileId}
+                onSelectFile={setActiveFileId}
+                onAddFile={handleAddFile}
+                onDeleteFile={handleDeleteFile}
+                onSelectExample={handleSelectExample}
+                onInsertCode={handleInsertCode}
+                onResetWorkspace={handleResetWorkspace}
+              />
+            )}
 
-        {/* Center: Full-width Editor with Bottom Collapsible Terminal Dock */}
-        <main className="flex-1 flex flex-col overflow-hidden min-w-0 bg-[#060911]">
-          {/* Main Editor Pane (Full Width) */}
-          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <Editor
-              files={files}
-              activeFileId={activeFileId}
-              onSelectFile={setActiveFileId}
-              onUpdateContent={handleUpdateContent}
-              onAddFile={handleAddFile}
-              onDeleteFile={handleDeleteFile}
-              onRenameFile={handleRenameFile}
-              translitEnabled={translitEnabled}
-              onRun={handleRun}
-              onSave={handleManualSave}
-              isSaved={isSaved}
+            {/* Center Editor */}
+            <main className="flex-1 flex flex-col overflow-hidden min-w-0 bg-[#060911]">
+              <Editor
+                files={files}
+                activeFileId={activeFileId}
+                onSelectFile={setActiveFileId}
+                onUpdateContent={handleUpdateContent}
+                onAddFile={handleAddFile}
+                onDeleteFile={handleDeleteFile}
+                onRenameFile={handleRenameFile}
+                translitEnabled={translitEnabled}
+                onRun={handleRun}
+                onSave={handleManualSave}
+                isSaved={isSaved}
+              />
+            </main>
+
+            {/* Right Drawer: AI Assistant */}
+            <AiAssistant
+              isOpen={isAiOpen}
+              onClose={() => setIsAiOpen(false)}
+              currentCode={activeFile?.content || ''}
+              onInsertCode={handleInsertCode}
             />
           </div>
 
-          {/* Bottom Dock: Collapsible Terminal & Tools */}
+          {/* Bottom Dock: Full-Width Collapsible Terminal & Inspector (Not clogged by sidebars) */}
           <Terminal
             isOpen={isTerminalOpen}
             onClose={() => setIsTerminalOpen(false)}
@@ -287,15 +298,7 @@ export default function StudioPage() {
             onClear={() => setResult(null)}
             code={activeFile?.content || ''}
           />
-        </main>
-
-        {/* Right Drawer: AI Assistant */}
-        <AiAssistant
-          isOpen={isAiOpen}
-          onClose={() => setIsAiOpen(false)}
-          currentCode={activeFile?.content || ''}
-          onInsertCode={handleInsertCode}
-        />
+        </div>
       </div>
 
       {/* Interactive Input Dialog Modal for in-program input() */}
