@@ -16,6 +16,7 @@ import { decodeCodeFromUrl } from '../lib/share';
 import { ensureNepaliExtension } from '../lib/fileUtils';
 import { toNepaliDigits } from '../lib/numbers';
 import { getI18n } from '../lib/i18n';
+import { getAvailableModes, isLocalEnvironment } from '../lib/env';
 
 const DEFAULT_CODE = `// नेपाली भाषामा पहिलो कार्यक्रम (Your First Program)
 राखौँ सन्देश = "नमस्ते, नेपाल !"।
@@ -103,14 +104,15 @@ function getInitialActiveFileId(initialFiles: CodeFile[]): string {
 }
 
 function getInitialMode(): RunMode {
-  if (typeof window === 'undefined') return 'os';
+  const allowed = getAvailableModes();
+  if (typeof window === 'undefined') return allowed[0] || 'sandbox';
   try {
     const saved = localStorage.getItem(STORAGE_KEYS.MODE) as RunMode;
-    if (saved && ['os', 'wasm', 'sandbox'].includes(saved)) {
+    if (saved && allowed.includes(saved)) {
       return saved;
     }
   } catch {}
-  return 'os';
+  return allowed[0] || 'sandbox';
 }
 
 function getInitialTranslit(): boolean {
@@ -257,6 +259,8 @@ export default function StudioWorkspace() {
 
 
   const handleSetMode = (newMode: RunMode) => {
+    const allowed = getAvailableModes();
+    if (!allowed.includes(newMode)) return;
     setMode(newMode);
     try {
       localStorage.setItem(STORAGE_KEYS.MODE, newMode);

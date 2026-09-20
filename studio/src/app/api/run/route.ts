@@ -11,22 +11,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'कोड खाली छ (Code is empty)' }, { status: 400 });
     }
 
-    const tmpDir = os.tmpdir();
-    const tmpFile = path.join(tmpDir, `nepali_script_${Date.now()}_${Math.random().toString(36).substring(7)}.nep`);
-    fs.writeFileSync(tmpFile, code, 'utf8');
+    // Determine if request is from localhost / local daemon
+    const hostHeader = req.headers.get('host') || '';
+    const isLocalhost = hostHeader.startsWith('localhost') || hostHeader.startsWith('127.0.0.1');
+    const isHostedDeployment = process.env.VERCEL === '1' || process.env.HOSTED_STUDIO === 'true' || !isLocalhost;
+
+    // In hosted/cloud deployment, enforce strict sandbox mode (never expose raw host filesystem)
+    const effectiveMode = isHostedDeployment ? 'sandbox' : (mode === 'os' ? 'os' : 'sandbox');
+
+    // Create unique, isolated ephemeral scratch directory per execution
+    const sessionDir = path.join(os.tmpdir(), `nepali_sandbox_${Date.now()}_${Math.random().toString(36).substring(7)}`);
+    fs.mkdirSync(sessionDir, { recursive: true });
+
+    const scriptFile = path.join(sessionDir, 'main.nep');
+    fs.writeFileSync(scriptFile, code, 'utf8');
 
     const projectRoot = path.resolve(process.cwd(), '..');
-    const modeFlag = mode === 'os' ? 'os' : 'sandbox';
-
     const debugBin = path.join(projectRoot, 'crates/nepali-core/target/debug/nepali-core-cli');
     const releaseBin = path.join(projectRoot, 'crates/nepali-core/target/release/nepali-core-cli');
     const cliBin = fs.existsSync(releaseBin) ? releaseBin : fs.existsSync(debugBin) ? debugBin : null;
 
     return new Promise<NextResponse>((resolve) => {
       let child;
+      const spawnCwd = isHostedDeployment ? sessionDir : projectRoot;
+
       if (cliBin) {
-        child = spawn(cliBin, ['--mode', modeFlag, tmpFile], {
-          cwd: projectRoot,
+        child = spawn(cliBin, ['--mode', effectiveMode, scriptFile], {
+          cwd: spawnCwd,
           env: {
             ...process.env,
             PYO3_USE_ABI3_FORWARD_COMPATIBILITY: '1',
@@ -37,9 +48,9 @@ export async function POST(req: NextRequest) {
       } else {
         child = spawn(
           'cargo',
-          ['run', '--quiet', '--manifest-path', 'crates/nepali-core/Cargo.toml', '--', '--mode', modeFlag, tmpFile],
+          ['run', '--quiet', '--manifest-path', path.join(projectRoot, 'crates/nepali-core/Cargo.toml'), '--', '--mode', effectiveMode, scriptFile],
           {
-            cwd: projectRoot,
+            cwd: spawnCwd,
             env: {
               ...process.env,
               PYO3_USE_ABI3_FORWARD_COMPATIBILITY: '1',
@@ -69,6 +80,11 @@ export async function POST(req: NextRequest) {
 
       const timer = setTimeout(() => {
         child.kill();
+        // Clean up ephemeral sandbox
+        try {
+          fs.rmSync(sessionDir, { recursive: true, force: true });
+        } catch (_) {}
+
         resolve(
           NextResponse.json({
             stdout: stdout ? stdout.split('\n').filter(Boolean) : [],
@@ -80,8 +96,9 @@ export async function POST(req: NextRequest) {
 
       child.on('close', (code) => {
         clearTimeout(timer);
+        // Clean up ephemeral sandbox
         try {
-          if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+          fs.rmSync(sessionDir, { recursive: true, force: true });
         } catch (_) {}
 
         resolve(
@@ -95,8 +112,9 @@ export async function POST(req: NextRequest) {
 
       child.on('error', (err) => {
         clearTimeout(timer);
+        // Clean up ephemeral sandbox
         try {
-          if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+          fs.rmSync(sessionDir, { recursive: true, force: true });
         } catch (_) {}
 
         resolve(
