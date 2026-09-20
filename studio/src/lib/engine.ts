@@ -1,4 +1,5 @@
 import { ExecutionResult, RunMode } from './types';
+import { fromNepaliDigits, toNepaliDigits } from './numbers';
 
 export class NepaliEngine {
   private wasmModule: any = null;
@@ -22,14 +23,97 @@ export class NepaliEngine {
     return false;
   }
 
-  // Extract prompts from code like: इनपुट("नाम के हो?") or input('age?')
+  // Extract prompts from code, dynamically expanding loops (भएसम्म / while)
   extractPrompts(code: string): string[] {
     const prompts: string[] = [];
-    const regex = /(?:इनपुट|input)\s*\(\s*(?:"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)')\s*\)/g;
-    let match;
-    while ((match = regex.exec(code)) !== null) {
-      prompts.push(match[1] || match[2] || 'इनपुट दिनुहोस् (Enter input):');
+
+    function getSnippetPrompts(snippet: string): string[] {
+      const list: string[] = [];
+      let m;
+      const r = /(?:इनपुट|input)\s*\(\s*(?:"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)')\s*\)/g;
+      while ((m = r.exec(snippet)) !== null) {
+        list.push(m[1] || m[2] || 'इनपुट दिनुहोस् (Enter input):');
+      }
+      return list;
     }
+
+    function findInitialValue(varName: string, beforeText: string): number | null {
+      const r = new RegExp(`(?:राखौँ|मानौँ|let|var)?\\s*${varName}\\s*=\\s*([०-९0-9]+)`, 'g');
+      let m;
+      let lastVal: number | null = null;
+      while ((m = r.exec(beforeText)) !== null) {
+        lastVal = parseInt(fromNepaliDigits(m[1]), 10);
+      }
+      return lastVal;
+    }
+
+    const loopKeywordRegex = /(?:भएसम्म|while)\s+([^{]+)\{/g;
+    const loops: { start: number; end: number; condition: string; body: string }[] = [];
+    let match;
+    while ((match = loopKeywordRegex.exec(code)) !== null) {
+      const condition = match[1].trim();
+      const openBraceIndex = match.index + match[0].length - 1;
+      let depth = 1;
+      let i = openBraceIndex + 1;
+      while (i < code.length && depth > 0) {
+        if (code[i] === '{') depth++;
+        else if (code[i] === '}') depth--;
+        i++;
+      }
+      const closeBraceIndex = i - 1;
+      const body = code.substring(openBraceIndex + 1, closeBraceIndex);
+      loops.push({
+        start: match.index,
+        end: closeBraceIndex + 1,
+        condition,
+        body
+      });
+      loopKeywordRegex.lastIndex = closeBraceIndex + 1;
+    }
+
+    if (loops.length === 0) {
+      return getSnippetPrompts(code);
+    }
+
+    let cursor = 0;
+    for (const loop of loops) {
+      // 1. Prompts before this loop
+      const beforeText = code.substring(cursor, loop.start);
+      prompts.push(...getSnippetPrompts(beforeText));
+
+      // 2. Loop body prompts
+      const bodyPrompts = getSnippetPrompts(loop.body);
+      if (bodyPrompts.length > 0) {
+        let iterations = 2; // fallback
+        const condMatch = loop.condition.match(/([^\s<=>!]+)\s*(<=|<|>=|>|==)\s*([०-९0-9]+)/);
+        if (condMatch) {
+          const varName = condMatch[1].trim();
+          const op = condMatch[2].trim();
+          const limit = parseInt(fromNepaliDigits(condMatch[3]), 10);
+          const initVal = findInitialValue(varName, code.substring(0, loop.start));
+          const start = initVal !== null ? initVal : (op === '<=' || op === '<' ? (limit > 1 ? 1 : 0) : 0);
+
+          if (op === '<=') {
+            iterations = Math.max(1, limit - start + 1);
+          } else if (op === '<') {
+            iterations = Math.max(1, limit - start);
+          } else {
+            iterations = Math.max(1, limit);
+          }
+        }
+        iterations = Math.min(Math.max(iterations, 1), 50);
+
+        for (let i = 0; i < iterations; i++) {
+          prompts.push(...bodyPrompts);
+        }
+      }
+      cursor = loop.end;
+    }
+
+    // 3. Prompts after last loop
+    const remainingText = code.substring(cursor);
+    prompts.push(...getSnippetPrompts(remainingText));
+
     return prompts;
   }
 
@@ -59,8 +143,10 @@ export class NepaliEngine {
     const prompts = this.extractPrompts(code);
     const inputs: string[] = [];
     if (prompts.length > 0 && onPrompt) {
-      for (const promptText of prompts) {
-        const userInput = await onPrompt(promptText);
+      for (let i = 0; i < prompts.length; i++) {
+        const p = prompts[i];
+        const promptLabel = prompts.length > 1 ? `${p} (${toNepaliDigits(i + 1)}/${toNepaliDigits(prompts.length)})` : p;
+        const userInput = await onPrompt(promptLabel);
         inputs.push(userInput);
       }
     }
