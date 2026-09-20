@@ -34,7 +34,6 @@ dump.rdb
 
 # WASM build artifacts
 crates/nepali-wasm/pkg/
-studio/wasm-pkg/
 
 # Build outputs
 studio/out/
