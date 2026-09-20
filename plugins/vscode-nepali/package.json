@@ -1,0 +1,43 @@
+{
+  "name": "nepali-language",
+  "displayName": "नेपाली प्रोग्रामिङ भाषा (Nepali Programming Language)",
+  "description": "Official syntax highlighting, snippets, and editor support for Nepali (.nep, .nepali)",
+  "version": "1.0.0",
+  "publisher": "nepalilang",
+  "icon": "icon.svg",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "nepali",
+        "aliases": [
+          "Nepali",
+          "नेपाली",
+          "nepali"
+        ],
+        "extensions": [
+          ".nep",
+          ".nepali"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icon.svg",
+          "dark": "./icon.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "nepali",
+        "scopeName": "source.nepali",
+        "path": "./syntaxes/nepali.tmLanguage.json"
+      }
+    ]
+  }
+}

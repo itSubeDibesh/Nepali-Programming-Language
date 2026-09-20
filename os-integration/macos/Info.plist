@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>ne</string>
+    <key>CFBundleDisplayName</key>
+    <string>नेपाली स्टुडियो (Nepali Studio)</string>
+    <key>CFBundleExecutable</key>
+    <string>nepali-studio-launcher</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIdentifier</key>
+    <string>org.nepalilang.studio</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Nepali Studio</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    
+    <!-- Document Type Association for .nep and .nepali -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>nep</string>
+                <string>nepali</string>
+            </array>
+            <key>CFBundleTypeIconFile</key>
+            <string>AppIcon</string>
+            <key>CFBundleTypeName</key>
+            <string>Nepali Programming Language Source</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>org.nepalilang.source</string>
+            </array>
+        </dict>
+    </array>
+
+    <!-- Uniform Type Identifier (UTI) Export -->
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>org.nepalilang.source</string>
+            <key>UTTypeDescription</key>
+            <string>Nepali Source Code</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.source-code</string>
+                <string>public.plain-text</string>
+                <string>public.text</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>nep</string>
+                    <string>nepali</string>
+                </array>
+                <key>public.mime-type</key>
+                <array>
+                    <string>text/x-nepali</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
+</dict>
+</plist>

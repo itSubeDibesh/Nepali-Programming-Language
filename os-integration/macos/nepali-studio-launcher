@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# macOS App bundle launcher for Nepali Studio
+TARGET_FILE="${1:-}"
+
+if command -v nepali >/dev/null 2>&1; then
+  if [ -n "$TARGET_FILE" ] && [ -f "$TARGET_FILE" ]; then
+    nepali studio "$TARGET_FILE"
+  else
+    nepali studio
+  fi
+else
+  open "http://localhost:3000" || open "https://studio.nepalilang.org"
+fi

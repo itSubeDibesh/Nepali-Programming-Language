@@ -1,0 +1,167 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Nepali",
+  "scopeName": "source.nepali",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#control"
+    },
+    {
+      "include": "#builtins"
+    },
+    {
+      "include": "#functions"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#punctuation"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.nepali",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.nepali",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.nepali",
+          "begin": "[\"“]",
+          "end": "[\"”]",
+          "patterns": [
+            {
+              "name": "constant.character.escape.nepali",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.nepali",
+          "begin": "['‘]",
+          "end": "['’]",
+          "patterns": [
+            {
+              "name": "constant.character.escape.nepali",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.devanagari.nepali",
+          "match": "[०-९]+(\\.[०-९]+)?"
+        },
+        {
+          "name": "constant.numeric.latin.nepali",
+          "match": "\\b[0-9]+(\\.[0-9]+)?\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.nepali",
+          "match": "\\b(राखौँ|मानौँ|स्थिर|let|var|const|rakhau|manau)\\b"
+        },
+        {
+          "name": "keyword.other.nepali",
+          "match": "\\b(भनौँ|छाप्नुहोस्|say|print|bhanau)\\b"
+        },
+        {
+          "name": "constant.language.boolean.nepali",
+          "match": "\\b(सत्य|गलत|सहि|झुटो|शून्य|खाली|true|false|null|satya|galat|khali)\\b"
+        }
+      ]
+    },
+    "control": {
+      "patterns": [
+        {
+          "name": "keyword.control.nepali",
+          "match": "\\b(यदि|भने|अथवा|जबसम्म|हरेक|मा|रोक्नुहोस्|जारी|फर्काउनुहोस्|िफ|if|else|while|for|in|break|continue|return|yadi|bhane|athawa|jabsamma|harek|farkaunu)\\b"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.nepali",
+          "match": "\\b(लम्बाइ|अक्षर|संकेत|थप्नुहोस्|आज|मिति_बनाउनुहोस्|मिति_पढ्नुहोस्|दिन_फरक|उमेर|हप्ताको_दिन|इनपुट|input|ओएस_लेख्नुहोस्|ओएस_पढ्नुहोस्|ओएस_सूची|डाटाबेस_चलाउनुहोस्|डाटाबेस_सोध्नुहोस्|पाइथन_चलाउनुहोस्|रस्ट_चलाउनुहोस्|गो_चलाउनुहोस्|जेएस_चलाउनुहोस्|टिएस_चलाउनुहोस्|क्यास_राख्नुहोस्|क्यास_ल्याउनुहोस्|क्यास_हटाउनुहोस्|एआई_सोध्नुहोस्|आज_वि_सं|मिति_रूपान्तरण)\\b"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.function.nepali",
+          "match": "\\b(फङ्क्सन|काम|कार्य|fn|function|kaam)\\b"
+        },
+        {
+          "name": "entity.name.function.nepali",
+          "match": "(?<=\\b(फङ्क्सन|काम|कार्य|fn|function|kaam)\\s+)[a-zA-Z_\\u0900-\\u097F][a-zA-Z0-9_\\u0900-\\u097F]*"
+        },
+        {
+          "name": "entity.name.function.call.nepali",
+          "match": "[a-zA-Z_\\u0900-\\u097F][a-zA-Z0-9_\\u0900-\\u097F]*(?=\\s*\\()"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.logical.nepali",
+          "match": "\\b(र|वा|होइन|and|or|not)\\b"
+        },
+        {
+          "name": "keyword.operator.comparison.nepali",
+          "match": "(==|!=|<=|>=|<|>)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.nepali",
+          "match": "(\\+|-|\\*|/|%|\\^)"
+        },
+        {
+          "name": "keyword.operator.assignment.nepali",
+          "match": "(=)"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.terminator.nepali",
+          "match": "[।;]"
+        },
+        {
+          "name": "punctuation.separator.nepali",
+          "match": "[,:]"
+        }
+      ]
+    }
+  }
+}

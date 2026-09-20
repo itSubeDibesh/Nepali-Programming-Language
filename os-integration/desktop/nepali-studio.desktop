@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Nepali Studio
+GenericName=Nepali Programming Language IDE
+Comment=नेपाली प्रोग्रामिङ भाषा स्टुडियो (Interactive IDE & Runtime)
+Exec=nepali studio %F
+Icon=nepali
+Terminal=false
+Categories=Development;IDE;TextEditor;
+MimeType=text/x-nepali;text/plain;
+StartupNotify=true
+StartupWMClass=nepali-studio
+Keywords=nepali;coding;programming;devanagari;language;ide;

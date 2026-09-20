@@ -1,153 +1,129 @@
 #!/usr/bin/env bash
-# Real local install for nepali-core, the language on its own - separate
-# from the OS image (os-image/), matching CLAUDE.md's "the language
-# itself remains independently shareable" section.
-#
-# Default mode: downloads the matching prebuilt release binary from GitHub
-# (no Rust toolchain needed). Falls back to building from source if no
-# release is available for the current platform.
-#
-# Build-from-source mode:
-#   NEPALI_BUILD=source ./install.sh
-#   NEPALI_FEATURES="--no-default-features --features rust-interop,js-interop" ./install.sh
-#
-# Deliberately does NOT include ai-interop by default, and even with
-# --features ai-interop this script never downloads or bakes in any model
-# weights - that's the real split the user asked for: the language,
-# installed this way, works standalone with zero AI unless you separately
-# supply your own NEPALI_AI_MODEL_PATH/etc. The full nepali-os Docker
-# image is the other half.
+# ==============================================================================
+# नेपाली प्रोग्रामिङ भाषा (Nepali Programming Language) — Complete OS Installer
+# Sets up compiler binary, OS MIME associations, Desktop entry, and Editor integration
+# ==============================================================================
 set -euo pipefail
 
-REPO="${NEPALI_REPO:-anomalyco/nepali}"
-INSTALL_DIR="${NEPALI_INSTALL_DIR:-$HOME/.local/bin}"
-BUILD_MODE="${NEPALI_BUILD:-download}"
-FEATURES="${NEPALI_FEATURES:-}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN_NAME="nepali"
+CORE_DIR="$SCRIPT_DIR/crates/nepali-core"
 
-# --- Platform detection ---
+# Colors for terminal output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
 
-detect_platform() {
-    local os arch
-    os="$(uname -s)"
-    arch="$(uname -m)"
-    case "$os" in
-        Linux)  os="linux" ;;
-        Darwin) os="macos" ;;
-        MINGW*|MSYS*|CYGWIN*) os="windows" ;;
-        *) echo "error: unsupported OS: $os" >&2; exit 1 ;;
-    esac
-    case "$arch" in
-        x86_64|amd64) arch="x86_64" ;;
-        aarch64|arm64) arch="aarch64" ;;
-        *) echo "error: unsupported architecture: $arch" >&2; exit 1 ;;
-    esac
-    echo "${arch}-${os}"
-}
+echo -e "${BLUE}${BOLD}======================================================================${NC}"
+echo -e "${CYAN}${BOLD}   नेपाली प्रोग्रामिङ भाषा (Nepali Programming Language) — Installer   ${NC}"
+echo -e "${BLUE}${BOLD}======================================================================${NC}"
 
-# --- Download path ---
-
-download_release() {
-    local platform version tag asset url
-    platform="$(detect_platform)"
-    # Try to get the latest release tag from GitHub API
-    version="$(curl -sf "https://api.github.com/repos/${REPO}/releases/latest" \
-        | grep '"tag_name"' | head -1 | sed 's/.*"v\([^"]*\)".*/\1/' || true)"
-    if [ -z "$version" ]; then
-        echo "note: could not determine latest release, checking for v0.1.0" >&2
-        version="0.1.0"
-    fi
-    tag="v${version}"
-
-    case "$platform" in
-        x86_64-linux)   asset="nepali-${version}-x86_64-linux.tar.gz" ;;
-        aarch64-linux)  asset="nepali-${version}-aarch64-linux.tar.gz" ;;
-        aarch64-macos)  asset="nepali-${version}-aarch64-macos.tar.gz" ;;
-        x86_64-macos)   asset="nepali-${version}-x86_64-macos.tar.gz" ;;
-        x86_64-windows) asset="nepali-${version}-x86_64-windows.zip" ;;
-        *)
-            echo "error: no prebuilt binary for ${platform}" >&2
-            echo "install Rust and run: NEPALI_BUILD=source ./install.sh" >&2
-            exit 1
-            ;;
-    esac
-
-    url="https://github.com/${REPO}/releases/download/${tag}/${asset}"
-    echo "Downloading ${asset} from ${url}..."
-    local tmpdir
-    tmpdir="$(mktemp -d)"
-    trap 'rm -rf "$tmpdir"' EXIT
-
-    if ! curl -fSL -o "${tmpdir}/${asset}" "$url"; then
-        echo "error: download failed (release may not exist for ${platform})" >&2
-        echo "install Rust and run: NEPALI_BUILD=source ./install.sh" >&2
-        exit 1
-    fi
-
-    # Verify checksum if SHA256SUMS is available
-    local sums_url="https://github.com/${REPO}/releases/download/${tag}/SHA256SUMS"
-    if curl -fSL -o "${tmpdir}/SHA256SUMS" "$sums_url" 2>/dev/null; then
-        (cd "$tmpdir" && sha256sum -c SHA256SUMS --ignore-missing) || {
-            echo "error: checksum verification failed" >&2
-            exit 1
-        }
-        echo "Checksum verified."
-    fi
-
+# 1. Determine destination directory
+if [ -w "/usr/local/bin" ]; then
+    INSTALL_DIR="/usr/local/bin"
+elif [ -d "$HOME/.local/bin" ]; then
+    INSTALL_DIR="$HOME/.local/bin"
     mkdir -p "$INSTALL_DIR"
-    case "$asset" in
-        *.tar.gz)
-            tar xzf "${tmpdir}/${asset}" -C "$tmpdir"
-            cp "$tmpdir/nepali" "$INSTALL_DIR/nepali"
-            ;;
-        *.zip)
-            unzip -o "${tmpdir}/${asset}" -d "$tmpdir"
-            cp "$tmpdir/nepali.exe" "$INSTALL_DIR/nepali.exe"
-            ;;
-    esac
-    chmod +x "$INSTALL_DIR/nepali" 2>/dev/null || true
-}
-
-# --- Build from source ---
-
-build_from_source() {
-    if ! command -v cargo >/dev/null 2>&1; then
-        echo "error: cargo (Rust) isn't installed - get it from https://rustup.rs first" >&2
-        exit 1
-    fi
-
-    echo "Building nepali-core-cli from source (release, this takes a minute)..."
-    cd "$REPO_ROOT/crates/nepali-core"
-    # shellcheck disable=SC2086
-    cargo build --release $FEATURES
-
-    BIN_SRC="$REPO_ROOT/crates/nepali-core/target/release/nepali-core-cli"
-    if [ ! -f "$BIN_SRC" ]; then
-        echo "error: build didn't produce $BIN_SRC - see the cargo output above" >&2
-        exit 1
-    fi
-
-    mkdir -p "$INSTALL_DIR"
-    cp "$BIN_SRC" "$INSTALL_DIR/nepali"
-    chmod +x "$INSTALL_DIR/nepali"
-}
-
-# --- Main ---
-
-REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-
-if [ "$BUILD_MODE" = "source" ]; then
-    build_from_source
 else
-    download_release
+    mkdir -p "$HOME/.local/bin"
+    INSTALL_DIR="$HOME/.local/bin"
 fi
 
-echo "Installed: $INSTALL_DIR/nepali"
-case ":$PATH:" in
-    *":$INSTALL_DIR:"*) ;;
-    *)
-        echo "note: $INSTALL_DIR isn't on your \$PATH - add this to your shell profile:"
-        echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
-        ;;
-esac
-echo "Run it: nepali                 # real interactive shell"
-echo "     or: nepali path/to/file.nep  # run a script"
+# 2. Build Release Binary
+echo -e "\n${CYAN}==> [1/4] Building release binary with all native subsystems...${NC}"
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+cargo build --manifest-path "$CORE_DIR/Cargo.toml" --release --bin nepali-core-cli
+
+RELEASE_BIN="$CORE_DIR/target/release/nepali-core-cli"
+if [ ! -f "$RELEASE_BIN" ]; then
+    echo -e "${RED}त्रुटि: Release binary build failed.${NC}"
+    exit 1
+fi
+
+# 3. Install Binary
+echo -e "\n${CYAN}==> [2/4] Installing 'nepali' CLI binary to $INSTALL_DIR...${NC}"
+cp -f "$RELEASE_BIN" "$INSTALL_DIR/$BIN_NAME"
+chmod +x "$INSTALL_DIR/$BIN_NAME"
+echo -e "${GREEN}✓ Binary installed: $INSTALL_DIR/$BIN_NAME${NC}"
+
+# 4. OS Integration & MIME File Association (.nep / .nepali)
+echo -e "\n${CYAN}==> [3/4] Registering OS File Associations and Icons (.nep, .nepali)...${NC}"
+
+OS_TYPE="$(uname -s)"
+if [ "$OS_TYPE" = "Darwin" ]; then
+    # --- macOS Setup ---
+    APP_DIR="$HOME/Applications/Nepali Studio.app"
+    mkdir -p "$APP_DIR/Contents/MacOS"
+    mkdir -p "$APP_DIR/Contents/Resources"
+    
+    cp -f "$SCRIPT_DIR/os-integration/macos/Info.plist" "$APP_DIR/Contents/Info.plist"
+    cp -f "$SCRIPT_DIR/os-integration/macos/nepali-studio-launcher" "$APP_DIR/Contents/MacOS/nepali-studio-launcher"
+    chmod +x "$APP_DIR/Contents/MacOS/nepali-studio-launcher"
+    
+    # Register with macOS LaunchServices
+    LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
+    if [ -f "$LSREGISTER" ]; then
+        "$LSREGISTER" -f "$APP_DIR" >/dev/null 2>&1 || true
+        echo -e "${GREEN}✓ macOS LaunchServices registered for .nep and .nepali${NC}"
+    fi
+    echo -e "${GREEN}✓ Created macOS application bundle: $APP_DIR${NC}"
+
+elif [ "$OS_TYPE" = "Linux" ]; then
+    # --- Linux FreeDesktop Setup ---
+    USER_MIME_DIR="$HOME/.local/share/mime/packages"
+    USER_DESK_DIR="$HOME/.local/share/applications"
+    USER_ICON_DIR="$HOME/.local/share/icons/hicolor/scalable/apps"
+    USER_MIME_ICON_DIR="$HOME/.local/share/icons/hicolor/scalable/mimetypes"
+    
+    mkdir -p "$USER_MIME_DIR" "$USER_DESK_DIR" "$USER_ICON_DIR" "$USER_MIME_ICON_DIR"
+    
+    # Install MIME definition
+    cp -f "$SCRIPT_DIR/os-integration/mime/nepali.xml" "$USER_MIME_DIR/nepali.xml"
+    if command -v update-mime-database >/dev/null 2>&1; then
+        update-mime-database "$HOME/.local/share/mime" >/dev/null 2>&1 || true
+        echo -e "${GREEN}✓ FreeDesktop MIME database updated (text/x-nepali)${NC}"
+    fi
+    
+    # Install Icons
+    cp -f "$SCRIPT_DIR/os-integration/icons/nepali.svg" "$USER_ICON_DIR/nepali.svg"
+    cp -f "$SCRIPT_DIR/os-integration/icons/text-x-nepali.svg" "$USER_MIME_ICON_DIR/text-x-nepali.svg"
+    
+    # Install Desktop launcher
+    cp -f "$SCRIPT_DIR/os-integration/desktop/nepali-studio.desktop" "$USER_DESK_DIR/nepali-studio.desktop"
+    cp -f "$SCRIPT_DIR/os-integration/desktop/nepali-runner.desktop" "$USER_DESK_DIR/nepali-runner.desktop"
+    
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "$USER_DESK_DIR" >/dev/null 2>&1 || true
+    fi
+    
+    # Set default association
+    if command -v xdg-mime >/dev/null 2>&1; then
+        xdg-mime default nepali-studio.desktop text/x-nepali >/dev/null 2>&1 || true
+        echo -e "${GREEN}✓ xdg-mime default set to nepali-studio.desktop${NC}"
+    fi
+fi
+
+# 5. Editor Syntax Highlighting Setup (VS Code / Cursor)
+echo -e "\n${CYAN}==> [4/4] Installing editor syntax highlighting...${NC}"
+VSCODE_EXT_DIR="$HOME/.vscode/extensions/nepali-language"
+CURSOR_EXT_DIR="$HOME/.cursor/extensions/nepali-language"
+
+for EXT_TARGET in "$VSCODE_EXT_DIR" "$CURSOR_EXT_DIR"; do
+    PARENT="$(dirname "$EXT_TARGET")"
+    if [ -d "$PARENT" ]; then
+        mkdir -p "$EXT_TARGET/syntaxes"
+        cp -rf "$SCRIPT_DIR/plugins/vscode-nepali/"* "$EXT_TARGET/"
+        echo -e "${GREEN}✓ Installed syntax extension to $EXT_TARGET${NC}"
+    fi
+done
+
+echo -e "\n${BLUE}${BOLD}======================================================================${NC}"
+echo -e "${GREEN}${BOLD}  बधाई छ! नेपाली प्रोग्रामिङ भाषा सफलतापूर्वक इन्स्टल भयो।${NC}"
+echo -e "  परीक्षण गर्न कमान्डहरू:"
+echo -e "    ${CYAN}nepali${NC}                      — Interactive Nepali Shell / REPL"
+echo -e "    ${CYAN}nepali script.nep${NC}           — Run a Nepali source program"
+echo -e "    ${CYAN}nepali studio${NC}               — Launch interactive Nepali Studio IDE"
+echo -e "${BLUE}${BOLD}======================================================================${NC}"

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="text/x-nepali">
+    <comment>नेपाली स्रोत कोड (Nepali Programming Language Source)</comment>
+    <comment xml:lang="en">Nepali Source Code</comment>
+    <comment xml:lang="ne">नेपाली प्रोग्रामिङ भाषा स्रोत कोड</comment>
+    <sub-class-of type="text/plain"/>
+    <generic-icon name="text-x-nepali"/>
+    <glob pattern="*.nep"/>
+    <glob pattern="*.nepali"/>
+    <magic priority="60">
+      <match type="string" value="#!/usr/bin/env nepali" offset="0"/>
+      <match type="string" value="#!/usr/local/bin/nepali" offset="0"/>
+      <match type="string" value="#!/usr/bin/nepali" offset="0"/>
+    </magic>
+  </mime-type>
+</mime-info>
