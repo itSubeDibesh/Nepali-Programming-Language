@@ -33,6 +33,21 @@ export class NepaliEngine {
     return prompts;
   }
 
+  private parseStdout(raw: any): string[] {
+    if (Array.isArray(raw)) {
+      return raw.map(String);
+    }
+    if (typeof raw === 'string') {
+      if (raw.length === 0) return [];
+      const lines = raw.split('\n');
+      if (lines.length > 0 && lines[lines.length - 1] === '') {
+        lines.pop();
+      }
+      return lines;
+    }
+    return [];
+  }
+
   async runCode(
     code: string,
     mode: RunMode = 'sandbox',
@@ -50,7 +65,7 @@ export class NepaliEngine {
       }
     }
 
-        // 1. Desktop Native Tauri / Wry IPC (if running inside standalone desktop app)
+    // 2. Desktop Native Tauri / Wry IPC (if running inside standalone desktop app with native invoke)
     if (typeof window !== 'undefined' && ((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__ || (window as any).ipc)) {
       try {
         const tauriInvoke = (window as any).__TAURI_INTERNALS__?.invoke || (window as any).__TAURI__?.core?.invoke || (window as any).__TAURI__?.invoke;
@@ -62,8 +77,8 @@ export class NepaliEngine {
           });
           const durationMs = Math.round(performance.now() - startTime);
           return {
-            stdout: res.stdout || [],
-            stderr: res.stderr || undefined,
+            stdout: this.parseStdout(res.stdout ?? res.output),
+            stderr: res.stderr || (res.error ? String(res.error) : undefined),
             exitCode: res.exitCode ?? 0,
             durationMs,
             mode
@@ -74,7 +89,7 @@ export class NepaliEngine {
       }
     }
 
-    // 2. Mode 1: WASM Client Execution (if no input/OS calls needed)
+    // 3. Mode 1: WASM Client Execution (if no input/OS calls needed)
     if (mode === 'wasm' && prompts.length === 0 && !code.includes('डाटाबेस') && !code.includes('ओएस_')) {
       try {
         const ready = await this.initWasm();
@@ -82,7 +97,7 @@ export class NepaliEngine {
           const raw = this.wasmModule.run(code);
           const durationMs = Math.round(performance.now() - startTime);
           return {
-            stdout: typeof raw === 'string' ? raw.split('\n').filter(Boolean) : [String(raw)],
+            stdout: this.parseStdout(raw),
             exitCode: 0,
             durationMs,
             mode: 'wasm'
@@ -93,7 +108,7 @@ export class NepaliEngine {
       }
     }
 
-    // 3. Mode 2: Server API Execution with Stdin Pipe
+    // 4. Mode 2: Server API Execution with Stdin Pipe
     try {
       const resp = await fetch('/api/run', {
         method: 'POST',
@@ -108,10 +123,13 @@ export class NepaliEngine {
       const data = await resp.json();
       const durationMs = Math.round(performance.now() - startTime);
 
+      const stdout = this.parseStdout(data.stdout !== undefined ? data.stdout : data.output);
+      const stderr = data.stderr || (data.error ? String(data.error) : undefined);
+
       return {
-        stdout: data.stdout || [],
-        stderr: data.stderr || (data.error ? String(data.error) : undefined),
-        exitCode: data.exitCode ?? (data.error ? 1 : 0),
+        stdout,
+        stderr,
+        exitCode: data.exitCode ?? (stderr ? 1 : 0),
         durationMs,
         mode
       };
