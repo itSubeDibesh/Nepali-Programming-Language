@@ -120,6 +120,7 @@ impl LocalAi {
                 if let Ok(home) = env::var("HOME") {
                     let candidates = [
                         (format!("{home}/.nepali-ai/llm-large/model.gguf"), format!("{home}/.nepali-ai/llm-large/tokenizer.json")),
+                        (format!("{home}/.nepali-ai/llm-small/model.gguf"), format!("{home}/.nepali-ai/llm-small/tokenizer.json")),
                         (format!("{home}/.nepali-ai/llm/model.gguf"), format!("{home}/.nepali-ai/llm/tokenizer.json")),
                         (format!("{home}/.cache/nepali/model.gguf"), format!("{home}/.cache/nepali/tokenizer.json")),
                     ];

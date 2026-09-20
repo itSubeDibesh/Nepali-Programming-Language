@@ -232,10 +232,16 @@ fn ask_nepali_ai(
         }
     }
 
+    let home = std::env::var("HOME").unwrap_or_default();
     let candidates = [
-        "/Users/dibeshrajsubedi/.local/bin/nepali",
-        "/usr/local/bin/nepali",
-        "/opt/homebrew/bin/nepali",
+        format!("{home}/.cargo/bin/nepali"),
+        format!("{home}/.local/bin/nepali"),
+        "/usr/local/bin/nepali".to_string(),
+        "/opt/homebrew/bin/nepali".to_string(),
+        "crates/nepali-core/target/release/nepali-core-cli".to_string(),
+        "crates/nepali-core/target/debug/nepali-core-cli".to_string(),
+        "../crates/nepali-core/target/release/nepali-core-cli".to_string(),
+        "../crates/nepali-core/target/debug/nepali-core-cli".to_string(),
     ];
 
     for bin in candidates {

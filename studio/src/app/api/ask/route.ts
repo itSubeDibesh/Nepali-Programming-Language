@@ -50,6 +50,7 @@ function resolveLocalModel(): { model: string; tokenizer: string } | null {
   const home = os.homedir();
   const candidates: Array<[string, string]> = [
     [path.join(home, '.nepali-ai', 'llm-large', 'model.gguf'), path.join(home, '.nepali-ai', 'llm-large', 'tokenizer.json')],
+    [path.join(home, '.nepali-ai', 'llm-small', 'model.gguf'), path.join(home, '.nepali-ai', 'llm-small', 'tokenizer.json')],
     [path.join(home, '.nepali-ai', 'llm', 'model.gguf'), path.join(home, '.nepali-ai', 'llm', 'tokenizer.json')],
     [path.join(home, '.cache', 'nepali', 'model.gguf'), path.join(home, '.cache', 'nepali', 'tokenizer.json')],
     ['/usr/local/share/nepali-ai/llm/model.gguf', '/usr/local/share/nepali-ai/llm/tokenizer.json'],
