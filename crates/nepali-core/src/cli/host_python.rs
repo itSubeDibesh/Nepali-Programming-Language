@@ -1,3 +1,4 @@
+
 //! Real embedded Python via `pyo3` - the system's actual CPython, linked
 //! into this process, not a subprocess shim. First of four planned real
 //! interop bridges (Python, then Rust plugins, then JS/TS, then Go - see
@@ -12,10 +13,30 @@ use pyo3::types::{PyAny, PyBool, PyDict, PyList, PyString};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+fn devanagari_to_ascii_digits(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '०' => '0',
+            '१' => '1',
+            '२' => '2',
+            '३' => '3',
+            '४' => '4',
+            '५' => '5',
+            '६' => '6',
+            '७' => '7',
+            '८' => '8',
+            '९' => '9',
+            other => other,
+        })
+        .collect()
+}
+
 pub struct PyHost;
 
 impl HostPython for PyHost {
-    fn eval(&self, code: &str) -> Result<Value, String> {
+    fn eval(&self, raw_code: &str) -> Result<Value, String> {
+        let normalized = devanagari_to_ascii_digits(raw_code);
+        let code = normalized.as_str();
         Python::with_gil(|py| {
             let globals = PyDict::new_bound(py);
             py.run_bound(code, Some(&globals), None)

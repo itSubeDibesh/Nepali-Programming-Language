@@ -1,3 +1,4 @@
+
 //! Real embedded JavaScript/TypeScript - `rquickjs` (a real, bundled
 //! QuickJS engine, statically compiled C sources, not a dynamically-
 //! linked system library the way `pyo3`'s Python bridge currently is)
@@ -18,6 +19,24 @@ use swc_core::ecma::parser::{lexer::Lexer, Parser, StringInput, Syntax, TsSyntax
 use swc_core::ecma::transforms::base::resolver;
 use swc_core::ecma::transforms::typescript::strip;
 
+fn devanagari_to_ascii_digits(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '०' => '0',
+            '१' => '1',
+            '२' => '2',
+            '३' => '3',
+            '४' => '4',
+            '५' => '5',
+            '६' => '6',
+            '७' => '7',
+            '८' => '8',
+            '९' => '9',
+            other => other,
+        })
+        .collect()
+}
+
 pub struct QuickJsHost;
 
 impl HostJs for QuickJsHost {
@@ -35,7 +54,9 @@ impl HostJs for QuickJsHost {
 /// state convention as HostPython's fresh globals dict each time, so the
 /// "run foreign code" builtins behave predictably the same way rather
 /// than one silently persisting state and the other not.
-fn eval_js(code: &str, builtin_name: &str) -> Result<Value, String> {
+fn eval_js(raw_code: &str, builtin_name: &str) -> Result<Value, String> {
+    let normalized = devanagari_to_ascii_digits(raw_code);
+    let code = normalized.as_str();
     let rt = Runtime::new().map_err(|e| format!("{builtin_name}: runtime सुरु गर्न सकिएन: {e}"))?;
     let ctx = Context::full(&rt).map_err(|e| format!("{builtin_name}: context सुरु गर्न सकिएन: {e}"))?;
 
