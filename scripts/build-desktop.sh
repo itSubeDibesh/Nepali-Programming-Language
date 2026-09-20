@@ -80,6 +80,40 @@ if [ "$OS_NAME" = "Darwin" ]; then
     
     echo "✓ Built and installed modern macOS Application: ~/Applications/Nepali Studio.app"
 
+    # ── Build macOS .dmg installer (uses hdiutil, bundled with every macOS) ──
+    DMG_NAME="Nepali Studio-1.0.0-macOS.dmg"
+    DMG_OUT="$OUTPUT_DIR/$DMG_NAME"
+    DMG_STAGING="$(mktemp -d)"
+
+    echo "==> Creating macOS .dmg installer..."
+    cp -r "$APP_BUNDLE" "$DMG_STAGING/Nepali Studio.app"
+    ln -s /Applications "$DMG_STAGING/Applications"
+
+    # Optional background image
+    if [ -f "$ROOT_DIR/os-integration/macos/dmg-background.png" ]; then
+        mkdir -p "$DMG_STAGING/.background"
+        cp "$ROOT_DIR/os-integration/macos/dmg-background.png" "$DMG_STAGING/.background/background.png"
+    fi
+
+    # Use diskutil (macOS 15+) if available, else fall back to hdiutil
+    if command -v diskutil >/dev/null 2>&1 && diskutil image create --help >/dev/null 2>&1; then
+        diskutil image create from-folder "$DMG_STAGING" \
+            --volumeName "Nepali Studio" \
+            --format UDZO \
+            --output "$DMG_OUT" >/dev/null 2>&1 || \
+        hdiutil create -volname "Nepali Studio" -srcfolder "$DMG_STAGING" -ov -format UDZO "$DMG_OUT" >/dev/null 2>&1
+    else
+        hdiutil create -volname "Nepali Studio" -srcfolder "$DMG_STAGING" -ov -format UDZO "$DMG_OUT" >/dev/null 2>&1
+    fi
+
+    rm -rf "$DMG_STAGING"
+
+    if [ -f "$DMG_OUT" ]; then
+        echo "✓ macOS .dmg installer: $DMG_OUT"
+    else
+        echo "⚠ DMG creation failed. .app bundle still in dist/"
+    fi
+
 elif [ "$OS_NAME" = "Linux" ]; then
     # Linux Package
     LINUX_DIST="$OUTPUT_DIR/nepali-studio-linux-x64"
