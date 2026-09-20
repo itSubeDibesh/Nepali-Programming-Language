@@ -27,7 +27,7 @@ sudo chown -R "$USER:$USER" /var/log/nepali-studio 2>/dev/null || true
 echo "==> [3/7] Building Rust Native Release Binary (with AI engine)..."
 cd "$ROOT_DIR"
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
-cargo build --release --manifest-path crates/nepali-core/Cargo.toml --bin nepali-core-cli --features ai-interop,python-interop,rust-interop,js-interop,cache,studio,db
+cargo build --release --manifest-path crates/nepali-core/Cargo.toml --bin nepali-core-cli --no-default-features --features ai-interop,python-interop,rust-interop,js-interop,cache,studio,db
 
 echo "==> [4/7] Installing binary to /usr/local/bin/nepali..."
 sudo cp -f "$ROOT_DIR/crates/nepali-core/target/release/nepali-core-cli" /usr/local/bin/nepali
