@@ -4,7 +4,7 @@
 use std::env;
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::process::{Child, Command, ExitCode};
 use std::thread;
 use std::time::Duration;
 use tao::dpi::LogicalSize;
@@ -20,13 +20,25 @@ fn is_port_open(port: u16) -> bool {
 
 fn find_node() -> Option<PathBuf> {
     let home = env::var("HOME").unwrap_or_default();
-    let candidates = [
+    let mut candidates = vec![
         format!("{home}/.local/share/tokless/node/bin/node"),
         format!("{home}/.local/bin/node"),
         "/opt/homebrew/bin/node".to_string(),
         "/usr/local/bin/node".to_string(),
         "/usr/bin/node".to_string(),
     ];
+
+    // Check NVM paths
+    let nvm_base = PathBuf::from(&home).join(".nvm/versions/node");
+    if let Ok(entries) = std::fs::read_dir(nvm_base) {
+        for entry in entries.flatten() {
+            let p = entry.path().join("bin/node");
+            if p.exists() {
+                candidates.push(p.to_string_lossy().into_owned());
+            }
+        }
+    }
+
     for c in &candidates {
         let p = PathBuf::from(c);
         if p.exists() {
@@ -52,12 +64,19 @@ fn try_start_bundled_server(port: u16, exe_path: &Path) -> Option<Child> {
     if studio_server.exists() {
         if let Some(node) = find_node() {
             let studio_dir = studio_server.parent()?;
-            let mut cmd = Command::new(node);
+            let mut cmd = Command::new(&node);
             cmd.arg("server.js");
             cmd.current_dir(studio_dir);
             cmd.env("PORT", port.to_string());
             cmd.env("NODE_ENV", "production");
             cmd.env("NEPALI_BIN", exe_path);
+
+            // Pass enriched PATH so node and nepali can find standard toolchains
+            let home = env::var("HOME").unwrap_or_default();
+            let node_dir = node.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+            let path_val = format!("{node_dir}:{home}/.cargo/bin:{home}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin");
+            cmd.env("PATH", path_val);
+
             if let Ok(child) = cmd.spawn() {
                 return Some(child);
             }
@@ -66,7 +85,7 @@ fn try_start_bundled_server(port: u16, exe_path: &Path) -> Option<Child> {
     None
 }
 
-pub fn run_window(port: u16, nepali_bin: Option<&str>) {
+pub fn run_window(port: u16, nepali_bin: Option<&str>) -> ExitCode {
     let exe = env::current_exe().unwrap_or_else(|_| PathBuf::from("nepali"));
     let mut server_process: Option<Child> = None;
 
@@ -139,4 +158,6 @@ pub fn run_window(port: u16, nepali_bin: Option<&str>) {
             _ => {}
         }
     });
+
+    ExitCode::SUCCESS
 }

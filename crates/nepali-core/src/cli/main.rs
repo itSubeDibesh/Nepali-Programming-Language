@@ -213,6 +213,20 @@ fn main() -> ExitCode {
             None => None,
         })
         .unwrap_or_else(detect_mode);
+
+    // If launched as a macOS .app bundle directly (Finder click, Spotlight, or -psn_...)
+    let is_finder_psn = args.get(1).map(|s| s.starts_with("-psn_")).unwrap_or(false);
+    let is_inside_bundle = env::current_exe()
+        .map(|p| p.to_string_lossy().contains(".app/Contents/MacOS"))
+        .unwrap_or(false);
+
+    if (args.len() <= 1 && is_inside_bundle) || is_finder_psn {
+        #[cfg(feature = "gui")]
+        {
+            return window::run_window(8765, None);
+        }
+    }
+
     match args.get(1).map(String::as_str) {
         Some("fmt") => run_fmt(&args[2..]),
         Some("bundle") => {
@@ -262,8 +276,7 @@ fn main() -> ExitCode {
             } else {
                 #[cfg(feature = "gui")]
                 if window {
-                    window::run_window(port, nepali_bin.as_deref());
-                    ExitCode::SUCCESS
+                    window::run_window(port, nepali_bin.as_deref())
                 } else {
                     studio::run_studio(port, no_open, nepali_bin.as_deref());
                     ExitCode::SUCCESS
