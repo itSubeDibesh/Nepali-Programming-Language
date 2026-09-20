@@ -1,5 +1,5 @@
 'use client';
-import { ensureNepaliExtension, getFileExtensionBadgeColor } from '../lib/fileUtils';
+import { ensureNepaliExtension, getFileExtensionBadgeColor, handleRenameInputKeyDown } from '../lib/fileUtils';
 import React, { useState } from 'react';
 import { ActiveSidebarTab } from './ActivityBar';
 import { CodeFile, RecipeItem } from '../lib/types';
@@ -25,6 +25,7 @@ import {
 
 interface SidebarProps {
   activeTab: ActiveSidebarTab;
+  translitEnabled?: boolean;
   onClose: () => void;
   files: CodeFile[];
   activeFileId: string;
@@ -49,6 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectExample,
   onInsertCode,
   onResetWorkspace,
+  translitEnabled = true,
 }) => {
   const [docSearch, setDocSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -171,7 +173,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onBlur={() => finishRename(file.id)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') finishRename(file.id);
-                          if (e.key === 'Escape') setEditingFileId(null);
+                          else if (e.key === 'Escape') setEditingFileId(null);
+                          else handleRenameInputKeyDown(e, translitEnabled, setEditingFileName);
                         }}
                         onClick={(e) => e.stopPropagation()}
                         className="bg-slate-950 text-white px-1.5 py-0.5 rounded border border-emerald-500 outline-none w-full text-xs font-mono"

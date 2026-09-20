@@ -1,5 +1,5 @@
 'use client';
-import { ensureNepaliExtension, getFileExtensionBadgeColor } from '../lib/fileUtils';
+import { ensureNepaliExtension, getFileExtensionBadgeColor, handleRenameInputKeyDown } from '../lib/fileUtils';
 import React, { useRef, useState } from 'react';
 import { CodeFile } from '../lib/types';
 import { transliterateWord } from '../lib/translit';
@@ -361,7 +361,8 @@ export const Editor: React.FC<EditorProps> = ({
                     onBlur={() => finishRenaming(file.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') finishRenaming(file.id);
-                      if (e.key === 'Escape') setEditingNameId(null);
+                      else if (e.key === 'Escape') setEditingNameId(null);
+                      else handleRenameInputKeyDown(e, translitEnabled, setTempName);
                     }}
                     onClick={(e) => e.stopPropagation()}
                     className="bg-slate-950 text-white font-mono text-xs px-1.5 py-0.5 rounded border border-emerald-500 outline-none w-28 shadow-inner"

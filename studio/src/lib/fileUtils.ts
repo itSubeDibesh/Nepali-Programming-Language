@@ -1,4 +1,6 @@
-// Nepali file extension helpers supporting .nep, .nepali, .नेपाली, .नेप
+// Nepali file extension & naming helpers supporting .nep, .nepali, .नेपाली, .नेप
+import { transliterateWord } from './translit';
+import { toNepaliDigits } from './numbers';
 
 export const VALID_NEPALI_EXTENSIONS = ['.nep', '.nepali', '.नेपाली', '.नेप'] as const;
 
@@ -48,5 +50,61 @@ export function getFileExtensionBadgeColor(name: string): { bg: string; text: st
     case '.nep':
     default:
       return { bg: 'bg-cyan-500/10 border-cyan-500/30', text: 'text-cyan-400', label: '.nep' };
+  }
+}
+
+/**
+ * Handles live Devanagari transliteration inside a rename text input
+ */
+export function handleRenameInputKeyDown(
+  e: React.KeyboardEvent<HTMLInputElement>,
+  translitEnabled: boolean,
+  setValue: React.Dispatch<React.SetStateAction<string>>
+) {
+  if (!translitEnabled) return;
+
+  const target = e.currentTarget;
+  if (!target) return;
+
+  // Convert numbers directly to Nepali digits in Nepali mode
+  if (/^[0-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    const nepDigit = toNepaliDigits(e.key);
+    const start = target.selectionStart || 0;
+    const end = target.selectionEnd || 0;
+    const val = target.value;
+    const newVal = val.substring(0, start) + nepDigit + val.substring(end);
+    setValue(newVal);
+    setTimeout(() => {
+      target.selectionStart = target.selectionEnd = start + nepDigit.length;
+    }, 0);
+    return;
+  }
+
+  // Word trigger on space or separator
+  if (e.key === ' ' || e.key === '_' || e.key === '-' || e.key === '.') {
+    const pos = target.selectionStart || 0;
+    const text = target.value;
+
+    let wordStart = pos - 1;
+    while (wordStart >= 0 && /[a-zA-Z0-9]/.test(text[wordStart])) {
+      wordStart--;
+    }
+    wordStart++;
+
+    if (wordStart < pos) {
+      const rawWord = text.substring(wordStart, pos);
+      const nepaliWord = transliterateWord(rawWord);
+      if (nepaliWord !== rawWord) {
+        e.preventDefault();
+        const sep = e.key;
+        const newText = text.substring(0, wordStart) + nepaliWord + sep + text.substring(pos);
+        setValue(newText);
+        const newCursorPos = wordStart + nepaliWord.length + sep.length;
+        setTimeout(() => {
+          target.selectionStart = target.selectionEnd = newCursorPos;
+        }, 0);
+      }
+    }
   }
 }

@@ -14,6 +14,7 @@ import { engine } from '../lib/engine';
 import { ExecutionResult, RunMode, PromptRequest, CodeFile, RecipeItem } from '../lib/types';
 import { decodeCodeFromUrl } from '../lib/share';
 import { ensureNepaliExtension } from '../lib/fileUtils';
+import { toNepaliDigits } from '../lib/numbers';
 
 const DEFAULT_CODE = `// नेपाली भाषामा पहिलो कार्यक्रम (Your First Program)
 राखौँ सन्देश = "नमस्ते, नेपाल !"।
@@ -465,6 +466,7 @@ export default function StudioWorkspace() {
             {activeSidebarTab && (
               <Sidebar
                 activeTab={activeSidebarTab}
+                translitEnabled={translitEnabled}
                 onClose={() => handleSetActiveSidebarTab(null)}
                 files={files}
                 activeFileId={activeFileId}
