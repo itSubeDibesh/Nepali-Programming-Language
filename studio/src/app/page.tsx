@@ -355,6 +355,8 @@ export default function StudioPage() {
                 onRun={handleRun}
                 onSave={handleManualSave}
                 isSaved={isSaved}
+                onToggleTranslit={() => setTranslitEnabled((prev) => !prev)}
+                onOpenAi={() => setIsAiOpen(true)}
               />
             </main>
 

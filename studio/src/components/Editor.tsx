@@ -1,10 +1,12 @@
 'use client';
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { CodeFile } from '../lib/types';
 import { transliterateWord } from '../lib/translit';
 import { highlightNepaliCode } from '../lib/highlighter';
 import { getDocumentationForSymbol, DocItem } from '../lib/docs';
 import { toNepaliDigits } from '../lib/numbers';
+import { formatNepaliCode } from '../lib/formatter';
+import { ContextMenu } from './ContextMenu';
 import {
   FileCode,
   Plus,
@@ -16,12 +18,8 @@ import {
   Pencil,
   ChevronRight,
   Folder,
-  Code2,
-  Sparkles,
-  Info,
-  Maximize2,
-  Minimize2,
   AlignLeft,
+  Sparkles,
 } from 'lucide-react';
 
 interface EditorProps {
@@ -36,6 +34,8 @@ interface EditorProps {
   onRun: () => void;
   onSave: () => void;
   isSaved: boolean;
+  onToggleTranslit?: () => void;
+  onOpenAi?: () => void;
 }
 
 export const Editor: React.FC<EditorProps> = ({
@@ -50,6 +50,8 @@ export const Editor: React.FC<EditorProps> = ({
   onRun,
   onSave,
   isSaved,
+  onToggleTranslit,
+  onOpenAi,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlighterRef = useRef<HTMLPreElement>(null);
@@ -59,6 +61,10 @@ export const Editor: React.FC<EditorProps> = ({
   const [hoverDoc, setHoverDoc] = useState<{ doc: DocItem; x: number; y: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const [savedFeedback, setSavedFeedback] = useState(false);
+  const [formattedFeedback, setFormattedFeedback] = useState(false);
+
+  // Custom Context Menu state
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   // File Renaming state
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
@@ -133,7 +139,22 @@ export const Editor: React.FC<EditorProps> = ({
     setHoverDoc(null);
   };
 
+  const handleFormatCode = () => {
+    if (!activeFile) return;
+    const formatted = formatNepaliCode(activeFile.content);
+    onUpdateContent(activeFile.id, formatted);
+    setFormattedFeedback(true);
+    setTimeout(() => setFormattedFeedback(false), 1500);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Format Code: Shift+Alt+F or Shift+Option+F
+    if (e.shiftKey && e.altKey && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      handleFormatCode();
+      return;
+    }
+
     // 1. Tab Key Indentation (2 spaces)
     if (e.key === 'Tab') {
       e.preventDefault();
@@ -212,10 +233,60 @@ export const Editor: React.FC<EditorProps> = ({
 
   const handleCopy = () => {
     if (activeFile) {
-      navigator.clipboard.writeText(activeFile.content);
+      const target = textareaRef.current;
+      const selected = target && target.selectionStart !== target.selectionEnd
+        ? target.value.substring(target.selectionStart, target.selectionEnd)
+        : activeFile.content;
+      navigator.clipboard.writeText(selected);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleCut = () => {
+    if (!activeFile || !textareaRef.current) return;
+    const target = textareaRef.current;
+    const start = target.selectionStart;
+    const end = target.selectionEnd;
+    if (start === end) return;
+    const selected = target.value.substring(start, end);
+    navigator.clipboard.writeText(selected);
+    const newVal = target.value.substring(0, start) + target.value.substring(end);
+    onUpdateContent(activeFile.id, newVal);
+    setTimeout(() => {
+      target.selectionStart = target.selectionEnd = start;
+      handleCursorMove();
+    }, 0);
+  };
+
+  const handlePaste = async () => {
+    if (!activeFile || !textareaRef.current) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      const target = textareaRef.current;
+      const start = target.selectionStart;
+      const end = target.selectionEnd;
+      const val = target.value;
+      const newVal = val.substring(0, start) + text + val.substring(end);
+      onUpdateContent(activeFile.id, newVal);
+      setTimeout(() => {
+        target.selectionStart = target.selectionEnd = start + text.length;
+        handleCursorMove();
+      }, 0);
+    } catch {
+      // Ignore clipboard permission issues
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (textareaRef.current) {
+      textareaRef.current.select();
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
   const handleManualSaveTrigger = () => {
@@ -356,6 +427,18 @@ export const Editor: React.FC<EditorProps> = ({
         {/* Right Toolbar in Tab Bar */}
         <div className="flex items-center space-x-1 text-slate-400">
           <button
+            onClick={handleFormatCode}
+            className={`p-1.5 rounded transition-colors text-xs flex items-center space-x-1 ${
+              formattedFeedback
+                ? 'text-emerald-400 bg-emerald-500/10'
+                : 'hover:text-slate-200 hover:bg-[#0F172A]'
+            }`}
+            title="कोड ढाँचा मिलाउनुहोस् (Format Code - Shift+Alt+F)"
+          >
+            <AlignLeft className="w-3.5 h-3.5" />
+          </button>
+
+          <button
             onClick={handleManualSaveTrigger}
             className={`p-1.5 rounded transition-colors text-xs flex items-center space-x-1 ${
               savedFeedback
@@ -366,6 +449,7 @@ export const Editor: React.FC<EditorProps> = ({
           >
             {savedFeedback ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Save className="w-3.5 h-3.5" />}
           </button>
+
           {activeFile && (
             <button
               onClick={() => startRenaming(activeFile)}
@@ -375,6 +459,7 @@ export const Editor: React.FC<EditorProps> = ({
               <Pencil className="w-3.5 h-3.5" />
             </button>
           )}
+
           <button
             onClick={handleDownload}
             className="p-1.5 hover:text-slate-200 hover:bg-[#0F172A] rounded transition-colors"
@@ -382,6 +467,7 @@ export const Editor: React.FC<EditorProps> = ({
           >
             <Download className="w-3.5 h-3.5" />
           </button>
+
           <button
             onClick={handleCopy}
             className="p-1.5 hover:text-slate-200 hover:bg-[#0F172A] rounded transition-colors"
@@ -411,8 +497,11 @@ export const Editor: React.FC<EditorProps> = ({
         </div>
       </div>
 
-      {/* 3. Editor Code Canvas */}
-      <div className="flex-1 flex relative overflow-hidden bg-[#060911]">
+      {/* 3. Editor Code Canvas with Custom Right-Click Context Menu */}
+      <div
+        onContextMenu={handleContextMenu}
+        className="flex-1 flex relative overflow-hidden bg-[#060911]"
+      >
         {/* Line Numbers Gutter */}
         <div
           ref={lineNumbersRef}
@@ -449,7 +538,7 @@ export const Editor: React.FC<EditorProps> = ({
             }}
           />
 
-          {/* Interactive Textarea Input (Text transparent to prevent double render/glitch) */}
+          {/* Interactive Textarea Input */}
           <textarea
             ref={textareaRef}
             value={activeContent}
@@ -476,8 +565,26 @@ export const Editor: React.FC<EditorProps> = ({
           />
         </div>
 
+        {/* Custom IDE Right-Click Context Menu */}
+        {contextMenu && (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            onClose={() => setContextMenu(null)}
+            onRun={onRun}
+            onFormat={handleFormatCode}
+            onCopy={handleCopy}
+            onCut={handleCut}
+            onPaste={handlePaste}
+            onSelectAll={handleSelectAll}
+            onToggleTranslit={() => onToggleTranslit?.()}
+            onAskAi={() => onOpenAi?.()}
+            translitEnabled={translitEnabled}
+          />
+        )}
+
         {/* Hover Documentation Floating Tooltip */}
-        {hoverDoc && (
+        {hoverDoc && !contextMenu && (
           <div
             style={{ top: hoverDoc.y, left: hoverDoc.x }}
             className="fixed z-50 w-80 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3.5 shadow-2xl text-xs space-y-2 pointer-events-none animate-in fade-in duration-100"
