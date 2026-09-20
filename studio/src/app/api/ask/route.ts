@@ -34,6 +34,36 @@ function findNepaliBinary(): string | null {
   return null;
 }
 
+/**
+ * Resolves whether a real local GGUF model + tokenizer are actually present
+ * on disk. Mirrors the Rust side's discovery (host_ai.rs): env vars first,
+ * then ~/.nepali-ai, ~/.cache, and system paths. When this returns null the
+ * native model cannot run at all, so the route skips the CLI spawn entirely
+ * and goes straight to the baked-in engine - no more pointless 3s timeouts.
+ */
+function resolveLocalModel(): { model: string; tokenizer: string } | null {
+  const exists = (p?: string) => !!p && p.length > 0 && fs.existsSync(p);
+  const envModel = process.env.NEPALI_AI_MODEL_PATH;
+  const envTok = process.env.NEPALI_AI_TOKENIZER_PATH;
+  if (exists(envModel) && exists(envTok)) return { model: envModel!, tokenizer: envTok! };
+
+  const home = os.homedir();
+  const candidates: Array<[string, string]> = [
+    [path.join(home, '.nepali-ai', 'llm-large', 'model.gguf'), path.join(home, '.nepali-ai', 'llm-large', 'tokenizer.json')],
+    [path.join(home, '.nepali-ai', 'llm', 'model.gguf'), path.join(home, '.nepali-ai', 'llm', 'tokenizer.json')],
+    [path.join(home, '.cache', 'nepali', 'model.gguf'), path.join(home, '.cache', 'nepali', 'tokenizer.json')],
+    ['/usr/local/share/nepali-ai/llm/model.gguf', '/usr/local/share/nepali-ai/llm/tokenizer.json'],
+    ['/opt/homebrew/share/nepali-ai/llm/model.gguf', '/opt/homebrew/share/nepali-ai/llm/tokenizer.json'],
+  ];
+  for (const [m, t] of candidates) {
+    if (fs.existsSync(m) && fs.existsSync(t)) return { model: m, tokenizer: t };
+  }
+  return null;
+}
+
+/** Real model load + CPU inference takes 20-60s+ for a 1.5B GGUF - wait properly. */
+const NATIVE_AI_TIMEOUT_MS = 180_000;
+
 export async function GET() {
   return NextResponse.json({
     available: true,
@@ -53,9 +83,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'प्रश्न खाली छ (Question is empty)' }, { status: 400 });
     }
 
-    // 1. Try Local Rust CLI (nepali ask) if available
+    // 1. Real local Rust CLI (nepali ask) - ONLY when a real GGUF model +
+    //    tokenizer are actually configured on disk. Without weights the CLI
+    //    can never answer, so skip it and fall back honestly instead of
+    //    burning a timeout. With weights, give it a real timeout so the
+    //    model genuinely finishes loading and answering.
     const cliBin = findNepaliBinary();
-    if (cliBin) {
+    const localModel = resolveLocalModel();
+    if (cliBin && localModel) {
       const projectRoot = path.resolve(process.cwd(), '..');
       const envPath = [
         path.join(os.homedir(), '.cargo/bin'),
@@ -89,7 +124,7 @@ export async function POST(req: NextRequest) {
         const timer = setTimeout(() => {
           child.kill('SIGKILL');
           resolve(null);
-        }, 3000);
+        }, NATIVE_AI_TIMEOUT_MS);
 
         child.stdout?.on('data', (d) => {
           stdout += d.toString();
@@ -119,9 +154,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           answer: cliResult.answer,
           codeSnippet: cliResult.codeSnippet,
-          engine: 'नेपाली नेटिभ एआई (Native AI)',
+          engine: 'नेपाली नेटिभ एआई (स्थानीय Qwen GGUF मोडेल)',
         });
       }
+      // Native model failed at runtime (corrupt/unsupported weights, OOM,
+      // etc.) - fall through to the baked-in engine rather than erroring out.
     }
 
     // 2. Pure Autonomous Baked-In AI Engine with Multi-File Context
