@@ -90,7 +90,7 @@ if [ "$OS_NAME" = "Darwin" ]; then
     DMG_STAGING="$(mktemp -d)"
 
     echo "==> Creating macOS .dmg installer..."
-    cp -r "$APP_BUNDLE" "$DMG_STAGING/Nepali Studio.app"
+    cp -r "$HOME/Applications/Nepali Studio.app" "$DMG_STAGING/Nepali Studio.app"
     ln -s /Applications "$DMG_STAGING/Applications"
 
     # Optional background image
