@@ -21,8 +21,9 @@ module.exports = {
         NEXT_PUBLIC_WEB_STUDIO: 'true',
         NEPALI_SCRIPT: 'devanagari',
         NEPALI_DIGITS: 'devanagari',
-        // Binary path: installed by deploy/setup.sh
         NEPALI_BIN: '/usr/local/bin/nepali',
+        NEPALI_AI_MODEL_PATH: '/usr/local/share/nepali-ai/llm/model.gguf',
+        NEPALI_AI_TOKENIZER_PATH: '/usr/local/share/nepali-ai/llm/tokenizer.json',
       },
       env_production: {
         NODE_ENV: 'production',
@@ -32,6 +33,8 @@ module.exports = {
         NEPALI_SCRIPT: 'devanagari',
         NEPALI_DIGITS: 'devanagari',
         NEPALI_BIN: '/usr/local/bin/nepali',
+        NEPALI_AI_MODEL_PATH: '/usr/local/share/nepali-ai/llm/model.gguf',
+        NEPALI_AI_TOKENIZER_PATH: '/usr/local/share/nepali-ai/llm/tokenizer.json',
       },
       error_file: '/var/log/nepali-studio/pm2-error.log',
       out_file: '/var/log/nepali-studio/pm2-out.log',
