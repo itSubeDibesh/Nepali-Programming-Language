@@ -1,13 +1,28 @@
 #!/usr/bin/env bash
-# macOS App bundle launcher for Nepali Studio
+# ==============================================================================
+# Native macOS Launcher for Nepali Studio Desktop IDE
+# ==============================================================================
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_FILE="${1:-}"
 
-if command -v nepali >/dev/null 2>&1; then
-  if [ -n "$TARGET_FILE" ] && [ -f "$TARGET_FILE" ]; then
-    nepali studio "$TARGET_FILE"
-  else
-    nepali studio
-  fi
+# Always prefer the self-contained bundled binary
+if [ -x "$DIR/nepali" ]; then
+  EXEC_BIN="$DIR/nepali"
+elif [ -x "$HOME/.local/bin/nepali" ]; then
+  EXEC_BIN="$HOME/.local/bin/nepali"
+elif [ -x "/usr/local/bin/nepali" ]; then
+  EXEC_BIN="/usr/local/bin/nepali"
+elif command -v nepali >/dev/null 2>&1; then
+  EXEC_BIN="$(command -v nepali)"
 else
-  open "http://localhost:3000" || open "https://studio.nepalilang.org"
+  EXEC_BIN="nepali"
+fi
+
+export PATH="$DIR:$HOME/.local/bin:/usr/local/bin:$PATH"
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+
+if [ -n "$TARGET_FILE" ] && [ -f "$TARGET_FILE" ]; then
+  exec "$EXEC_BIN" studio "$TARGET_FILE"
+else
+  exec "$EXEC_BIN" studio
 fi

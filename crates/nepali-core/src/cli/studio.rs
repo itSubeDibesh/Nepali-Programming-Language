@@ -180,6 +180,7 @@ pub fn run_studio(port: u16, no_open: bool, nepali_bin: Option<&str>) {
     let bin = nepali_bin
         .map(PathBuf::from)
         .or_else(|| env::var("NEPALI_BIN").ok().map(PathBuf::from))
+        .or_else(|| env::current_exe().ok())
         .filter(|p| p.exists())
         .and_then(|p| fs::canonicalize(p).ok())
         .unwrap_or_else(|| {
