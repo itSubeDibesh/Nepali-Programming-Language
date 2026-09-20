@@ -1,28 +1,37 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Navbar } from '../components/Navbar';
+import { ActivityBar, ActiveSidebarTab } from '../components/ActivityBar';
+import { Sidebar } from '../components/Sidebar';
 import { Editor } from '../components/Editor';
 import { Terminal } from '../components/Terminal';
 import { InputModal } from '../components/InputModal';
+import { ShareModal } from '../components/ShareModal';
 import { AiAssistant } from '../components/AiAssistant';
-import { ExamplesDrawer } from '../components/ExamplesDrawer';
 import { AstInspector } from '../components/AstInspector';
 import { CodeFile, ExecutionResult, PromptRequest, RecipeItem, RunMode } from '../lib/types';
 import { EXAMPLES } from '../lib/examples';
 import { engine } from '../lib/engine';
+import { decodeCodeFromUrl } from '../lib/share';
 
 const DEFAULT_CODE = `// नेपाली प्रोग्रामिङ भाषा स्टुडियोमा स्वागत छ!
-// F2 दबाएर सिधै रोमनबाट नेपालीमा टाइप गर्नुहोस्। (उदा. rakha -> राखौँ)
+// F2 दबाएर सिधै रोमनबाट नेपालीमा टाइप गर्नुहोस्। (उदा. aaja() -> आज())
 
 राखौँ आजको = आज()।
 भनौँ("नमस्ते नेपाल! 🇳🇵")।
 भनौँ("आजको मिति:", आजको)।
-भनौँ("आजको बार:", हप्ताको_दिन(आजको))।
+भनौँ("हप्ताको बार:", हप्ताको_दिन(आजको))।
 
-// दिनको फरक पत्ता लगाउने
+// दिनको फरक र उमेर गणना
+राखौँ जन्मदिन = "2000-05-14"।
+राखौँ वर्ष = उमेर(जन्मदिन);
+भनौँ("उमेर:", वर्ष, "वर्ष");
+
 राखौँ नयाँ_वर्ष = "2026-01-01"।
 भनौँ("नयाँ वर्षदेखिको दिन फरक:", दिन_फरक(आजको, नयाँ_वर्ष), "दिन")।
 `;
+
+const LOCAL_STORAGE_KEY = 'nepali_studio_files_v2';
 
 export default function StudioPage() {
   const [files, setFiles] = useState<CodeFile[]>([
@@ -35,13 +44,52 @@ export default function StudioPage() {
   const [result, setResult] = useState<ExecutionResult | null>(null);
   const [promptReq, setPromptReq] = useState<PromptRequest | null>(null);
 
+  const [activeSidebarTab, setActiveSidebarTab] = useState<ActiveSidebarTab>('files');
   const [isAiOpen, setIsAiOpen] = useState(false);
-  const [isExamplesOpen, setIsExamplesOpen] = useState(false);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isSaved, setIsSaved] = useState(true);
+
+  // 1. Load shared code from URL hash or localStorage on mount
+  useEffect(() => {
+    try {
+      // Check shared code in URL
+      const shared = decodeCodeFromUrl();
+      if (shared) {
+        const sharedFile: CodeFile = {
+          id: 'shared-' + Date.now(),
+          name: shared.name,
+          content: shared.code,
+          isMain: true,
+        };
+        setFiles([sharedFile]);
+        setActiveFileId(sharedFile.id);
+        return;
+      }
+
+      // Check localStorage
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setFiles(parsed);
+          setActiveFileId(parsed[0].id);
+        }
+      }
+    } catch (_) {}
+  }, []);
+
+  // 2. Auto-save to localStorage on content/file changes
+  const saveFilesToStorage = (updatedFiles: CodeFile[]) => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedFiles));
+      setIsSaved(true);
+    } catch (_) {}
+  };
 
   const activeFile = files.find((f) => f.id === activeFileId) || files[0];
 
-  // Global shortcut listeners (F2: Transliteration toggle, ⌘+Enter: Run)
+  // 3. Global shortcut listeners (F2: Transliteration toggle, ⌘+Enter: Run, ⌘+S: Save)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
@@ -52,10 +100,18 @@ export default function StudioPage() {
         e.preventDefault();
         handleRun();
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        handleManualSave();
+      }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeFile?.content, mode]);
+  }, [activeFile?.content, mode, files]);
+
+  const handleManualSave = () => {
+    saveFilesToStorage(files);
+  };
 
   const handleRun = async () => {
     if (!activeFile || isRunning) return;
@@ -97,25 +153,35 @@ export default function StudioPage() {
     const newFile: CodeFile = {
       id: newId,
       name: `script${count}.nep`,
-      content: '// नयाँ नेपाली स्क्रिप्ट\nभनौँ("सुरुवात!")।\n'
+      content: '// नयाँ नेपाली लिपि\nलेख्नुहोस्("नमस्ते!");\n'
     };
-    setFiles((prev) => [...prev, newFile]);
+    const nextFiles = [...files, newFile];
+    setFiles(nextFiles);
     setActiveFileId(newId);
+    saveFilesToStorage(nextFiles);
   };
 
   const handleDeleteFile = (id: string) => {
     if (files.length <= 1) return;
-    setFiles((prev) => prev.filter((f) => f.id !== id));
+    const nextFiles = files.filter((f) => f.id !== id);
+    setFiles(nextFiles);
     if (activeFileId === id) {
-      const remaining = files.filter((f) => f.id !== id);
-      setActiveFileId(remaining[0].id);
+      setActiveFileId(nextFiles[0].id);
     }
+    saveFilesToStorage(nextFiles);
+  };
+
+  const handleRenameFile = (id: string, newName: string) => {
+    const nextFiles = files.map((f) => (f.id === id ? { ...f, name: newName } : f));
+    setFiles(nextFiles);
+    saveFilesToStorage(nextFiles);
   };
 
   const handleUpdateContent = (id: string, newContent: string) => {
-    setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, content: newContent } : f))
-    );
+    setIsSaved(false);
+    const nextFiles = files.map((f) => (f.id === id ? { ...f, content: newContent } : f));
+    setFiles(nextFiles);
+    saveFilesToStorage(nextFiles);
   };
 
   const handleSelectExample = (ex: RecipeItem) => {
@@ -125,20 +191,32 @@ export default function StudioPage() {
       name: `${ex.id}.nep`,
       content: ex.code
     };
-    setFiles((prev) => [...prev, newFile]);
+    const nextFiles = [...files, newFile];
+    setFiles(nextFiles);
     setActiveFileId(newId);
-    setIsExamplesOpen(false);
+    saveFilesToStorage(nextFiles);
   };
 
-  const handleInsertAiCode = (snippet: string) => {
+  const handleInsertCode = (snippet: string) => {
     if (!activeFile) return;
     const updated = activeFile.content + '\n\n' + snippet;
     handleUpdateContent(activeFile.id, updated);
   };
 
+  const handleResetWorkspace = () => {
+    if (confirm('के तपाईं सबै फाइलहरू पूर्वनिर्धारितमा रिसेट गर्न चाहनुहुन्छ? (Reset workspace?)')) {
+      const resetFiles: CodeFile[] = [
+        { id: '1', name: 'main.nep', content: DEFAULT_CODE, isMain: true }
+      ];
+      setFiles(resetFiles);
+      setActiveFileId('1');
+      saveFilesToStorage(resetFiles);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950">
-      {/* Top Navigation */}
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#060911] text-slate-100 selection:bg-emerald-500/30">
+      {/* Top Navbar */}
       <Navbar
         onRun={handleRun}
         isRunning={isRunning}
@@ -146,27 +224,57 @@ export default function StudioPage() {
         onModeChange={setMode}
         translitEnabled={translitEnabled}
         onToggleTranslit={() => setTranslitEnabled((prev) => !prev)}
-        onToggleExamples={() => setIsExamplesOpen((prev) => !prev)}
+        onToggleExamples={() =>
+          setActiveSidebarTab((prev) => (prev === 'examples' ? null : 'examples'))
+        }
         onToggleAi={() => setIsAiOpen((prev) => !prev)}
         onToggleInspector={() => setIsInspectorOpen((prev) => !prev)}
+        onOpenShare={() => setIsShareOpen(true)}
         isAiOpen={isAiOpen}
-        isExamplesOpen={isExamplesOpen}
+        isExamplesOpen={activeSidebarTab === 'examples'}
         isInspectorOpen={isInspectorOpen}
       />
 
-      {/* Main Workspace Layout */}
-      <main className="flex-1 flex overflow-hidden relative">
-        {/* Left Side: Examples Drawer */}
-        <ExamplesDrawer
-          isOpen={isExamplesOpen}
-          onClose={() => setIsExamplesOpen(false)}
-          onSelectExample={handleSelectExample}
+      {/* Main IDE Workspace */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Left Activity Bar */}
+        <ActivityBar
+          activeTab={activeSidebarTab}
+          onSelectTab={(tab) => {
+            if (tab === 'ai') {
+              setIsAiOpen(true);
+            } else if (tab === 'inspector') {
+              setIsInspectorOpen(true);
+            } else {
+              setActiveSidebarTab(tab);
+            }
+          }}
+          onRun={handleRun}
+          isRunning={isRunning}
+          mode={mode}
+          onModeChange={setMode}
         />
 
-        {/* Center: Editor and Terminal Split */}
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-          {/* Code Editor */}
-          <div className="flex-1 h-3/5 md:h-full flex flex-col">
+        {/* Collapsible Sidebar (Files, Examples, Cheatsheet) */}
+        {activeSidebarTab && activeSidebarTab !== 'ai' && activeSidebarTab !== 'inspector' && (
+          <Sidebar
+            activeTab={activeSidebarTab}
+            onClose={() => setActiveSidebarTab(null)}
+            files={files}
+            activeFileId={activeFileId}
+            onSelectFile={setActiveFileId}
+            onAddFile={handleAddFile}
+            onDeleteFile={handleDeleteFile}
+            onSelectExample={handleSelectExample}
+            onInsertCode={handleInsertCode}
+            onResetWorkspace={handleResetWorkspace}
+          />
+        )}
+
+        {/* Center: Editor & Terminal Dock Split */}
+        <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          {/* Main Editor Pane */}
+          <div className="flex-1 h-3/5 md:h-full flex flex-col min-w-0">
             <Editor
               files={files}
               activeFileId={activeFileId}
@@ -174,39 +282,51 @@ export default function StudioPage() {
               onUpdateContent={handleUpdateContent}
               onAddFile={handleAddFile}
               onDeleteFile={handleDeleteFile}
+              onRenameFile={handleRenameFile}
               translitEnabled={translitEnabled}
               onRun={handleRun}
+              onSave={handleManualSave}
+              isSaved={isSaved}
             />
           </div>
 
-          {/* Terminal Output */}
-          <div className="h-2/5 md:h-full md:w-2/5 md:min-w-[340px] flex flex-col border-t md:border-t-0 md:border-l border-slate-800">
+          {/* Bottom/Right Terminal Dock */}
+          <div className="h-2/5 md:h-full md:w-[420px] lg:w-[480px] flex flex-col border-t md:border-t-0 md:border-l border-[#1E293B]">
             <Terminal
               result={result}
               isRunning={isRunning}
               onClear={() => setResult(null)}
+              code={activeFile?.content || ''}
             />
           </div>
-        </div>
+        </main>
 
-        {/* Right Side: AI Assistant */}
+        {/* Right Drawer: AI Assistant */}
         <AiAssistant
           isOpen={isAiOpen}
           onClose={() => setIsAiOpen(false)}
-          onInsertCode={handleInsertAiCode}
+          onInsertCode={handleInsertCode}
           currentCode={activeFile?.content || ''}
         />
 
-        {/* Right Side: AST / Bytecode Inspector */}
+        {/* Right Drawer: AST & Bytecode Inspector */}
         <AstInspector
           isOpen={isInspectorOpen}
           onClose={() => setIsInspectorOpen(false)}
           code={activeFile?.content || ''}
         />
-      </main>
+      </div>
 
       {/* Interactive Input Prompt Modal */}
       <InputModal request={promptReq} />
+
+      {/* Share Program Modal */}
+      <ShareModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        code={activeFile?.content || ''}
+        fileName={activeFile?.name || 'main.nep'}
+      />
     </div>
   );
 }
