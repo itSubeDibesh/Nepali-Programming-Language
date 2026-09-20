@@ -96,7 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   });
 
   return (
-    <aside className="w-64 md:w-72 bg-[#0B0F19] border-r border-[#1E293B] flex flex-col h-full z-20 select-none overflow-hidden shadow-xl">
+    <aside className="w-64 md:w-72 bg-[#0B0F19] border-r border-[#1E293B] flex flex-col h-full z-20 select-none overflow-x-hidden overflow-y-hidden shadow-xl min-w-0 flex-shrink-0">
       {/* Sidebar Header */}
       <div className="h-10 px-3 bg-[#060911]/80 border-b border-[#1E293B] flex items-center justify-between select-none">
         <div className="flex items-center space-x-2">
@@ -235,22 +235,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {activeTab === 'examples' && (
         <div className="flex-1 flex flex-col overflow-hidden p-3 space-y-3">
           {/* Category Filter Pills */}
-          <div className="flex items-center space-x-1 overflow-x-auto pb-1 text-[11px]">
-            {['all', 'basics', 'math', 'dates', 'system'].map((cat) => (
+          <div className="flex flex-wrap gap-1 pb-1 text-[11px]">
+            {[
+              { id: 'all', label: 'सबै' },
+              { id: 'basics', label: 'आधारभूत' },
+              { id: 'control', label: 'लुप/सर्त' },
+              { id: 'functions', label: 'फंक्सन' },
+              { id: 'data', label: 'डाटा' },
+              { id: 'dates', label: 'मिति' },
+              { id: 'system', label: 'प्रणाली' },
+            ].map((cat) => (
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-2.5 py-1 rounded-md capitalize whitespace-nowrap transition-colors ${
-                  selectedCategory === cat
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-2 py-0.5 rounded-md transition-colors text-[10px] font-devanagari ${
+                  selectedCategory === cat.id
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#0F172A] border border-transparent'
                 }`}
               >
-                {cat === 'all' && 'सबै (All)'}
-                {cat === 'basics' && 'आधारभूत'}
-                {cat === 'math' && 'गणित'}
-                {cat === 'dates' && 'मिति/उमेर'}
-                {cat === 'system' && 'प्रणाली'}
+                {cat.label}
               </button>
             ))}
           </div>

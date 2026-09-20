@@ -325,7 +325,7 @@ export const Editor: React.FC<EditorProps> = ({
   return (
     <div className="flex-1 flex flex-col bg-[#060911] border-r border-[#1E293B] overflow-hidden relative select-none">
       {/* 1. Authentic IDE Tab Bar */}
-      <div className="h-10 bg-[#0B0F19] border-b border-[#1E293B] flex items-center justify-between px-2 select-none overflow-x-auto">
+      <div className="h-10 bg-[#0B0F19] border-b border-[#1E293B] flex items-center justify-between px-2 select-none overflow-x-auto no-scrollbar">
         <div className="flex items-center space-x-0.5 min-w-0">
           {files.map((file) => {
             const isActive = file.id === activeFileId;

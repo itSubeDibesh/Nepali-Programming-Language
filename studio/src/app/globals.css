@@ -8,10 +8,19 @@
   --font-sans: var(--font-sans), 'Inter', sans-serif;
 }
 
-/* Custom modern scrollbars */
+/* Hide scrollbar for clean IDE tabs and pill bars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom sleek scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
