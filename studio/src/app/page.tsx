@@ -257,6 +257,7 @@ export default function StudioPage() {
                 onSelectFile={setActiveFileId}
                 onAddFile={handleAddFile}
                 onDeleteFile={handleDeleteFile}
+                onRenameFile={handleRenameFile}
                 onSelectExample={handleSelectExample}
                 onInsertCode={handleInsertCode}
                 onResetWorkspace={handleResetWorkspace}

@@ -6,7 +6,7 @@ import { highlightNepaliCode } from '../lib/highlighter';
 import { getDocumentationForSymbol, DocItem } from '../lib/docs';
 import { toNepaliDigits } from '../lib/numbers';
 import {
-  FileCode, Plus, X, Copy, Check, Download, Save,
+  FileCode, Plus, X, Copy, Check, Download, Save, Pencil,
   Sparkles, HelpCircle, Info
 } from 'lucide-react';
 
@@ -260,7 +260,11 @@ export const Editor: React.FC<EditorProps> = ({
               <div
                 key={file.id}
                 onClick={() => onSelectFile(file.id)}
-                onDoubleClick={() => startRenaming(file)}
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  startRenaming(file);
+                }}
                 className={`group flex items-center space-x-2 px-3.5 py-1.5 rounded-t-lg text-xs cursor-pointer border-t-2 transition-all select-none ${
                   isActive
                     ? 'bg-[#060911] text-emerald-400 border-emerald-500 font-semibold shadow-sm'
@@ -280,7 +284,8 @@ export const Editor: React.FC<EditorProps> = ({
                       if (e.key === 'Enter') finishRenaming(file.id);
                       if (e.key === 'Escape') setEditingNameId(null);
                     }}
-                    className="bg-slate-900 text-white font-mono text-xs px-1 py-0.5 rounded border border-emerald-500 outline-none w-24"
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-slate-900 text-white font-mono text-xs px-1.5 py-0.5 rounded border border-emerald-500 outline-none w-28"
                   />
                 ) : (
                   <span className="font-mono">{file.name}</span>
@@ -290,18 +295,32 @@ export const Editor: React.FC<EditorProps> = ({
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" title="परिवर्तन सुरक्षित गरिएको छैन (Unsaved)" />
                 )}
 
-                {files.length > 1 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteFile(file.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-300 transition-opacity"
-                    title="फाइल बन्द गर्नुहोस्"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
+                <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {editingNameId !== file.id && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startRenaming(file);
+                      }}
+                      className="p-0.5 rounded hover:bg-slate-700/60 text-slate-500 hover:text-emerald-300 transition-colors"
+                      title="फाइलको नाम परिवर्तन गर्नुहोस् (Rename)"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  )}
+                  {files.length > 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteFile(file.id);
+                      }}
+                      className="p-0.5 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-300 transition-colors"
+                      title="फाइल बन्द गर्नुहोस् (Close Tab)"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
