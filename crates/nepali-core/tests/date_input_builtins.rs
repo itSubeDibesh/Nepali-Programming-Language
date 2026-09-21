@@ -136,3 +136,68 @@ fn test_roman_builtin_aliases() {
     res.expect("program should run");
     assert_eq!(output, vec!["10 26"]);
 }
+
+#[test]
+fn test_input_builtin_various_prompt_types() {
+    // Test input with number prompt, bool prompt, array prompt, empty prompt, and multi-arg prompt
+    let code = r#"
+        राखौँ a = इनपुट()।
+        राखौँ b = इनपुट(५)।
+        राखौँ c = इनपुट(100)।
+        राखौँ d = इनपुट(सहि)।
+        राखौँ e = इनपुट("मान", २, ":")।
+        भनौँ(a, b, c, d, e)।
+    "#;
+    let (output, res) = run_program_with_mocks(code, None, vec!["पहिलो", "दोस्रो", "तेस्रो", "चौथो", "पाँचौँ"]);
+    res.expect("program should run with non-string and multi-arg prompts");
+    assert_eq!(output, vec!["पहिलो दोस्रो तेस्रो चौथो पाँचौँ"]);
+}
+
+#[test]
+fn test_sankhya_conversion_builtin() {
+    let code = r#"
+        राखौँ num_ascii = संख्या("123.45")।
+        राखौँ num_dev = संख्या("१२३.४५")।
+        राखौँ num_neg = संख्या(" -५०.५ ")।
+        राखौँ num_bool1 = संख्या(सहि)।
+        राखौँ num_bool2 = संख्या(गलत)।
+        राखौँ num_null = संख्या(केहीछैन)।
+        राखौँ num_raw = संख्या(42)।
+        भनौँ(num_ascii, num_dev, num_neg, num_bool1, num_bool2, num_null, num_raw)।
+    "#;
+    let (output, res) = run_program_with_mocks(code, None, vec![]);
+    res.expect("program should run");
+    assert_eq!(output, vec!["123.45 123.45 -50.5 1 0 0 42"]);
+}
+
+#[test]
+fn test_string_and_prakar_builtins() {
+    let code = r#"
+        राखौँ s1 = स्ट्रिङ(५००)।
+        राखौँ s2 = स्ट्रिङ(सहि)।
+        राखौँ s3 = स्ट्रिङ("मान:", [1, 2])।
+        राखौँ t_num = प्रकार(10)।
+        राखौँ t_str = प्रकार("hello")।
+        राखौँ t_bool = प्रकार(गलत)।
+        राखौँ t_null = प्रकार(शून्य)।
+        राखौँ t_arr = प्रकार([1, 2])।
+        भनौँ(s1, s2, s3)।
+        भनौँ(t_num, t_str, t_bool, t_null, t_arr)।
+    "#;
+    let (output, res) = run_program_with_mocks(code, None, vec![]);
+    res.expect("program should run");
+    assert_eq!(output, vec!["500 सहि मान: [1, 2]", "संख्या स्ट्रिङ बुलियन शून्य सूची"]);
+}
+
+#[test]
+fn test_input_combined_with_sankhya_arithmetic() {
+    let code = r#"
+        राखौँ उमेर_पाठ = इनपुट("उमेर: ")।
+        राखौँ उमेर_संख्या = संख्या(उमेर_पाठ)।
+        राखौँ अर्को_वर्ष = उमेर_संख्या + १।
+        भनौँ("अर्को वर्ष उमेर:", अर्को_वर्ष)।
+    "#;
+    let (output, res) = run_program_with_mocks(code, None, vec!["२५"]);
+    res.expect("program should run");
+    assert_eq!(output, vec!["अर्को वर्ष उमेर: 26"]);
+}

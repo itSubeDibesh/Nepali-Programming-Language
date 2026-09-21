@@ -1,9 +1,42 @@
-use nepali_core::{disassemble_program, dump_ast, Interpreter, Parser, Resolver, Vm};
+use nepali_core::{disassemble_program, dump_ast, HostInput, Interpreter, Parser, Resolver, Vm};
 use wasm_bindgen::prelude::*;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+struct WasmInput {
+    inputs: RefCell<Vec<String>>,
+}
+
+impl HostInput for WasmInput {
+    fn read_line(&self, _prompt: &str) -> Result<String, String> {
+        let mut inputs = self.inputs.borrow_mut();
+        if inputs.is_empty() {
+            Ok(String::new())
+        } else {
+            Ok(inputs.remove(0))
+        }
+    }
+}
 
 /// Run a Nepali program using Tree-walker interpreter and return stdout.
 #[wasm_bindgen]
 pub fn run(code: &str) -> Result<String, JsError> {
+    run_with_inputs_internal(code, Vec::new())
+}
+
+/// Run a Nepali program with an array of predefined interactive user inputs.
+#[wasm_bindgen]
+pub fn run_with_inputs(code: &str, inputs: js_sys::Array) -> Result<String, JsError> {
+    let mut input_vec = Vec::new();
+    for i in 0..inputs.length() {
+        if let Some(s) = inputs.get(i).as_string() {
+            input_vec.push(s);
+        }
+    }
+    run_with_inputs_internal(code, input_vec)
+}
+
+fn run_with_inputs_internal(code: &str, inputs: Vec<String>) -> Result<String, JsError> {
     let mut parser = Parser::new(code);
     let program = parser
         .parse_program()
@@ -15,6 +48,9 @@ pub fn run(code: &str) -> Result<String, JsError> {
     }
 
     let mut interp = Interpreter::new();
+    interp.set_host_input(Rc::new(WasmInput {
+        inputs: RefCell::new(inputs),
+    }));
     interp.run(&program).map_err(|e| JsError::new(&e))?;
     Ok(interp.output.join("\n"))
 }
@@ -72,4 +108,3 @@ pub fn check(code: &str) -> String {
         Err(e) => format!("{e}"),
     }
 }
-

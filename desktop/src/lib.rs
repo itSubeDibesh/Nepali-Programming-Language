@@ -1,5 +1,20 @@
-use nepali_core::{disassemble_program, dump_ast, Interpreter, Mode, Parser, Resolver};
+use nepali_core::{disassemble_program, dump_ast, HostInput, Interpreter, Mode, Parser, Resolver};
+use std::cell::RefCell;
+use std::rc::Rc;
 use serde::{Deserialize, Serialize};
+
+
+struct DesktopInput(RefCell<Vec<String>>);
+impl HostInput for DesktopInput {
+    fn read_line(&self, _prompt: &str) -> Result<String, String> {
+        let mut inputs = self.0.borrow_mut();
+        if inputs.is_empty() {
+            Ok(String::new())
+        } else {
+            Ok(inputs.remove(0))
+        }
+    }
+}
 
 pub const APP_VERSION: &str = "1.1.0";
 
@@ -35,7 +50,7 @@ pub struct UpdateCheckResult {
 fn run_nepali_code(
     code: String,
     mode: String,
-    _inputs: Option<Vec<String>>,
+    inputs: Option<Vec<String>>,
 ) -> Result<ExecutionResult, String> {
     let run_mode = match mode.as_str() {
         "sandbox" => Mode::Sandbox,
@@ -65,6 +80,7 @@ fn run_nepali_code(
 
     let mut interp = Interpreter::new();
     interp.set_mode(run_mode);
+    interp.set_host_input(Rc::new(DesktopInput(RefCell::new(inputs.unwrap_or_default()))));
 
     if let Err(e) = interp.run(&program) {
         return Ok(ExecutionResult {

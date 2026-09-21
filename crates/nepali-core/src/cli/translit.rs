@@ -10,6 +10,8 @@ pub const KEYWORDS: &[(&str, &str)] = &[
 
 pub const BUILTINS: &[(&str, &str)] = &[
     ("lambai", "लम्बाइ"), ("akshar", "अक्षर"), ("sanket", "संकेत"), ("thapnuhos", "थप्नुहोस्"),
+    ("sankhya", "संख्या"), ("number", "संख्या"), ("ank", "संख्या"),
+    ("string", "स्ट्रिङ"), ("prakar", "प्रकार"), ("type", "प्रकार"),
     ("aaja", "आज"), ("miti_banaunuhos", "मिति_बनाउनुहोस्"), ("miti_padhnuhos", "मिति_पढ्नुहोस्"),
     ("din_farak", "दिन_फरक"), ("umer", "उमेर"), ("haptako_din", "हप्ताको_दिन"), ("input", "इनपुट"),
     ("os_lekhnuhos", "ओएस_लेख्नुहोस्"), ("os_padhnuhos", "ओएस_पढ्नुहोस्"), ("os_suchi", "ओएस_सूची"),
@@ -320,6 +322,8 @@ mod tests {
             ("sahi", "सहि"), ("galat", "गलत"), ("kehichaina", "केहीछैन"), ("aayat", "आयात"),
             ("ra", "र"), ("wa", "वा"), ("hoina", "होइन"), ("lambai", "लम्बाइ"),
             ("akshar", "अक्षर"), ("sanket", "संकेत"), ("thapnuhos", "थप्नुहोस्"),
+            ("sankhya", "संख्या"), ("number", "संख्या"), ("ank", "संख्या"),
+            ("string", "स्ट्रिङ"), ("prakar", "प्रकार"), ("type", "प्रकार"),
             ("aaja", "आज"), ("miti_banaunuhos", "मिति_बनाउनुहोस्"), ("miti_padhnuhos", "मिति_पढ्नुहोस्"),
             ("din_farak", "दिन_फरक"), ("umer", "उमेर"), ("haptako_din", "हप्ताको_दिन"), ("input", "इनपुट"),
             ("os_lekhnuhos", "ओएस_लेख्नुहोस्"), ("os_padhnuhos", "ओएस_पढ्नुहोस्"),

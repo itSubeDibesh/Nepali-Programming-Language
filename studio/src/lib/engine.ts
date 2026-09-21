@@ -30,9 +30,19 @@ export class NepaliEngine {
     function getSnippetPrompts(snippet: string): string[] {
       const list: string[] = [];
       let m;
-      const r = /(?:इनपुट|input)\s*\(\s*(?:"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)')\s*\)/g;
+      const r = /(?:इनपुट|inपुट|input)\s*\(\s*([^)]*)\s*\)/g;
       while ((m = r.exec(snippet)) !== null) {
-        list.push(m[1] || m[2] || 'इनपुट दिनुहोस् (Enter input):');
+        const rawArg = m[1].trim();
+        if (!rawArg) {
+          list.push('इनपुट दिनुहोस् (Enter input):');
+        } else {
+          const strMatch = rawArg.match(/^(?:"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)')$/);
+          if (strMatch) {
+            list.push(strMatch[1] || strMatch[2] || 'इनपुट दिनुहोस् (Enter input):');
+          } else {
+            list.push(`${rawArg}:`);
+          }
+        }
       }
       return list;
     }
@@ -175,19 +185,23 @@ export class NepaliEngine {
       }
     }
 
-    // 3. Mode 1: WASM Client Execution (if no input/OS calls needed)
-    if (mode === 'wasm' && prompts.length === 0 && !code.includes('डाटाबेस') && !code.includes('ओएस_')) {
+    // 3. Mode 1: WASM Client Execution (if no host OS/DB calls needed)
+    if (mode === 'wasm' && !code.includes('डाटाबेस') && !code.includes('ओएस_') && !code.includes('पाइथन_') && !code.includes('रस्ट_') && !code.includes('गो_') && !code.includes('क्यास_') && !code.includes('एआई_') && !code.includes('आदेश_')) {
       try {
         const ready = await this.initWasm();
-        if (ready && this.wasmModule && this.wasmModule.run) {
-          const raw = this.wasmModule.run(code);
-          const durationMs = Math.round(performance.now() - startTime);
-          return {
-            stdout: this.parseStdout(raw),
-            exitCode: 0,
-            durationMs,
-            mode: 'wasm'
-          };
+        if (ready && this.wasmModule) {
+          const raw = (prompts.length > 0 && typeof this.wasmModule.run_with_inputs === 'function')
+            ? this.wasmModule.run_with_inputs(code, inputs)
+            : (this.wasmModule.run ? this.wasmModule.run(code) : undefined);
+          if (raw !== undefined) {
+            const durationMs = Math.round(performance.now() - startTime);
+            return {
+              stdout: this.parseStdout(raw),
+              exitCode: 0,
+              durationMs,
+              mode: 'wasm'
+            };
+          }
         }
       } catch (err: any) {
         // Fall back to server sandbox runner

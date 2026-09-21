@@ -104,14 +104,47 @@ export const DOCS_CATALOG: DocItem[] = [
   },
   {
     name: 'इनपुट',
-    devanagari: 'इनपुट(सन्देश)',
-    romanAlias: 'input / prompt',
-    aliases: ['इनपुट', 'input', 'inapt', 'input_sodhnuhos'],
+    devanagari: 'इनपुट(सन्देश?)',
+    romanAlias: 'input(prompt?) / inपुट(prompt?)',
+    aliases: ['इनपुट', 'inपुट', 'input', 'inapt', 'input_sodhnuhos'],
     category: 'io',
-    signature: 'इनपुट(सन्देश?: स्ट्रिङ) -> स्ट्रिङ',
-    description: 'प्रयोगकर्ताबाट अन्तरक्रियात्मक इनपुट लिन्छ (Interactive User Input)।',
-    englishDescription: 'Prompts user for text input and returns the captured string.',
-    example: 'राखौँ नाम = इनपुट("तपाईंको नाम के हो?");\nभनौँ("स्वागत छ,", नाम);'
+    signature: 'इनपुट(...सन्देश?: कुनै) -> स्ट्रिङ',
+    description: 'प्रयोगकर्ताबाट अन्तरक्रियात्मक इनपुट लिन्छ (Interactive User Input)। कुनै पनि प्रकारको प्रम्प्ट (संख्या, बुलियन, स्ट्रिङ, आदि) स्वीकार गर्दछ।',
+    englishDescription: 'Prompts user for text input and returns the captured string. Accepts prompts of any type.',
+    example: 'राखौँ उमेर = संख्या(इनपुट("उमेर दिनुहोस्: "));\nभनौँ("अर्को वर्ष:", उमेर + १);'
+  },
+  {
+    name: 'संख्या',
+    devanagari: 'संख्या(मान)',
+    romanAlias: 'sankhya(val) / number(val)',
+    aliases: ['संख्या', 'सङ्ख्या', 'sankhya', 'number', 'ank'],
+    category: 'builtin',
+    signature: 'संख्या(मान: स्ट्रिङ | बुलियन | सङ्ख्या) -> सङ्ख्या',
+    description: 'स्ट्रिङ वा बुलियन मानलाई सङ्ख्यामा रूपान्तरण गर्दछ (Devanagari र ASCII दुवै अङ्क समर्थित)।',
+    englishDescription: 'Converts a string (supporting both Devanagari and ASCII numerals), boolean, or number to a number.',
+    example: 'राखौँ मान = संख्या(इनपुट("उमेर: "));\nभनौँ("१० वर्षपछि:", मान + १०);'
+  },
+  {
+    name: 'स्ट्रिङ',
+    devanagari: 'स्ट्रिङ(मान)',
+    romanAlias: 'string(val) / str(val)',
+    aliases: ['स्ट्रिङ', 'string', 'str', 'path', 'पाठ'],
+    category: 'builtin',
+    signature: 'स्ट्रिङ(...मानहरू: कुनै) -> स्ट्रिङ',
+    description: 'कुनै पनि मान वा चरलाई स्ट्रिङ (अक्षर रूप) मा रूपान्तरण गर्दछ।',
+    englishDescription: 'Converts any value or values to their string representation.',
+    example: 'राखौँ पाठ = स्ट्रिङ(२५);\nभनौँ("लम्बाइ:", लम्बाइ(पाठ));'
+  },
+  {
+    name: 'प्रकार',
+    devanagari: 'प्रकार(मान)',
+    romanAlias: 'prakar(val) / type(val)',
+    aliases: ['प्रकार', 'prakar', 'type'],
+    category: 'builtin',
+    signature: 'प्रकार(मान: कुनै) -> स्ट्रिङ',
+    description: 'कुनै पनि चर वा मानको प्रकार (डाटा टाइप) पत्ता लगाउँछ ("संख्या", "स्ट्रिङ", "बुलियन", "सूची", "शून्य", "काम")।',
+    englishDescription: 'Returns the type name of any value ("संख्या", "स्ट्रिङ", "बुलियन", "सूची", "शून्य", "काम").',
+    example: 'भनौँ(प्रकार(४२)); // "संख्या"\nभनौँ(प्रकार("नेपाल")); // "स्ट्रिङ"'
   },
 
   // 3. Date & Time Builtins

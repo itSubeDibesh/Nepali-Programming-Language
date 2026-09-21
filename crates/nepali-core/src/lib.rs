@@ -21,7 +21,7 @@ pub use formatter::format;
 pub use interpreter::{
     call_builtin, date_to_value, day_of_week_name, days_in_month, days_to_ymd, default_read_line,
     default_today, devanagari_to_ascii_digits, is_builtin, is_leap_year, is_valid_date,
-    parse_date_str, ymd_to_days, BUILTINS, HostAi, HostCache, HostChannel, HostClock,
+    parse_date_str, parse_number_value, ymd_to_days, BUILTINS, HostAi, HostCache, HostChannel, HostClock,
     HostCommand, HostDb, HostFs, HostInput, HostJs, HostProcess, HostPython, HostRust,
     Interpreter, Mode, Value,
 };
@@ -340,6 +340,14 @@ mod tests {
     }
 
     #[test]
+        #[test]
+    fn test_vm_sankhya_and_type_builtins() {
+        let out = run_vm(
+            "राखौँ num = संख्या(\"१२३.४५\")। राखौँ str = स्ट्रिङ(num + 10)। राखौँ t = प्रकार(num)। भनौँ(str, t)।",
+        );
+        assert_eq!(out, alloc::vec!["133.45 संख्या".to_string()]);
+    }
+
     fn test_builtin_string_functions_interpreter() {
         let out = run(
             "राखौँ s = \"काठमाडौं\"। भनौँ(लम्बाइ(s))। भनौँ(अक्षर(s, 0))। भनौँ(संकेत(अक्षर(s, 0)))।",

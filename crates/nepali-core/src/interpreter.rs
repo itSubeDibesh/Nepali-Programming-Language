@@ -823,18 +823,19 @@ impl Interpreter {
         }
     }
 
-    fn call_input_builtin(&mut self, name: &str, args: &[Value]) -> EvalResult<Value> {
-        let prompt = match args.first() {
-            Some(Value::Str(s)) => s.as_str(),
-            Some(other) => {
-                return Err(format!("'{}' expects a string prompt, got {}", name, other.display()))
-            }
-            None => "",
+    fn call_input_builtin(&mut self, _name: &str, args: &[Value]) -> EvalResult<Value> {
+        let prompt = if args.is_empty() {
+            String::new()
+        } else {
+            args.iter()
+                .map(|v| v.display())
+                .collect::<Vec<_>>()
+                .join(" ")
         };
         let line = if let Some(input) = &self.host_input {
-            input.read_line(prompt)?
+            input.read_line(&prompt)?
         } else {
-            default_read_line(prompt)?
+            default_read_line(&prompt)?
         };
         Ok(Value::Str(line))
     }
@@ -1828,6 +1829,10 @@ pub const BUILTINS: &[&str] = &[
     "अक्षर",
     "संकेत",
     "थप्नुहोस्",
+    "संख्या",
+    "सङ्ख्या",
+    "स्ट्रिङ",
+    "प्रकार",
     "आज",
     "मिति_बनाउनुहोस्",
     "मिति_पढ्नुहोस्",
@@ -2074,15 +2079,49 @@ pub fn call_builtin(name: &str, args: &[Value]) -> EvalResult<Value> {
             Ok(Value::Str(day_of_week_name(date.0, date.1, date.2).to_string()))
         }
         "इनपुट" => {
-            let prompt = match args.first() {
-                Some(Value::Str(s)) => s.as_str(),
-                Some(other) => {
-                    return Err(format!("'{}' expects a string prompt, got {}", name, other.display()))
-                }
-                None => "",
+            let prompt = if args.is_empty() {
+                String::new()
+            } else {
+                args.iter()
+                    .map(|v| v.display())
+                    .collect::<Vec<_>>()
+                    .join(" ")
             };
-            let line = default_read_line(prompt)?;
+            let line = default_read_line(&prompt)?;
             Ok(Value::Str(line))
+        }
+        "संख्या" | "सङ्ख्या" => {
+            let val = args.first().ok_or_else(|| {
+                format!("'{}' expects 1 argument, got 0", name)
+            })?;
+            let num = parse_number_value(val, name)?;
+            Ok(Value::Number(num))
+        }
+        "स्ट्रिङ" => {
+            if args.is_empty() {
+                Ok(Value::Str(String::new()))
+            } else {
+                let s = args
+                    .iter()
+                    .map(|v| v.display())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                Ok(Value::Str(s))
+            }
+        }
+        "प्रकार" => {
+            let val = args.first().ok_or_else(|| {
+                format!("'{}' expects 1 argument, got 0", name)
+            })?;
+            let type_str = match val {
+                Value::Number(_) => "संख्या",
+                Value::Str(_) => "स्ट्रिङ",
+                Value::Bool(_) => "बुलियन",
+                Value::Null => "शून्य",
+                Value::Array(_) => "सूची",
+                Value::Function(_) => "काम",
+            };
+            Ok(Value::Str(type_str.to_string()))
         }
         other => Err(format!("unknown builtin '{}'", other)),
     }
@@ -2130,6 +2169,30 @@ pub fn days_to_ymd(days: i64) -> (i32, u32, u32) {
         y += 1;
     }
     (y, m, d)
+}
+
+pub fn parse_number_value(v: &Value, name: &str) -> EvalResult<f64> {
+    match v {
+        Value::Number(n) => Ok(*n),
+        Value::Bool(b) => Ok(if *b { 1.0 } else { 0.0 }),
+        Value::Null => Ok(0.0),
+        Value::Str(s) => {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                return Err(format!("'{}' cannot parse empty string as number", name));
+            }
+            let ascii = devanagari_to_ascii_digits(trimmed);
+            let clean = ascii.replace(",", "");
+            clean.parse::<f64>().map_err(|_| {
+                format!("'{}' could not parse \"{}\" as number", name, s)
+            })
+        }
+        other => Err(format!(
+            "'{}' expects a number, string, or boolean, got {}",
+            name,
+            other.display()
+        )),
+    }
 }
 
 pub fn devanagari_to_ascii_digits(s: &str) -> String {
